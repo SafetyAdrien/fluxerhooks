@@ -10,6 +10,8 @@ on:
 jobs:
   apk:
     runs-on: ubuntu-24.04
+    permissions:
+      contents: write
     timeout-minutes: 60
     env:
       HAS_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
@@ -59,7 +61,9 @@ jobs:
 
       - name: Compiler l'APK (release)
         working-directory: android
-        run: ./gradlew assembleRelease --no-daemon -PreactNativeArchitectures=armeabi-v7a,arm64-v8a,x86,x86_64
+        run: |
+          set -o pipefail
+          ./gradlew assembleRelease --no-daemon --stacktrace -PreactNativeArchitectures=armeabi-v7a,arm64-v8a,x86,x86_64 2>&1 | tee ../gradle.log
 
       - name: Renommer
         run: |
@@ -76,3 +80,23 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: dist/*.apk
+
+      # Dernier APK de main, toujours disponible au même endroit.
+      - name: Publier la pré-release « latest »
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete latest --yes --cleanup-tag 2>/dev/null || true
+          gh release create latest dist/*.apk --prerelease --title "FluxerHooks (dernier build)" --notes "APK généré automatiquement depuis ${GITHUB_SHA::7}." --target "$GITHUB_SHA"
+
+      # En cas d'échec, le journal est publié sur la branche ci-logs pour diagnostic.
+      - name: Publier le journal d'échec
+        if: failure()
+        run: |
+          mkdir -p /tmp/logs && cp gradle.log /tmp/logs/ 2>/dev/null || echo "pas de gradle.log" > /tmp/logs/gradle.log
+          tail -n 300 /tmp/logs/gradle.log > /tmp/logs/tail.log
+          cd /tmp/logs && git init -q && git checkout -q -b ci-logs
+          git config user.name "github-actions" && git config user.email "actions@github.com"
+          git add . && git commit -q -m "Journal du run ${GITHUB_RUN_ID}"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${GITHUB_REPOSITORY}.git" ci-logs
