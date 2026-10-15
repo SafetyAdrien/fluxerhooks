@@ -1,0 +1,74 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [main, master]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      HAS_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Installer les dépendances
+        run: npm ci
+
+      - name: Vérifier le TypeScript
+        run: npx tsc --noEmit
+
+      - name: Générer le projet Android natif
+        run: npx expo prebuild --platform android --no-install
+
+      # Signature : si les secrets ANDROID_KEYSTORE_* sont définis, l'APK est signé avec ta clé ;
+      # sinon il est signé avec la clé de debug (installable, mais pas publiable sur le Play Store).
+      - name: Configurer la signature
+        if: env.HAS_KEYSTORE == 'true'
+        env:
+          KS: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          echo "$KS" | base64 -d > android/app/release.keystore
+          cat >> android/gradle.properties <<PROPS
+          FLUXERHOOKS_STORE_FILE=release.keystore
+          FLUXERHOOKS_STORE_PASSWORD=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          FLUXERHOOKS_KEY_ALIAS=${{ secrets.ANDROID_KEY_ALIAS }}
+          FLUXERHOOKS_KEY_PASSWORD=${{ secrets.ANDROID_KEY_PASSWORD }}
+          PROPS
+          node scripts/use-release-signing.js
+
+      - name: Compiler l'APK (release)
+        working-directory: android
+        run: ./gradlew assembleRelease --no-daemon -PreactNativeArchitectures=armeabi-v7a,arm64-v8a,x86,x86_64
+
+      - name: Renommer
+        run: |
+          mkdir -p dist
+          cp android/app/build/outputs/apk/release/app-release.apk "dist/FluxerHooks-${GITHUB_SHA::7}.apk"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: FluxerHooks-apk
+          path: dist/*.apk
+
+      - name: Publier une release (tags v*)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.apk
