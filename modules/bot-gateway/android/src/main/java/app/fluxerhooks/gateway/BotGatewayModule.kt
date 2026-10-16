@@ -40,21 +40,23 @@ class BotGatewayModule : Module() {
         .putExtra("text", opts["text"] as? String ?: "")
         .putExtra("appName", opts["appName"] as? String ?: "FluxerHooks")
       if (Build.VERSION.SDK_INT >= 26) ctx.startForegroundService(i) else ctx.startService(i)
+      null
     }
 
     AsyncFunction("stop") {
-      val ctx = appContext.reactContext ?: return@AsyncFunction
+      val ctx = appContext.reactContext ?: return@AsyncFunction null
       try {
         ctx.startService(Intent(ctx, BotGatewayService::class.java).setAction(BotGatewayService.ACTION_STOP))
       } catch (_: Throwable) {
         ctx.stopService(Intent(ctx, BotGatewayService::class.java))
       }
       BotGatewayService.emit(mapOf("state" to "offline"))
+      null
     }
 
     AsyncFunction("setPresence") { opts: Map<String, Any?> ->
-      val ctx = appContext.reactContext ?: return@AsyncFunction
-      if (BotGatewayService.lastState["state"] == "offline") return@AsyncFunction
+      val ctx = appContext.reactContext ?: return@AsyncFunction null
+      if (BotGatewayService.lastState["state"] == "offline") return@AsyncFunction null
       try {
         ctx.startService(
           Intent(ctx, BotGatewayService::class.java)
@@ -63,6 +65,7 @@ class BotGatewayModule : Module() {
             .putExtra("text", opts["text"] as? String ?: ""),
         )
       } catch (_: Throwable) {}
+      null
     }
   }
 }
