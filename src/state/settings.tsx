@@ -5,7 +5,7 @@ import * as SecureStore from 'expo-secure-store';
 import * as Haptics from 'expo-haptics';
 import type { AppSettings, MessageStyle, WallpaperSettings } from '../types';
 import { PALETTES, type Palette } from '../theme/themes';
-import { compileSheets } from '../theme/css';
+import { compileSheets, paletteOverrides, varsToRules } from '../theme/css';
 import { readableOn, shade, withAlpha } from '../utils/parse';
 
 const KEY = 'fluxerhooks:settings:v1';
@@ -44,6 +44,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   wallpaper: DEFAULT_WALLPAPER,
   messageStyle: DEFAULT_MESSAGE_STYLE,
   customCss: {},
+  themeVars: {},
   customCssEnabled: true,
   recentColors: [],
 };
@@ -70,7 +71,16 @@ export interface Theme extends Palette {
   css: StyleRules;
 }
 
-function buildTheme(p: Palette, s: AppSettings): Theme {
+/** Le CSS avancé l'emporte sur les variables. */
+function mergeRules(a: StyleRules, b: StyleRules): StyleRules {
+  const out: StyleRules = { ...a };
+  Object.entries(b).forEach(([k, v]) => (out[k] = { ...(out[k] ?? {}), ...v }));
+  return out;
+}
+
+function buildTheme(base: Palette, s: AppSettings): Theme {
+  // Couleurs essentielles personnalisées : elles remplacent celles de la palette du thème.
+  const p: Palette = s.customCssEnabled ? { ...base, ...paletteOverrides(s.themeVars) } : base;
   const compact = s.density === 'compact';
   const zoom = Math.min(1.4, Math.max(0.8, s.zoom || 1));
   const wp = s.wallpaper ?? DEFAULT_WALLPAPER;
@@ -98,7 +108,7 @@ function buildTheme(p: Palette, s: AppSettings): Theme {
     z: (size: number) => Math.round(size * zoom),
     hasWallpaper,
     msg: { ...DEFAULT_MESSAGE_STYLE, ...(s.messageStyle ?? {}) },
-    css: s.customCssEnabled ? compileSheets(s.customCss ?? {}).rules : {},
+    css: s.customCssEnabled ? mergeRules(varsToRules(s.themeVars), compileSheets(s.customCss ?? {}).rules) : {},
   };
 }
 
@@ -216,8 +226,9 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
 
   const base = useMemo(() => {
     const name = settings.theme === 'system' ? (scheme === 'light' ? 'light' : 'dark') : settings.theme;
-    return PALETTES[name];
-  }, [settings.theme, scheme]);
+    // Palette opaque (fenêtres, barre système) avec les couleurs essentielles personnalisées.
+    return settings.customCssEnabled ? { ...PALETTES[name], ...paletteOverrides(settings.themeVars) } : PALETTES[name];
+  }, [settings.theme, scheme, settings.customCssEnabled, settings.themeVars]);
   const theme = useMemo(() => buildTheme(base, settings), [base, settings]);
 
   const value = useMemo(

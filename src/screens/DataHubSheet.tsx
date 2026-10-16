@@ -9,7 +9,7 @@ import { useLibrary } from '../state/library';
 import { VARIABLES, describeSchedule, WEEKDAYS } from '../state/automation';
 import { exportFullBackup, importFullBackup } from '../utils/fullBackup';
 import { cloneMessage, uid } from '../utils/factory';
-import { parseWebhookUrl } from '../utils/parse';
+import { isSendableUrl } from '../utils/parse';
 import { Box, Button, Chip, EmptyState, IconBtn, Input, ListRow, Segmented, Sheet, Stack, ToggleRow, useToast, type IconName } from '../components/ui';
 import { Dropdown } from '../components/Dropdown';
 import type { Automation, ScheduleKind } from '../types';
@@ -148,7 +148,7 @@ function AutomationEditor({ initial, onDone }: { initial?: Automation; onDone: (
   const [when, setWhen] = useState(toLocalInput(initial ? new Date(initial.schedule.at) : new Date(Date.now() + 3600_000)));
   const [every, setEvery] = useState(String(initial?.schedule.everyMinutes ?? 60));
   const [days, setDays] = useState<number[]>(initial?.schedule.weekdays ?? [new Date().getDay()]);
-  const currentTargets = state.targets.filter((x) => x.enabled && parseWebhookUrl(x.url)).map((x) => x.url);
+  const currentTargets = state.targets.filter((x) => x.enabled && isSendableUrl(x.url)).map((x) => x.url);
   const date = fromLocalInput(when);
 
   const options = useMemo(
@@ -174,7 +174,7 @@ function AutomationEditor({ initial, onDone }: { initial?: Automation; onDone: (
       lastResult: initial?.lastResult,
       runs: initial?.runs ?? 0,
     };
-    if (k === 'template' && !a.targets.length) return toast('Un modèle n’a pas de webhook : garde « webhooks actuels » activé.', 'error');
+    if (k === 'template' && !a.targets.length) return toast('Un modèle n’a pas de destination : garde « destinations actuelles » activé.', 'error');
     upsertAutomation(a);
     toast('Automatisation enregistrée.', 'success');
     onDone();
@@ -186,7 +186,7 @@ function AutomationEditor({ initial, onDone }: { initial?: Automation; onDone: (
       <Dropdown label="Messages à envoyer" title="Source" placeholder="Choisir une sauvegarde ou un modèle" value={source || null} options={options} onChange={setSource} emptyText="Crée d’abord une sauvegarde ou un modèle." />
       <ToggleRow
         icon="link-outline"
-        label="Utiliser les webhooks actuels"
+        label="Utiliser les destinations actuelles (webhooks et salons du bot)"
         description={useCurrent ? `${currentTargets.length} webhook(s) du brouillon` : 'Webhooks enregistrés dans la sauvegarde'}
         value={useCurrent}
         onChange={setUseCurrent}

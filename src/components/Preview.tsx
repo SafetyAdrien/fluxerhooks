@@ -172,8 +172,8 @@ export function MessagePreview({
   const { theme: t, settings } = useSettings();
   const ms = t.msg;
   const ep = useEndpoints();
-  const name = m.username.trim() || info?.name || 'Webhook';
-  const avatar = m.avatar_url.trim() || (info ? avatarUrl(ep, info.id, info.avatar) : null);
+  const name = (info?.bot ? info.name : m.username.trim() || info?.name) || 'Webhook';
+  const avatar = (info?.bot ? null : m.avatar_url.trim()) || (info ? avatarUrl(ep, info.id, info.avatar) : null);
   const compact = settings.previewDisplay === 'compact';
   const embeds = m.suppressEmbeds ? [] : m.embeds.filter((e) => !isEmbedEmpty(e));
   // Les fichiers cités par un embed (attachment://) s'affichent dans l'embed, pas sous le message.

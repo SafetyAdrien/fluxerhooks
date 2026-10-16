@@ -1,11 +1,11 @@
 import { useCallback, useState } from 'react';
 import { Alert } from 'react-native';
-import { apiFor, deleteWebhookMessage, fetchWebhookMessage, getWebhook, sendMessage, FluxerError } from '../api/fluxer';
+import { apiFor, deleteTargetMessage, fetchTargetMessage, getWebhook, sendToTarget, FluxerError } from '../api/fluxer';
 import { useEditor } from './editor';
 import { useSettings } from './settings';
 import { getEndpoints } from './useEndpoints';
 import { useToast } from '../components/ui';
-import { parseWebhookUrl } from '../utils/parse';
+import { parseBotTarget, parseWebhookUrl } from '../utils/parse';
 import { messageFromApi } from '../utils/payload';
 import type { DraftMessage, WebhookTarget } from '../types';
 
@@ -18,13 +18,42 @@ export function useSender() {
   const [busy, setBusy] = useState<string | null>(null); // id du message en cours ou 'all'
 
   const activeTargets = useCallback(
-    () => state.targets.filter((t) => t.enabled && parseWebhookUrl(t.url)),
-    [state.targets],
+    () => state.targets.filter((t) => t.enabled && (parseWebhookUrl(t.url) || (botToken && parseBotTarget(t.url)))),
+    [state.targets, botToken],
   );
 
   /** Valide une cible et récupère nom/avatar/salon (et les tags de forum si un bot est configuré). */
   const validateTarget = useCallback(
     async (target: WebhookTarget) => {
+      const bot = parseBotTarget(target.url);
+      if (bot) {
+        // Salon du bot : on rafraîchit nom, type et tags du salon avec le token du bot.
+        if (!botToken) return updateTarget(target.id, { error: 'Token du bot manquant.' });
+        try {
+          const ep = await getEndpoints(settings.instance);
+          const api = apiFor(ep, { kind: 'bot', token: botToken });
+          const [me, ch] = await Promise.all([api.me(), api.channel(bot.channelId)]);
+          updateTarget(target.id, {
+            error: undefined,
+            info: {
+              ...(target.info ?? { token: '', guild_id: '' }),
+              id: me.id,
+              token: '',
+              bot: true,
+              name: me.username,
+              avatar: me.avatar ?? null,
+              channel_id: ch.id,
+              guild_id: ch.guild_id ?? target.info?.guild_id ?? '',
+              channelName: ch.name,
+              channelType: ch.type,
+              availableTags: ch.available_tags,
+            },
+          });
+        } catch (e) {
+          updateTarget(target.id, { error: errText(e) });
+        }
+        return;
+      }
       if (!parseWebhookUrl(target.url)) {
         updateTarget(target.id, { info: undefined, error: target.url.trim() ? 'URL de webhook invalide' : undefined });
         return;
@@ -55,7 +84,7 @@ export function useSender() {
     async (messages: DraftMessage[]) => {
       const targets = activeTargets();
       if (!targets.length) {
-        toast('Ajoute au moins une URL de webhook valide.', 'error');
+        toast('Ajoute un webhook ou un salon pour le bot.', 'error');
         haptic('error');
         return;
       }
@@ -65,7 +94,7 @@ export function useSender() {
       for (const m of messages) {
         for (const tg of targets) {
           try {
-            const res = await sendMessage(ep, tg.url, m);
+            const res = await sendToTarget(ep, tg.url, m, botToken, tg.info?.channelType);
             ok++;
             updateMessage(m.id, {
               lastSent: { messageId: res.id, channelId: res.channel_id, at: new Date().toISOString() },
@@ -73,7 +102,7 @@ export function useSender() {
             });
           } catch (e) {
             failed++;
-            const where = tg.info?.name ? ` (${tg.info.name})` : '';
+            const where = tg.info?.bot ? ` (bot · #${tg.info.channelName ?? tg.info.channel_id})` : tg.info?.name ? ` (${tg.info.name})` : '';
             toast(`Échec${where} : ${errText(e)}`, 'error');
             if (e instanceof FluxerError && e.status === 0) break;
           }
@@ -84,7 +113,7 @@ export function useSender() {
         toast(ok === 1 ? 'Message envoyé ✔' : `${ok} messages envoyés ✔`, 'success');
       } else if (failed) haptic('error');
     },
-    [activeTargets, settings.instance, settings.autoCollapseSent, updateMessage, toast, haptic],
+    [activeTargets, settings.instance, settings.autoCollapseSent, botToken, updateMessage, toast, haptic],
   );
 
   const confirmThen = (label: string, fn: () => void) => {
@@ -127,11 +156,11 @@ export function useSender() {
   const loadReference = useCallback(
     async (m: DraftMessage) => {
       const tg = activeTargets()[0];
-      if (!tg) return toast('Ajoute d’abord l’URL du webhook qui a envoyé ce message.', 'error');
+      if (!tg) return toast('Ajoute d’abord le webhook (ou le salon du bot) qui a envoyé ce message.', 'error');
       setBusy(m.id);
       try {
         const ep = await getEndpoints(settings.instance);
-        const raw = await fetchWebhookMessage(ep, tg.url, m.reference, m.threadMode === 'thread' ? m.thread_id : undefined);
+        const raw = await fetchTargetMessage(ep, tg.url, m, botToken);
         const loaded = messageFromApi(raw);
         updateMessage(m.id, {
           content: loaded.content,
@@ -146,13 +175,13 @@ export function useSender() {
         setBusy(null);
       }
     },
-    [activeTargets, settings.instance, updateMessage, toast],
+    [activeTargets, settings.instance, botToken, updateMessage, toast],
   );
 
   const deleteRemote = useCallback(
     (m: DraftMessage, ref: string) => {
       const tg = activeTargets()[0];
-      if (!tg) return toast('Aucun webhook valide.', 'error');
+      if (!tg) return toast('Aucune destination valide.', 'error');
       Alert.alert('Supprimer le message sur Fluxer ?', 'Cette action est définitive.', [
         { text: 'Annuler', style: 'cancel' },
         {
@@ -162,7 +191,7 @@ export function useSender() {
             setBusy(m.id);
             try {
               const ep = await getEndpoints(settings.instance);
-              await deleteWebhookMessage(ep, tg.url, ref, m.threadMode === 'thread' ? m.thread_id : undefined);
+              await deleteTargetMessage(ep, tg.url, m, ref, botToken);
               updateMessage(m.id, { lastSent: undefined, reference: m.reference === ref ? '' : m.reference });
               toast('Message supprimé.', 'success');
             } catch (e) {
@@ -174,7 +203,7 @@ export function useSender() {
         },
       ]);
     },
-    [activeTargets, settings.instance, updateMessage, toast],
+    [activeTargets, settings.instance, botToken, updateMessage, toast],
   );
 
   return { busy, sendAll, sendOne, loadReference, deleteRemote, validateTarget, activeTargets };

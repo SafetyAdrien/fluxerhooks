@@ -10,7 +10,7 @@ import type {
   WebhookInfo,
 } from '../types';
 import { effectiveAttachments, messageToPayload } from '../utils/payload';
-import { parseMessageRef, parseWebhookUrl } from '../utils/parse';
+import { parseBotTarget, parseMessageRef, parseWebhookUrl } from '../utils/parse';
 
 /**
  * Client HTTP minimal pour l'API Fluxer.
@@ -258,6 +258,107 @@ export async function deleteWebhookMessage(ep: Endpoints, url: string, ref: stri
     method: 'DELETE',
     query: { thread_id: threadId },
   });
+}
+
+/* ---------- Envoi direct par le bot (sans webhook) ---------- */
+
+/** Corps d'un message de bot : pas de nom/avatar personnalisés ni de champs propres aux webhooks. */
+function botPayload(m: DraftMessage, forEdit: boolean): Record<string, unknown> {
+  const p = messageToPayload(m, forEdit);
+  delete p.username;
+  delete p.avatar_url;
+  delete p.thread_name;
+  delete p.applied_tags;
+  return p;
+}
+
+function botBody(m: DraftMessage, forEdit: boolean, wrap?: (p: Record<string, unknown>) => Record<string, unknown>) {
+  const payload = botPayload(m, forEdit);
+  const json = wrap ? wrap(payload) : payload;
+  const files = effectiveAttachments(m);
+  if (forEdit || !files.length) return { json };
+  const form = new FormData();
+  form.append('payload_json', JSON.stringify(json));
+  files.forEach((a, i) => {
+    const name = a.spoiler && !a.name.startsWith('SPOILER_') ? `SPOILER_${a.name}` : a.name;
+    form.append(`files[${i}]`, { uri: a.uri, name, type: a.mimeType || 'application/octet-stream' } as any);
+  });
+  return { form };
+}
+
+/** Salon réellement visé par un message de bot (thread choisi, ou salon du lien de référence). */
+function botChannelFor(channelId: string, m: DraftMessage, refChannel?: string) {
+  if (refChannel) return refChannel;
+  if (m.threadMode === 'thread' && m.thread_id.trim()) return m.thread_id.trim();
+  return channelId;
+}
+
+/**
+ * Le bot envoie lui-même le message : salon texte, thread, ou nouveau post de forum
+ * (POST /channels/{forum}/threads avec le premier message). Édite si `reference` est renseigné.
+ */
+export async function sendBotMessage(
+  ep: Endpoints,
+  token: string,
+  channelId: string,
+  m: DraftMessage,
+  channelType?: number,
+): Promise<SentMessage & { edited: boolean }> {
+  const ref = parseMessageRef(m.reference);
+  if (m.reference.trim() && !ref) throw new FluxerError('Lien ou ID du message à éditer invalide.', 0);
+  if (ref) {
+    const ch = botChannelFor(channelId, m, ref.channelId);
+    const msg = await request<SentMessage>(ep, `/channels/${ch}/messages/${ref.messageId}`, { method: 'PATCH', bot: token, ...botBody(m, true) });
+    return { ...msg, edited: true };
+  }
+  const forum = m.threadMode === 'forum_post' || (channelType !== undefined && isForumType(channelType) && m.threadMode !== 'thread');
+  if (forum) {
+    if (!m.thread_name.trim()) throw new FluxerError('Donne un titre au nouveau post de forum.', 0);
+    const { message_reference: _r, ...first } = botPayload(m, false);
+    const res = await request<{ id: string; message?: SentMessage }>(ep, `/channels/${channelId}/threads`, {
+      method: 'POST',
+      bot: token,
+      ...botBody(m, false, () => ({
+        name: m.thread_name.trim(),
+        ...(m.applied_tags.length ? { applied_tags: m.applied_tags } : {}),
+        message: first,
+      })),
+    });
+    return { id: res.message?.id ?? res.id, channel_id: res.id, edited: false };
+  }
+  const ch = botChannelFor(channelId, m);
+  const msg = await request<SentMessage>(ep, `/channels/${ch}/messages`, { method: 'POST', bot: token, ...botBody(m, false) });
+  return { ...msg, edited: false };
+}
+
+/** Envoie vers une destination quelconque : URL de webhook ou `bot:<salon>`. */
+export async function sendToTarget(
+  ep: Endpoints,
+  url: string,
+  m: DraftMessage,
+  botToken?: string,
+  channelType?: number,
+): Promise<SentMessage & { edited: boolean }> {
+  const bot = parseBotTarget(url);
+  if (!bot) return sendMessage(ep, url, m);
+  if (!botToken) throw new FluxerError('Aucun token de bot enregistré : ajoute-le dans la carte « Bot Fluxer ».', 0);
+  return sendBotMessage(ep, botToken, bot.channelId, m, channelType);
+}
+
+export async function fetchTargetMessage(ep: Endpoints, url: string, m: DraftMessage, botToken?: string): Promise<any> {
+  const bot = parseBotTarget(url);
+  if (!bot) return fetchWebhookMessage(ep, url, m.reference, m.threadMode === 'thread' ? m.thread_id : undefined);
+  const r = parseMessageRef(m.reference);
+  if (!r) throw new FluxerError('Lien ou ID du message invalide.', 0);
+  return request<any>(ep, `/channels/${botChannelFor(bot.channelId, m, r.channelId)}/messages/${r.messageId}`, { bot: botToken });
+}
+
+export async function deleteTargetMessage(ep: Endpoints, url: string, m: DraftMessage, ref: string, botToken?: string): Promise<void> {
+  const bot = parseBotTarget(url);
+  if (!bot) return deleteWebhookMessage(ep, url, ref, m.threadMode === 'thread' ? m.thread_id : undefined);
+  const r = parseMessageRef(ref);
+  if (!r) throw new FluxerError('Lien ou ID du message invalide.', 0);
+  await request<void>(ep, `/channels/${botChannelFor(bot.channelId, m, r.channelId)}/messages/${r.messageId}`, { method: 'DELETE', bot: botToken });
 }
 
 export async function updateWebhookWithToken(

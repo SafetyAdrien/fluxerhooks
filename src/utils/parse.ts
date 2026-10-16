@@ -6,6 +6,19 @@ export function parseWebhookUrl(url: string): { id: string; token: string } | nu
 }
 
 /**
+ * Destination « bot » : le bot écrit lui-même dans le salon, sans webhook.
+ * Encodée en chaîne `bot:<salon>` pour rester compatible avec les sauvegardes, exports et automatisations.
+ */
+export const BOT_PREFIX = 'bot:';
+export const botTargetUrl = (channelId: string) => `${BOT_PREFIX}${channelId}`;
+export function parseBotTarget(url: string): { channelId: string } | null {
+  const m = url.trim().match(/^bot:(\d{5,25})$/);
+  return m ? { channelId: m[1] } : null;
+}
+/** Webhook valide ou salon du bot. */
+export const isSendableUrl = (url: string) => !!(parseWebhookUrl(url) || parseBotTarget(url));
+
+/**
  * Accepte un ID de message brut ou un lien Fluxer
  * (…/channels/{guild}/{channel}/{message}) et renvoie l'ID du message.
  */

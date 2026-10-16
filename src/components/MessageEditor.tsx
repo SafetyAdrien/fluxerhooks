@@ -31,12 +31,18 @@ export function MessageEditor({
   const { theme: t } = useSettings();
   const ep = useEndpoints();
   const toast = useToast();
-  const { updateMessage, removeMessage, duplicateMessage, moveMessage, addEmbed, updateMessage: up } = useEditor();
+  const { state, updateMessage, removeMessage, duplicateMessage, moveMessage, addEmbed, updateMessage: up } = useEditor();
+  const hasBot = state.targets.some((x) => x.enabled && x.url.startsWith('bot:'));
+  const hasHook = state.targets.some((x) => x.enabled && !x.url.startsWith('bot:') && x.url.trim());
   const { busy, sendOne, loadReference, deleteRemote } = useSender();
   const set = (u: Partial<DraftMessage>) => updateMessage(m.id, u);
   const isBusy = busy === m.id;
-  const forum = info?.channelType !== undefined && isForumType(info.channelType);
-  const tags = info?.availableTags ?? [];
+  // Une destination forum (webhook ou salon du bot) suffit pour proposer titre et tags.
+  const forumInfo = [info, ...state.targets.filter((x) => x.enabled).map((x) => x.info)].find((x) => x?.channelType !== undefined && isForumType(x.channelType));
+  const forum = !!forumInfo;
+  const botForum = !!forumInfo?.bot || state.targets.some((x) => x.enabled && x.info?.bot && isForumType(x.info.channelType ?? 0));
+  const tags = forumInfo?.availableTags ?? [];
+  const showPost = m.threadMode === 'forum_post' || (botForum && m.threadMode === 'channel');
   const isEdit = !!m.reference.trim();
   const [importing, setImporting] = React.useState(false);
   // Les images d'embed importées restent dans leur embed : on ne liste ici que les fichiers du message.
@@ -103,7 +109,12 @@ export function MessageEditor({
         onImportImages={() => setImporting(true)}
       />
 
-      <Box nested title="Profil du webhook" icon="person-outline" subtitle={m.username.trim() || info?.name || 'Nom et avatar par défaut'} defaultCollapsed={!m.username && !m.avatar_url}>
+      <Box nested title={hasBot && !hasHook ? 'Profil (webhooks)' : 'Profil du webhook'} icon="person-outline" subtitle={m.username.trim() || info?.name || 'Nom et avatar par défaut'} defaultCollapsed={!m.username && !m.avatar_url}>
+        {hasBot && (
+          <Text style={{ color: t.textMuted, fontSize: t.font(12) }}>
+            Les salons du bot utilisent toujours le nom et l’avatar du bot ; ces réglages s’appliquent aux webhooks.
+          </Text>
+        )}
         <Input label="Nom affiché" value={m.username} max={LIMITS.username} onChangeText={(v) => set({ username: v })} placeholder={info?.name ?? 'Nom du webhook'} />
         <Input
           label="Avatar (URL)"
@@ -120,7 +131,7 @@ export function MessageEditor({
         nested
         title="Destination"
         icon="git-branch-outline"
-        subtitle={m.threadMode === 'channel' ? 'Salon du webhook' : m.threadMode === 'thread' ? `Thread ${m.thread_id || '—'}` : `Nouveau post : ${m.thread_name || '—'}`}
+        subtitle={m.threadMode === 'channel' ? (botForum ? `Nouveau post : ${m.thread_name || '—'}` : 'Salon de la destination') : m.threadMode === 'thread' ? `Thread ${m.thread_id || '—'}` : `Nouveau post : ${m.thread_name || '—'}`}
         defaultCollapsed={m.threadMode === 'channel' && !forum}
       >
         <Segmented<ThreadMode>
@@ -133,8 +144,10 @@ export function MessageEditor({
           ]}
         />
         {forum && m.threadMode === 'channel' && (
-          <Text style={{ color: t.warning, fontSize: t.font(12) }}>
-            Ce webhook pointe vers un forum : choisis « Forum » pour créer un post, ou « Thread » pour répondre dans un post existant.
+          <Text style={{ color: botForum ? t.textMuted : t.warning, fontSize: t.font(12) }}>
+            {botForum
+              ? `« ${forumInfo?.channelName ?? 'Forum'} » est un forum : le bot y créera un nouveau post avec ce titre et ces tags.`
+              : 'Ce webhook pointe vers un forum : choisis « Forum » pour créer un post, ou « Thread » pour répondre dans un post existant.'}
           </Text>
         )}
         {m.threadMode === 'thread' && (
@@ -148,7 +161,7 @@ export function MessageEditor({
             mono
           />
         )}
-        {m.threadMode === 'forum_post' && (
+        {showPost && (
           <>
             <Input label="Titre du post" value={m.thread_name} max={LIMITS.threadName} onChangeText={(v) => set({ thread_name: v })} placeholder="Titre du nouveau post" />
             <SectionLabel right={<Text style={{ color: t.textFaint, fontSize: t.font(11) }}>{m.applied_tags.length}/{LIMITS.appliedTags}</Text>}>

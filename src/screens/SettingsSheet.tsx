@@ -284,7 +284,7 @@ export function SettingsSheet({
         <Text style={{ color: t.textMuted, fontSize: t.font(13) }}>
           Personnalise chaque partie de l’interface par catégorie : structure, composants, texte, champs et aperçu.
         </Text>
-        <Button icon="color-wand-outline" label="Ouvrir l’éditeur de styles" onPress={go(onOpenCss)} />
+        <Button icon="color-wand-outline" label="Couleurs et styles" onPress={go(onOpenCss)} />
       </Box>
 
       {/* ---------- Envoi ---------- */}

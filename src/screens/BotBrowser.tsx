@@ -10,6 +10,7 @@ import { Avatar, Box, Button, EmptyState, Input, ListRow, Segmented, Sheet, Stac
 import { ChannelIcon, Dropdown, channelTypeLabel } from '../components/Dropdown';
 import { findChannel, orderChannels } from '../utils/channels';
 import { newTarget } from '../utils/factory';
+import { useBotDestinations } from '../state/useBotDestinations';
 import type { ApiChannel, ApiWebhook } from '../types';
 
 /**
@@ -22,6 +23,7 @@ export function BotBrowser({ visible, onClose, onOpenAccount }: { visible: boole
   const toast = useToast();
   const { state, replace } = useEditor();
   const session = useSession();
+  const bots = useBotDestinations();
 
   const [source, setSource] = useState<Source | null>(session.defaultSource);
   const [guildId, setGuildId] = useState<string | null>(null);
@@ -82,6 +84,8 @@ export function BotBrowser({ visible, onClose, onOpenAccount }: { visible: boole
       const api = apiFor(ep, session.credential(source)!);
       const [w, full] = await Promise.all([
         api.webhooks(hookChannel!).catch((e) => {
+          // Avec un bot, les webhooks sont facultatifs : il peut publier lui-même.
+          if (source === 'bot') return [] as ApiWebhook[];
           throw new Error(`Webhooks inaccessibles : ${e instanceof Error ? e.message : e}. Il faut la permission « Gérer les webhooks ».`);
         }),
         api.channel(hookChannel!).catch(() => undefined),
@@ -96,7 +100,8 @@ export function BotBrowser({ visible, onClose, onOpenAccount }: { visible: boole
 
   const pickWebhook = (w: ApiWebhook, mode: 'replace' | 'add') => {
     const target = newTarget(webhookUrlOf(ep, w));
-    const targets = mode === 'replace' ? [target] : [...state.targets.filter((x) => x.url.trim()), target];
+    const keepBots = state.targets.filter((x) => x.url.startsWith('bot:'));
+    const targets = mode === 'replace' ? [target, ...keepBots] : [...state.targets.filter((x) => x.url.trim()), target];
     // Si un thread est sélectionné, tous les messages y seront envoyés.
     const messages =
       selected && isThreadType(selected.type)
@@ -196,12 +201,31 @@ export function BotBrowser({ visible, onClose, onOpenAccount }: { visible: boole
           />
         )}
 
+        {selected && source === 'bot' && (
+          <Box title="Publier avec le bot" icon="flash-outline" collapsible={false}>
+            <Text style={{ color: t.textMuted, fontSize: t.font(13) }}>
+              Le bot écrit directement dans {isThreadType(selected.type) ? 'ce thread' : isForumType(selected.type) ? 'ce forum (nouveau post)' : 'ce salon'} : pas besoin de webhook.
+            </Text>
+            <Button
+              variant="primary"
+              icon="flash"
+              label={`Publier dans « ${selected.name ?? selected.id} »`}
+              onPress={() => {
+                const r = bots.add(selected, guilds.find((g) => g.id === guildId));
+                toast(r === 'added' ? `Destination ajoutée : le bot publiera dans « ${selected.name} ».` : 'Ce salon est déjà une destination.', r === 'added' ? 'success' : 'info');
+                onClose();
+              }}
+            />
+          </Box>
+        )}
+
         {selected && (
           <Box
-            title={selected && isThreadType(selected.type) ? `Webhooks de #${parent?.name ?? ''}` : 'Webhooks de ce salon'}
-            subtitle={selected && isThreadType(selected.type) ? `Les messages iront dans « ${selected.name} »` : undefined}
+            title={source === 'bot' ? 'Ou passer par un webhook' : selected && isThreadType(selected.type) ? `Webhooks de #${parent?.name ?? ''}` : 'Webhooks de ce salon'}
+            subtitle={selected && isThreadType(selected.type) ? `Les messages iront dans « ${selected.name} »` : source === 'bot' ? 'Nom et avatar personnalisés par message' : undefined}
             icon="link"
-            collapsible={false}
+            collapsible={source === 'bot'}
+            defaultCollapsed={source === 'bot'}
             badge={String(webhooks.length)}
           >
             {webhooks.map((w) => (

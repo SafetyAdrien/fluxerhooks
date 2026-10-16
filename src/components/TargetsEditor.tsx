@@ -5,10 +5,14 @@ import { useEditor } from '../state/editor';
 import { useSettings } from '../state/settings';
 import { useSender } from '../state/useSender';
 import { useEndpoints } from '../state/useEndpoints';
-import { apiFor, avatarUrl, isForumType } from '../api/fluxer';
+import { apiFor, avatarUrl, guildIconUrl, isForumType } from '../api/fluxer';
+import { Ionicons } from '@expo/vector-icons';
+import { useBotDestinations } from '../state/useBotDestinations';
+import { ChannelIcon, Dropdown, channelTypeLabel } from './Dropdown';
+import { findChannel, orderChannels } from '../utils/channels';
 import { useSession } from '../state/session';
-import { parseWebhookUrl } from '../utils/parse';
-import { Avatar, Box, Button, FieldButton, FieldButtons, IconBtn, Input, Stack, useToast } from './ui';
+import { botTargetUrl, parseBotTarget, parseWebhookUrl } from '../utils/parse';
+import { Avatar, Box, Button, FieldButton, FieldButtons, Grid, IconBtn, Input, Stack, useToast } from './ui';
 import type { WebhookTarget } from '../types';
 
 function TargetRow({ tg, canRemove }: { tg: WebhookTarget; canRemove: boolean }) {
@@ -85,6 +89,7 @@ export function BotCard({ onBrowse }: { onBrowse: () => void }) {
   const ep = useEndpoints();
   const toast = useToast();
   const { botUser } = useSession();
+  const { list } = useBotDestinations();
   const [draft, setDraft] = useState('');
   const [show, setShow] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -113,10 +118,15 @@ export function BotCard({ onBrowse }: { onBrowse: () => void }) {
     <Box
       title="Bot Fluxer"
       icon="hardware-chip-outline"
-      subtitle={botToken ? (botUser ? `Connecté : ${botUser.username}` : 'Token enregistré') : 'Optionnel : salons, threads et tags'}
-      defaultCollapsed={!!botToken}
+      subtitle={
+        botToken
+          ? `${botUser ? botUser.username : 'Bot connecté'} · ${list.length ? `${list.length} salon(s)` : 'choisis où publier'}`
+          : 'Publier directement avec un bot, sans webhook'
+      }
+      badge={list.filter((x) => x.enabled).length ? String(list.filter((x) => x.enabled).length) : undefined}
     >
       {botToken ? (
+        <>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
           <Avatar uri={botUser ? avatarUrl(ep, botUser.id, botUser.avatar) : null} name={botUser?.username ?? 'Bot'} size={t.z(36)} />
           <View style={{ flex: 1, minWidth: 0 }}>
@@ -138,6 +148,8 @@ export function BotCard({ onBrowse }: { onBrowse: () => void }) {
             />
           </FieldButtons>
         </View>
+        <BotDestinations />
+        </>
       ) : (
         <>
           <Input
@@ -167,19 +179,139 @@ export function BotCard({ onBrowse }: { onBrowse: () => void }) {
   );
 }
 
+/** Salons où le bot publie lui-même (sans webhook) + sélecteur serveur → salon. */
+function BotDestinations() {
+  const { theme: t } = useSettings();
+  const ep = useEndpoints();
+  const toast = useToast();
+  const session = useSession();
+  const { list, add, update, remove } = useBotDestinations();
+  const { validateTarget } = useSender();
+  const [guildId, setGuildId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const guilds = session.guilds.bot;
+  const data = guildId ? session.guildData[guildId] : undefined;
+
+  useEffect(() => {
+    session.loadGuilds('bot').catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session.hasBot]);
+
+  // Rafraîchit les infos (nom du salon, tags de forum) des destinations restaurées d'une sauvegarde.
+  useEffect(() => {
+    list.filter((x) => !x.info?.channelName && !x.error).forEach((x) => validateTarget(x));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [list.length]);
+
+  const pickGuild = async (id: string) => {
+    setGuildId(id);
+    setLoading(true);
+    try {
+      await session.loadGuild('bot', id);
+    } catch (e) {
+      toast(e instanceof Error ? e.message : String(e), 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+  const pickChannel = (id: string) => {
+    if (!data) return;
+    const ch = findChannel(data.channels, data.threads, id);
+    if (!ch) return;
+    const g = guilds.find((x) => x.id === guildId);
+    const r = add(ch, g);
+    toast(r === 'added' ? `Le bot publiera dans « ${ch.name} ».` : 'Ce salon est déjà une destination.', r === 'added' ? 'success' : 'info');
+  };
+
+  const channelOptions = data
+    ? orderChannels(data.channels, data.threads, { types: [0, 5, 15, 16], withThreads: true }).map((e) => ({
+        value: e.channel.id,
+        label: e.channel.name ?? e.channel.id,
+        subtitle: channelTypeLabel(e.channel.type),
+        group: e.group,
+        indent: e.indent,
+        left: <ChannelIcon type={e.channel.type} />,
+        disabled: list.some((x) => x.url === botTargetUrl(e.channel.id)),
+      }))
+    : [];
+
+  return (
+    <View style={{ gap: 10 }}>
+      <View style={{ flexDirection: 'row', gap: 8, padding: 10, borderRadius: t.radiusSm, backgroundColor: t.accentSoft }}>
+        <Ionicons name="flash-outline" size={t.z(16)} color={t.accent} />
+        <Text style={{ flex: 1, color: t.text, fontSize: t.font(12), lineHeight: t.font(17) }}>
+          Le bot publie lui-même : aucun webhook à créer. Messages, embeds, fichiers, threads et nouveaux posts de forum (avec tags) sont pris en charge.
+        </Text>
+      </View>
+      {list.map((tg) => (
+        <View key={tg.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 8, borderRadius: t.radiusSm, backgroundColor: t.surface2, opacity: tg.enabled ? 1 : 0.55 }}>
+          <View style={{ width: t.z(34), height: t.z(34), borderRadius: t.radiusSm, backgroundColor: t.accentSoft, alignItems: 'center', justifyContent: 'center' }}>
+            <ChannelIcon type={tg.info?.channelType ?? 0} color={t.accent} />
+          </View>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text numberOfLines={1} style={{ color: t.text, fontWeight: '700', fontSize: t.font(14) }}>
+              {tg.info?.channelName ?? parseBotTarget(tg.url)?.channelId}
+            </Text>
+            <Text numberOfLines={1} style={{ color: tg.error ? t.danger : t.textMuted, fontSize: t.font(12) }}>
+              {tg.error ?? [channelTypeLabel(tg.info?.channelType ?? 0), tg.info?.guildName].filter(Boolean).join(' · ')}
+            </Text>
+          </View>
+          <Switch
+            value={tg.enabled}
+            onValueChange={(v) => update(tg.id, { enabled: v })}
+            trackColor={{ false: t.border, true: t.accentSoft }}
+            thumbColor={tg.enabled ? t.accent : t.textFaint}
+            accessibilityLabel="Activer cette destination"
+          />
+          <FieldButton icon="close" label="Retirer ce salon" onPress={() => remove(tg.id)} />
+        </View>
+      ))}
+      <Grid min={220} gap={8}>
+        <Dropdown
+          label="Serveur du bot"
+          title="Choisir un serveur"
+          placeholder={guilds.length ? 'Choisir un serveur' : 'Aucun serveur'}
+          value={guildId}
+          options={guilds.map((g) => ({ value: g.id, label: g.name, left: <Avatar uri={guildIconUrl(ep, g.id, g.icon)} name={g.name} size={t.z(30)} shape="rounded" /> }))}
+          onChange={pickGuild}
+          emptyText="Le bot n’est sur aucun serveur."
+        />
+        {guildId && (
+          <Dropdown
+            label={list.length ? 'Ajouter un salon' : 'Salon où publier'}
+            title="Choisir un salon"
+            placeholder="Salon, thread ou forum"
+            value={null}
+            options={channelOptions}
+            onChange={pickChannel}
+            loading={loading && !data}
+            emptyText="Aucun salon accessible au bot (permissions « Voir le salon » et « Envoyer des messages »)."
+          />
+        )}
+      </Grid>
+    </View>
+  );
+}
+
 export function TargetsEditor({ onBrowse }: { onBrowse: () => void }) {
   const { state, addTarget } = useEditor();
   const { botToken, userToken } = useSettings();
-  const valid = state.targets.filter((x) => x.info).length;
+  const hooks = state.targets.filter((x) => !parseBotTarget(x.url));
+  const valid = hooks.filter((x) => x.info).length;
+  // Toujours au moins un champ d'URL de webhook.
+  useEffect(() => {
+    if (!hooks.length) addTarget();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hooks.length]);
   return (
     <Box
       title="Webhooks"
       icon="link"
       subtitle={valid ? `${valid} webhook(s) vérifié(s)` : 'Colle l’URL d’un webhook Fluxer'}
-      badge={state.targets.length > 1 ? String(state.targets.length) : undefined}
+      badge={hooks.length > 1 ? String(hooks.length) : undefined}
     >
-      {state.targets.map((tg) => (
-        <TargetRow key={tg.id} tg={tg} canRemove={state.targets.length > 1 || !!tg.url} />
+      {hooks.map((tg) => (
+        <TargetRow key={tg.id} tg={tg} canRemove={hooks.length > 1 || !!tg.url} />
       ))}
       <Stack row wrap gap={8}>
         <Button small icon="add" label="Autre webhook" onPress={() => addTarget()} />

@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { resolveEndpoints, sendMessage } from '../api/fluxer';
+import { resolveEndpoints, sendToTarget } from '../api/fluxer';
 import type { Automation, Backup, DraftMessage, Template } from '../types';
-import { parseWebhookUrl } from '../utils/parse';
+import { isSendableUrl, parseBotTarget } from '../utils/parse';
 import { builtinTemplates } from './templates';
 
 /**
@@ -120,8 +120,18 @@ export async function loadSource(a: Automation): Promise<{ messages: DraftMessag
 export async function runAutomation(a: Automation): Promise<string> {
   const src = await loadSource(a);
   if (!src) return 'Source introuvable (sauvegarde ou modèle supprimé).';
-  const targets = (a.targets.length ? a.targets : src.targets).filter((u) => parseWebhookUrl(u));
-  if (!targets.length) return 'Aucun webhook valide.';
+  const targets = (a.targets.length ? a.targets : src.targets).filter((u) => isSendableUrl(u));
+  if (!targets.length) return 'Aucune destination valide (webhook ou salon du bot).';
+  // Token du bot (stocké chiffré) pour les destinations « bot:<salon> ».
+  let botToken: string | undefined;
+  if (targets.some((u) => parseBotTarget(u))) {
+    try {
+      const SecureStore = await import('expo-secure-store');
+      botToken = (await SecureStore.getItemAsync('fluxerhooks_bot_token')) ?? undefined;
+    } catch {
+      botToken = undefined;
+    }
+  }
   const settings = await readJson<{ instance?: string }>(SETTINGS_KEY, {});
   const ep = await resolveEndpoints(settings.instance || 'https://fluxer.app');
   const now = new Date();
@@ -130,7 +140,7 @@ export async function runAutomation(a: Automation): Promise<string> {
   for (const m of src.messages) {
     for (const url of targets) {
       try {
-        await sendMessage(ep, url, withVars(m, a.runs, now));
+        await sendToTarget(ep, url, withVars(m, a.runs, now), botToken);
         ok++;
       } catch (e) {
         errors.push(e instanceof Error ? e.message : String(e));

@@ -113,7 +113,7 @@ export function HomeScreen({ onRestored }: { onRestored: () => void }) {
           <View style={{ flex: 1 }}>
             <Text style={{ color: t.text, fontWeight: '900', fontSize: t.font(18) }}>FluxerHooks</Text>
             <Text numberOfLines={1} style={{ color: t.textMuted, fontSize: t.font(11) }}>
-              {targets ? `${targets} webhook(s) prêt(s)` : 'Aucun webhook configuré'}
+              {targets ? `${targets} destination${targets > 1 ? 's prêtes' : ' prête'}` : 'Aucune destination'}
             </Text>
           </View>
           <IconBtn icon="archive-outline" label="Sauvegardes, modèles et automatisations" onPress={() => setSheet('data')} />

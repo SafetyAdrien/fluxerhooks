@@ -73,6 +73,10 @@ export interface WebhookInfo {
   channelName?: string;
   channelType?: number;
   availableTags?: ApiForumTag[];
+  /** Nom du serveur (destinations du bot). */
+  guildName?: string;
+  /** Destination « bot » : nom et avatar du bot, non personnalisables. */
+  bot?: boolean;
 }
 
 export interface WebhookTarget {
@@ -116,6 +120,8 @@ export interface AppSettings {
   messageStyle: MessageStyle;
   /** Styles personnalisés façon CSS, une feuille par catégorie (voir theme/css.ts). */
   customCss: Record<string, string>;
+  /** Variables de thème (--background-primary…) façon « Theme colors » de Fluxer. */
+  themeVars: Record<string, string | number>;
   customCssEnabled: boolean;
   recentColors: number[];
 }
@@ -245,6 +251,7 @@ export interface ApiChannel {
   type: number;
   name?: string;
   parent_id?: string | null;
+  guild_id?: string;
   position?: number;
   available_tags?: ApiForumTag[];
   applied_tags?: string[];
