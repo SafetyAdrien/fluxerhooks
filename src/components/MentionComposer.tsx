@@ -7,7 +7,7 @@ import { useEditor } from '../state/editor';
 import { useEndpoints } from '../state/useEndpoints';
 import { orderChannels, THREAD_TYPES } from '../utils/channels';
 import { intToHex } from '../utils/parse';
-import { Button, Chip, EmptyState, Input, ListRow, SectionLabel, Sheet, Stack } from './ui';
+import { Button, Chip, Dialog, EmptyState, Input, ListRow, SectionLabel, Stack } from './ui';
 import { ChannelIcon, Dropdown, channelTypeLabel } from './Dropdown';
 
 type Tab = 'channels' | 'roles' | 'users' | 'emojis' | 'time' | 'special';
@@ -225,7 +225,7 @@ export function MentionComposer({ visible, onClose, onInsert }: { visible: boole
   const prefix = tab === 'channels' ? '#' : tab === 'roles' ? '@&' : tab === 'users' ? '@' : null;
 
   return (
-    <Sheet visible={visible} onClose={onClose} title="Insérer" full>
+    <Dialog visible={visible} onClose={onClose} title="Insérer" icon="at">
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
         {(
           [
@@ -268,6 +268,6 @@ export function MentionComposer({ visible, onClose, onInsert }: { visible: boole
           </Stack>
         </View>
       )}
-    </Sheet>
+    </Dialog>
   );
 }

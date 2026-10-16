@@ -30,6 +30,8 @@ export interface LocalAttachment {
   size: number;
   spoiler: boolean;
   description: string;
+  /** Fichier importé pour une image d'embed : affiché dans l'embed, pas dans les fichiers du message. */
+  embedRef?: { embedId: string; slot: 'image' | 'thumbnail' };
 }
 
 export type MentionPolicy = 'none' | 'all' | 'users' | 'users_roles';

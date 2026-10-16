@@ -9,7 +9,7 @@ import { Avatar } from './ui';
 import { Markdown, MentionContext } from './Markdown';
 import { useSession } from '../state/session';
 import { formatBytes, formatTime, intToHex, isHttpUrl } from '../utils/parse';
-import { isEmbedEmpty } from '../utils/payload';
+import { isEmbedEmpty, standaloneAttachments } from '../utils/payload';
 
 /** Affiche une image distante si l'URL est valide (ou une pièce jointe locale via attachment://). */
 function RemoteImage({
@@ -176,7 +176,9 @@ export function MessagePreview({
   const avatar = m.avatar_url.trim() || (info ? avatarUrl(ep, info.id, info.avatar) : null);
   const compact = settings.previewDisplay === 'compact';
   const embeds = m.suppressEmbeds ? [] : m.embeds.filter((e) => !isEmbedEmpty(e));
-  const empty = !m.content.trim() && !embeds.length && !m.attachments.length;
+  // Les fichiers cités par un embed (attachment://) s'affichent dans l'embed, pas sous le message.
+  const files = standaloneAttachments(m);
+  const empty = !m.content.trim() && !embeds.length && !files.length;
   const av = t.z(ms.avatarSize);
   const padV = ms.spacing === 'tight' ? 4 : ms.spacing === 'airy' ? 14 : 8;
 
@@ -211,7 +213,7 @@ export function MessagePreview({
           </View>
         )
       )}
-      {m.attachments.map((a) => (
+      {files.map((a) => (
         <AttachmentView key={a.id} a={a} />
       ))}
       {embeds.map((e) => (

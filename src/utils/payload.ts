@@ -52,6 +52,33 @@ export function allowedMentions(m: DraftMessage) {
   }
 }
 
+/** Noms de fichiers cités en attachment:// par les embeds du message. */
+export function referencedNames(m: DraftMessage): Set<string> {
+  const out = new Set<string>();
+  m.embeds.forEach((e) =>
+    [e.image.url, e.thumbnail.url].forEach((u) => {
+      const v = u.trim();
+      if (v.startsWith('attachment://')) out.add(v.slice('attachment://'.length));
+    }),
+  );
+  return out;
+}
+
+/**
+ * Fichiers réellement envoyés : on retire ceux importés pour un embed
+ * qui ne sont plus utilisés (image remplacée ou embed supprimé).
+ */
+export function effectiveAttachments(m: DraftMessage) {
+  const refs = referencedNames(m);
+  return m.attachments.filter((a) => !a.embedRef || refs.has(a.name));
+}
+
+/** Fichiers à afficher dans la liste « Fichiers » / sous le message (hors images d'embed). */
+export function standaloneAttachments(m: DraftMessage) {
+  const refs = referencedNames(m);
+  return m.attachments.filter((a) => !a.embedRef && !refs.has(a.name));
+}
+
 /** Corps JSON envoyé à Execute webhook (sans fichiers, ajoutés en multipart). */
 export function messageToPayload(m: DraftMessage, forEdit = false): Record<string, unknown> {
   const p: Record<string, unknown> = {};
@@ -72,8 +99,9 @@ export function messageToPayload(m: DraftMessage, forEdit = false): Record<strin
     if (m.applied_tags.length) p.applied_tags = m.applied_tags;
   }
   if (clean(m.reply_to)) p.message_reference = { message_id: clean(m.reply_to), type: 0 };
-  if (m.attachments.length) {
-    p.attachments = m.attachments.map((a, i) => ({
+  const files = effectiveAttachments(m);
+  if (files.length) {
+    p.attachments = files.map((a, i) => ({
       id: i,
       filename: a.spoiler && !a.name.startsWith('SPOILER_') ? `SPOILER_${a.name}` : a.name,
       ...(a.description ? { description: a.description } : {}),

@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Image, Pressable, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { ColorPickerModal } from './ColorPicker';
 import type { Embed, LocalAttachment } from '../types';
 import { ImageImportSheet } from './ImageImportSheet';
@@ -9,7 +8,7 @@ import { useEditor } from '../state/editor';
 import { useSettings } from '../state/settings';
 import { EMBED_COLORS } from '../theme/themes';
 import { LIMITS, embedLength } from '../utils/limits';
-import { hexToInt, intToHex, isAttachmentRef, isHttpUrl } from '../utils/parse';
+import { hexToInt, intToHex, isAttachmentRef, isHttpUrl, readableOn } from '../utils/parse';
 import { Box, Button, Grid, IconBtn, Input, SectionLabel, Stack, ToggleRow } from './ui';
 import { RichInput } from './RichInput';
 
@@ -32,20 +31,6 @@ function ColorField({ value, onChange }: { value: number | null; onChange: (v: n
     <View style={{ gap: 8 }}>
       <SectionLabel>Couleur</SectionLabel>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-        <Pressable
-          onPress={() => setOpen(true)}
-          accessibilityLabel="Ouvrir le sélecteur de couleur"
-          style={{ width: dot, height: dot, borderRadius: dot / 2, overflow: 'hidden', borderWidth: 2, borderColor: t.accent }}
-        >
-          <LinearGradient
-            colors={['#FF0000', '#FFFF00', '#00FF00', '#00FFFF', '#0000FF', '#FF00FF']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}
-          >
-            <Ionicons name="add" size={t.z(20)} color="#fff" />
-          </LinearGradient>
-        </Pressable>
         <Pressable
           onPress={() => onChange(null)}
           accessibilityLabel="Aucune couleur"
@@ -75,7 +60,23 @@ function ColorField({ value, onChange }: { value: number | null; onChange: (v: n
         autoCorrect={false}
         mono
         right={
-          <Pressable onPress={() => setOpen(true)} accessibilityLabel="Ouvrir le sélecteur de couleur" style={{ width: 28, height: 28, borderRadius: 7, backgroundColor: value !== null ? intToHex(value) : 'transparent', borderWidth: 1, borderColor: t.border }} />
+          <Pressable
+            onPress={() => setOpen(true)}
+            accessibilityLabel="Ouvrir le sélecteur de couleur"
+            hitSlop={6}
+            style={{
+              width: t.z(34),
+              height: t.z(34),
+              borderRadius: t.radiusSm,
+              backgroundColor: value !== null ? intToHex(value) : t.surface,
+              borderWidth: 1,
+              borderColor: t.border,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <Ionicons name="color-palette" size={t.z(18)} color={value !== null ? readableOn(intToHex(value)) : t.textMuted} />
+          </Pressable>
         }
       />
       {open && <ColorPickerModal visible value={value} onClose={() => setOpen(false)} onPick={onChange} title="Couleur de l’embed" />}
@@ -90,13 +91,30 @@ export function EmbedEditor({ mid, e, index, count }: { mid: string; e: Embed; i
   const { state, updateMessage } = useEditor();
   const [importFor, setImportFor] = useState<'image' | 'thumbnail' | null>(null);
   // Les images importées deviennent des pièces jointes du message, référencées en attachment://.
+  const msg = state.messages.find((x) => x.id === mid);
   const onImported = (files: LocalAttachment[]) => {
-    const msg = state.messages.find((x) => x.id === mid);
-    if (!msg || !files.length) return;
-    updateMessage(mid, { attachments: [...msg.attachments, ...files].slice(0, LIMITS.attachments) });
-    const ref = `attachment://${files[0].name}`;
-    if (importFor === 'thumbnail') up({ thumbnail: { url: ref } });
-    else up({ image: { url: ref } });
+    if (!msg || !files.length || !importFor) return;
+    const slot = importFor;
+    // Nom unique pour éviter qu'une image d'embed écrase un fichier du même nom.
+    const f = files[0];
+    const ext = f.name.includes('.') ? f.name.slice(f.name.lastIndexOf('.')) : '.png';
+    const name = `${slot}-${e.id.slice(-6)}-${Date.now().toString(36)}${ext}`;
+    const file: LocalAttachment = { ...f, name, embedRef: { embedId: e.id, slot } };
+    // L'image remplace celle de cet emplacement, elle n'apparaît pas dans les fichiers du message.
+    const others = msg.attachments.filter((a) => !(a.embedRef?.embedId === e.id && a.embedRef.slot === slot));
+    updateMessage(mid, { attachments: [...others, file].slice(0, LIMITS.attachments) });
+    if (slot === 'thumbnail') up({ thumbnail: { url: `attachment://${name}` } });
+    else up({ image: { url: `attachment://${name}` } });
+  };
+  const slotFile = (slot: 'image' | 'thumbnail') => {
+    const url = (slot === 'image' ? e.image.url : e.thumbnail.url).trim();
+    if (!url.startsWith('attachment://')) return undefined;
+    return msg?.attachments.find((a) => a.name === url.slice('attachment://'.length));
+  };
+  const removeSlot = (slot: 'image' | 'thumbnail') => {
+    const f = slotFile(slot);
+    if (msg && f?.embedRef) updateMessage(mid, { attachments: msg.attachments.filter((a) => a.id !== f.id) });
+    up(slot === 'image' ? { image: { url: '' } } : { thumbnail: { url: '' } });
   };
   const up = (u: Partial<Embed>) => updateEmbed(mid, e.id, u);
   const total = embedLength(e);
@@ -152,28 +170,36 @@ export function EmbedEditor({ mid, e, index, count }: { mid: string; e: Embed; i
       </Box>
 
       <Box title="Images" icon="image-outline" defaultCollapsed={!e.image.url && !e.thumbnail.url}>
-        <Input
-          label="Image"
-          value={e.image.url}
-          error={urlError(e.image.url, true)}
-          onChangeText={(v) => up({ image: { url: v } })}
-          placeholder="https://… ou attachment://fichier.png"
-          autoCapitalize="none"
-          keyboardType="url"
-        />
-        <Input
-          label="Miniature"
-          value={e.thumbnail.url}
-          error={urlError(e.thumbnail.url, true)}
-          onChangeText={(v) => up({ thumbnail: { url: v } })}
-          placeholder="https://… ou attachment://fichier.png"
-          autoCapitalize="none"
-          keyboardType="url"
-        />
-        <Stack row wrap gap={8}>
-          <Button small icon="cloud-upload-outline" label="Importer l’image" onPress={() => setImportFor('image')} />
-          <Button small icon="cloud-upload-outline" label="Importer la miniature" onPress={() => setImportFor('thumbnail')} />
-        </Stack>
+        {(['image', 'thumbnail'] as const).map((slot) => {
+          const url = slot === 'image' ? e.image.url : e.thumbnail.url;
+          const file = slotFile(slot);
+          return (
+            <View key={slot} style={{ gap: 6 }}>
+              {file ? (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 8, borderRadius: t.radiusSm, backgroundColor: t.surface, borderWidth: 1, borderColor: t.border }}>
+                  <Image source={{ uri: file.uri }} style={{ width: t.z(slot === 'image' ? 72 : 48), height: t.z(48), borderRadius: 6 }} resizeMode="cover" />
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={{ color: t.text, fontWeight: '700', fontSize: t.font(13) }}>{slot === 'image' ? 'Image de l’embed' : 'Miniature'}</Text>
+                    <Text numberOfLines={1} style={{ color: t.textFaint, fontSize: t.font(11) }}>Importée depuis le téléphone</Text>
+                  </View>
+                  <IconBtn icon="swap-horizontal-outline" label="Remplacer" onPress={() => setImportFor(slot)} />
+                  <IconBtn icon="trash-outline" label="Retirer" color={t.danger} onPress={() => removeSlot(slot)} />
+                </View>
+              ) : (
+                <Input
+                  label={slot === 'image' ? 'Image' : 'Miniature'}
+                  value={url}
+                  error={urlError(url, true)}
+                  onChangeText={(v) => up(slot === 'image' ? { image: { url: v } } : { thumbnail: { url: v } })}
+                  placeholder="https://… ou importer ↗"
+                  autoCapitalize="none"
+                  keyboardType="url"
+                  right={<IconBtn icon="cloud-upload-outline" label={slot === 'image' ? 'Importer l’image' : 'Importer la miniature'} onPress={() => setImportFor(slot)} />}
+                />
+              )}
+            </View>
+          );
+        })}
       </Box>
 
       <Box title="Pied de page" icon="reorder-two-outline" defaultCollapsed={!e.footer.text && !e.timestamp}>

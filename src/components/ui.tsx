@@ -13,12 +13,14 @@ import {
   Text,
   TextInput,
   View,
+  useWindowDimensions,
   type StyleProp,
   type TextInputProps,
   type ViewStyle,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { BlurView } from 'expo-blur';
 import { useSettings, useTheme } from '../state/settings';
 
 export type IconName = React.ComponentProps<typeof Ionicons>['name'];
@@ -277,6 +279,8 @@ export function Input({
           style={[
             {
               flex: 1,
+              minWidth: 0,
+              width: '100%',
               color: t.text,
               fontSize: t.font(15),
               paddingHorizontal: 12,
@@ -289,7 +293,7 @@ export function Input({
           ]}
           {...rest}
         />
-        {right && <View style={{ paddingRight: 6, paddingTop: multiline ? 6 : 0 }}>{right}</View>}
+        {right && <View style={{ paddingRight: 6, paddingTop: multiline ? 6 : 0, flexShrink: 0 }}>{right}</View>}
       </View>
       {!!(error || hint) && (
         <Text style={{ color: error ? t.danger : t.textFaint, fontSize: t.font(12) }}>{error || hint}</Text>
@@ -856,5 +860,91 @@ export function Slider({
         <IconBtn icon="add" label={`Augmenter ${label}`} size={16} onPress={() => set(value + step)} disabled={value >= max} />
       </View>
     </View>
+  );
+}
+
+/* ---------- Modale centrée (fond flouté) ---------- */
+
+/**
+ * Fenêtre modale compacte, centrée : le reste de l'app reste visible en arrière-plan, flouté.
+ * La taille s'adapte au contenu et à l'écran (téléphone, paysage, tablette).
+ */
+export function Dialog({
+  visible,
+  onClose,
+  title,
+  icon,
+  children,
+  footer,
+  maxWidth = 520,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  title: string;
+  icon?: IconName;
+  children: React.ReactNode;
+  footer?: React.ReactNode;
+  maxWidth?: number;
+}) {
+  const { theme: t, base } = useSettings();
+  const insets = useSafeAreaInsets();
+  const { width, height } = useWindowDimensions();
+  const scale = useRef(new Animated.Value(0.94)).current;
+  useEffect(() => {
+    if (visible) {
+      scale.setValue(0.94);
+      Animated.spring(scale, { toValue: 1, useNativeDriver: true, friction: 8, tension: 90 }).start();
+    }
+  }, [visible, scale]);
+  return (
+    <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose} statusBarTranslucent>
+      <BlurView
+        intensity={45}
+        tint={base.dark ? 'dark' : 'light'}
+        experimentalBlurMethod="dimezisBlurView"
+        style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
+      />
+      <Pressable
+        onPress={onClose}
+        accessibilityLabel="Fermer"
+        style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: base.dark ? 'rgba(0,0,0,0.35)' : 'rgba(0,0,0,0.15)' }}
+      />
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        pointerEvents="box-none"
+        style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: insets.top + 16, paddingBottom: insets.bottom + 16, paddingHorizontal: 16 }}
+      >
+        <Animated.View
+          style={[
+            {
+              width: Math.min(width - 32, maxWidth),
+              maxHeight: Math.min(height * 0.78, 680),
+              backgroundColor: base.bgAlt,
+              borderRadius: t.radius + 6,
+              borderWidth: 1,
+              borderColor: t.border,
+              overflow: 'hidden',
+              elevation: 16,
+              shadowColor: '#000',
+              shadowOpacity: 0.35,
+              shadowRadius: 24,
+              shadowOffset: { width: 0, height: 10 },
+              transform: [{ scale }],
+            },
+            t.css.sheet,
+          ]}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingTop: 14, paddingBottom: 8 }}>
+            {icon && <Ionicons name={icon} size={t.z(20)} color={t.accent} />}
+            <Text style={{ flex: 1, color: t.text, fontSize: t.font(17), fontWeight: '800' }}>{title}</Text>
+            <IconBtn icon="close" label="Fermer" onPress={onClose} />
+          </View>
+          <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 16, gap: t.gap }}>
+            {children}
+          </ScrollView>
+          {footer && <View style={{ paddingHorizontal: 16, paddingVertical: 10, borderTopWidth: 1, borderTopColor: t.border }}>{footer}</View>}
+        </Animated.View>
+      </KeyboardAvoidingView>
+    </Modal>
   );
 }

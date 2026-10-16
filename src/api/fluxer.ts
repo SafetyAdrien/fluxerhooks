@@ -8,7 +8,7 @@ import type {
   DraftMessage,
   WebhookInfo,
 } from '../types';
-import { messageToPayload } from '../utils/payload';
+import { effectiveAttachments, messageToPayload } from '../utils/payload';
 import { parseMessageRef, parseWebhookUrl } from '../utils/parse';
 
 /**
@@ -199,10 +199,11 @@ export async function getWebhook(ep: Endpoints, url: string): Promise<WebhookInf
 
 function buildBody(m: DraftMessage, forEdit: boolean): { json?: unknown; form?: FormData } {
   const payload = messageToPayload(m, forEdit);
-  if (forEdit || !m.attachments.length) return { json: payload };
+  const files = effectiveAttachments(m);
+  if (forEdit || !files.length) return { json: payload };
   const form = new FormData();
   form.append('payload_json', JSON.stringify(payload));
-  m.attachments.forEach((a, i) => {
+  files.forEach((a, i) => {
     const name = a.spoiler && !a.name.startsWith('SPOILER_') ? `SPOILER_${a.name}` : a.name;
     // React Native accepte un objet { uri, name, type } comme fichier multipart.
     form.append(`files[${i}]`, { uri: a.uri, name, type: a.mimeType || 'application/octet-stream' } as any);

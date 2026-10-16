@@ -14,6 +14,7 @@ import { uid } from '../utils/factory';
 import { Box, Button, Chip, IconBtn, Input, SectionLabel, Segmented, Stack, ToggleRow, useToast } from './ui';
 import { RichInput } from './RichInput';
 import { EmbedEditor } from './EmbedEditor';
+import { standaloneAttachments } from '../utils/payload';
 import { ImageImportSheet } from './ImageImportSheet';
 
 export function MessageEditor({
@@ -38,6 +39,8 @@ export function MessageEditor({
   const tags = info?.availableTags ?? [];
   const isEdit = !!m.reference.trim();
   const [importing, setImporting] = React.useState(false);
+  // Les images d'embed importées restent dans leur embed : on ne liste ici que les fichiers du message.
+  const files = standaloneAttachments(m);
 
   const pickFiles = async () => {
     try {
@@ -193,9 +196,9 @@ export function MessageEditor({
       ))}
       <Button icon="add-circle-outline" label="Ajouter un embed" onPress={() => addEmbed(m.id)} disabled={m.embeds.length >= LIMITS.embeds} />
 
-      <Box nested title="Fichiers" icon="attach" badge={m.attachments.length ? String(m.attachments.length) : undefined} defaultCollapsed={!m.attachments.length}>
+      <Box nested title="Fichiers du message" icon="attach" badge={files.length ? String(files.length) : undefined} defaultCollapsed={!files.length}>
         {isEdit && <Text style={{ color: t.textFaint, fontSize: t.font(12) }}>Les fichiers ne sont envoyés qu’avec un nouveau message.</Text>}
-        {m.attachments.map((a) => (
+        {files.map((a) => (
           <View key={a.id} style={{ backgroundColor: t.surface, borderRadius: t.radiusSm, padding: 10, gap: 6, borderWidth: 1, borderColor: t.border }}>
             <Stack row gap={6}>
               <View style={{ flex: 1 }}>
