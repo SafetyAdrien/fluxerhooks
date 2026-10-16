@@ -4,7 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import { avatarUrl, bannerUrl, guildIconUrl, loginMfaTotp, loginWithPassword } from '../api/fluxer';
-import { solveAltcha } from '../api/altcha';
+import { cancelAltcha, hasNativeSolver, solveAltcha } from '../api/altcha';
 import { useSettings } from '../state/settings';
 import { useSession } from '../state/session';
 import { useEndpoints } from '../state/useEndpoints';
@@ -24,6 +24,15 @@ function LoginForm({ onDone }: { onDone: () => void }) {
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [captcha, setCaptcha] = useState<number | null>(null);
+  const [step, setStep] = useState<string | null>(null);
+  const [elapsed, setElapsed] = useState(0);
+  React.useEffect(() => {
+    if (!busy) return;
+    const t0 = Date.now();
+    setElapsed(0);
+    const id = setInterval(() => setElapsed(Math.floor((Date.now() - t0) / 1000)), 1000);
+    return () => clearInterval(id);
+  }, [busy]);
   const [error, setError] = useState<string | null>(null);
 
   const finish = async (tok?: string) => {
@@ -43,12 +52,15 @@ function LoginForm({ onDone }: { onDone: () => void }) {
         const r = await loginMfaTotp(ep, ticket, code);
         return await finish(r.token);
       }
+      setStep('Connexion au serveur Fluxer…');
       const r = await loginWithPassword(ep, login, password, async (ch) => {
         setCaptcha(0);
+        setStep(hasNativeSolver ? 'Vérification anti-robot (calcul sur ton téléphone)…' : 'Vérification anti-robot (mode lent)…');
         try {
           return await solveAltcha(ch, (n) => setCaptcha(n));
         } finally {
           setCaptcha(null);
+          setStep('Envoi de la vérification…');
         }
       });
       if (r.mfa) {
@@ -64,6 +76,8 @@ function LoginForm({ onDone }: { onDone: () => void }) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
+      setStep(null);
+      setCaptcha(null);
     }
   };
 
@@ -113,12 +127,19 @@ function LoginForm({ onDone }: { onDone: () => void }) {
             mono
           />
         )}
-        {captcha !== null && (
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: t.accentSoft, padding: 10, borderRadius: t.radiusSm }}>
-            <Ionicons name="shield-checkmark-outline" size={t.z(18)} color={t.accent} />
-            <Text style={{ color: t.text, flex: 1, fontSize: t.font(13) }}>
-              Vérification anti-robot en cours sur ton téléphone… ({captcha} essais)
-            </Text>
+        {busy && step && (
+          <View style={{ gap: 6, backgroundColor: t.accentSoft, padding: 10, borderRadius: t.radiusSm }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Ionicons name="shield-checkmark-outline" size={t.z(18)} color={t.accent} />
+              <Text style={{ color: t.text, flex: 1, fontSize: t.font(13) }}>{step}</Text>
+              <Text style={{ color: t.textMuted, fontSize: t.font(12) }}>{elapsed} s</Text>
+            </View>
+            {captcha !== null && (
+              <Text style={{ color: t.textMuted, fontSize: t.font(12) }}>
+                {captcha} essais calculés · cela prend en général 10 à 60 secondes, garde l’app ouverte.
+              </Text>
+            )}
+            {captcha !== null && <Button small variant="ghost" icon="close" label="Annuler" onPress={cancelAltcha} />}
           </View>
         )}
         {error && (

@@ -1,5 +1,6 @@
 import { pbkdf2 } from '@noble/hashes/pbkdf2';
 import { sha256, sha384, sha512 } from '@noble/hashes/sha2';
+import { AltchaSolver } from '../../modules/altcha-solver/src';
 
 /**
  * Solveur ALTCHA v2 (preuve de travail PBKDF2) utilisé par Fluxer pour le CAPTCHA de connexion.
@@ -61,8 +62,54 @@ const HASHES: Record<string, any> = {
   'PBKDF2/SHA-512': sha512,
 };
 
-/** Résout le défi et renvoie la valeur à mettre dans X-Captcha-Token. */
+const tokenOf = (challenge: AltchaChallenge, counter: number, derivedKey: string, time: number) =>
+  base64Utf8(
+    JSON.stringify({
+      challenge: { parameters: challenge.parameters, signature: challenge.signature },
+      solution: { counter, derivedKey, time },
+    }),
+  );
+
+export const hasNativeSolver = !!AltchaSolver;
+
+export function cancelAltcha() {
+  AltchaSolver?.cancel().catch(() => {});
+}
+
+/**
+ * Résout le défi et renvoie la valeur à mettre dans X-Captcha-Token.
+ * Fluxer utilise le mode « déterministe » (compteur choisi par le serveur, souvent plusieurs milliers) :
+ * sur Android on calcule en natif sur tous les cœurs, le JavaScript seul serait beaucoup trop lent.
+ */
 export async function solveAltcha(
+  challenge: AltchaChallenge,
+  onProgress?: (tries: number) => void,
+  timeoutMs = 180_000,
+): Promise<string> {
+  const p = challenge.parameters;
+  if (AltchaSolver) {
+    const t0 = Date.now();
+    const sub = AltchaSolver.addListener('onProgress', (e) => onProgress?.(e.tries));
+    try {
+      const r = await AltchaSolver.solve({
+        algorithm: p.algorithm,
+        nonce: p.nonce,
+        salt: p.salt,
+        cost: p.cost,
+        keyLength: p.keyLength ?? 32,
+        keyPrefix: String(p.keyPrefix),
+        timeoutMs,
+      });
+      return tokenOf(challenge, r.counter, r.derivedKey, Date.now() - t0);
+    } finally {
+      sub.remove();
+    }
+  }
+  return solveAltchaJs(challenge, onProgress, timeoutMs);
+}
+
+/** Repli JavaScript (web, Expo Go). */
+export async function solveAltchaJs(
   challenge: AltchaChallenge,
   onProgress?: (tries: number) => void,
   timeoutMs = 120_000,
@@ -87,11 +134,7 @@ export async function solveAltcha(
     if (counter % 3 === 2) await new Promise((r) => setTimeout(r, 0));
     const hex = bytesToHex(key);
     if (hex.startsWith(prefix)) {
-      const token = {
-        challenge: { parameters: challenge.parameters, signature: challenge.signature },
-        solution: { counter, derivedKey: hex, time: Date.now() - t0 },
-      };
-      return base64Utf8(JSON.stringify(token));
+      return tokenOf(challenge, counter, hex, Date.now() - t0);
     }
     if (counter % 4 === 0) onProgress?.(counter + 1);
     if (Date.now() - t0 > timeoutMs) throw new Error('Le CAPTCHA a pris trop de temps, réessaie.');

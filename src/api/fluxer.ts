@@ -49,7 +49,11 @@ export async function resolveEndpoints(instance: string): Promise<Endpoints> {
   const hit = cache.get(origin);
   if (hit) return hit;
   try {
-    const res = await fetch(`${origin}/.well-known/fluxer`, { headers: { Accept: 'application/json' } });
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 8_000);
+    const res = await fetch(`${origin}/.well-known/fluxer`, { headers: { Accept: 'application/json' }, signal: ctrl.signal }).finally(() =>
+      clearTimeout(timer),
+    );
     if (!res.ok) throw new Error(String(res.status));
     const json = await res.json();
     const ep: Endpoints = {
@@ -112,6 +116,7 @@ interface ReqOpts {
   bot?: string; // token de bot
   user?: string; // token de session utilisateur
   headers?: Record<string, string>;
+  timeoutMs?: number;
   json?: unknown;
   form?: FormData;
   query?: Record<string, string | undefined>;
@@ -139,7 +144,21 @@ async function request<T>(ep: Endpoints, path: string, opts: ReqOpts = {}, attem
     headers['Content-Type'] = 'application/json';
     body = JSON.stringify(opts.json);
   }
-  const res = await fetch(url, { method: opts.method || 'GET', headers, body });
+  // Délai maximal : une requête bloquée ne doit jamais laisser un chargement infini.
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), opts.timeoutMs ?? 30_000);
+  let res: Response;
+  try {
+    res = await fetch(url, { method: opts.method || 'GET', headers, body, signal: ctrl.signal });
+  } catch (e) {
+    throw new FluxerError(
+      ctrl.signal.aborted ? 'Le serveur Fluxer ne répond pas (délai dépassé). Vérifie ta connexion et réessaie.' : 'Connexion impossible au serveur Fluxer. Vérifie ta connexion Internet.',
+      0,
+      ctrl.signal.aborted ? 'TIMEOUT' : 'NETWORK',
+    );
+  } finally {
+    clearTimeout(timer);
+  }
   if (res.status === 204) return undefined as T;
   const text = await res.text();
   let json: any = null;
