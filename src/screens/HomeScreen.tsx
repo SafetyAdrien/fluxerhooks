@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { Image, ScrollView, Text, View, useWindowDimensions } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import React, { useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Animated, BackHandler, Easing, Image, ScrollView, Text, View, useWindowDimensions } from 'react-native';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { LandingPage, type LandingAction } from './LandingPage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSettings } from '../state/settings';
 import { useEditor } from '../state/editor';
@@ -8,7 +9,7 @@ import { useSender } from '../state/useSender';
 import { BotCard, TargetsEditor } from '../components/TargetsEditor';
 import { MessageEditor } from '../components/MessageEditor';
 import { PreviewList } from '../components/Preview';
-import { Button, IconBtn, Segmented, Stack } from '../components/ui';
+import { Button, IconBtn, Stack } from '../components/ui';
 import { SettingsSheet } from './SettingsSheet';
 import { BotBrowser } from './BotBrowser';
 import { JsonSheet } from './DataSheets';
@@ -32,8 +33,34 @@ export function HomeScreen({ onRestored }: { onRestored: () => void }) {
   const { busy, sendAll, activeTargets } = useSender();
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
-  const [tab, setTab] = useState<Tab>('editor');
   const [sheet, setSheet] = useState<null | 'settings' | 'bot' | 'json' | 'data' | 'account' | 'css'>(null);
+  const [tab, setTab] = useState<Tab>('editor');
+  const [page, setPage] = useState<'home' | 'editor'>('home');
+  // Transition douce entre l'accueil et l'éditeur.
+  const fade = useRef(new Animated.Value(1)).current;
+  const go = (p: 'home' | 'editor') => {
+    fade.setValue(0);
+    setPage(p);
+    if (p === 'home') setTab('editor');
+    Animated.timing(fade, { toValue: 1, duration: 260, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
+  };
+  // Bouton retour Android : aperçu → éditeur → accueil.
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (sheet) return false;
+      if (page === 'editor' && tab === 'preview') {
+        setTab('editor');
+        return true;
+      }
+      if (page === 'editor') {
+        go('home');
+        return true;
+      }
+      return false;
+    });
+    return () => sub.remove();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, tab, sheet]);
 
   const split = settings.splitView === 'auto' && (width >= 760 || (width > height && width >= 640));
   const info = state.targets.find((x) => x.enabled && x.info)?.info;
@@ -91,110 +118,135 @@ export function HomeScreen({ onRestored }: { onRestored: () => void }) {
           <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: wp.tint === 'accent' ? t.accent : '#000', opacity: wp.dim }} />
         </View>
       )}
-      {/* Barre supérieure */}
-      <View
-        style={[
-          {
-            paddingTop: insets.top + 6,
-            paddingBottom: 8,
-            paddingHorizontal: 12,
-            backgroundColor: t.bgAlt,
-            borderBottomWidth: 1,
-            borderBottomColor: t.border,
-            gap: 8,
-          },
-          t.css.header,
-        ]}
-      >
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <View style={{ width: t.z(34), height: t.z(34), borderRadius: 10, backgroundColor: t.accent, alignItems: 'center', justifyContent: 'center' }}>
-            <Ionicons name="flash" size={t.z(20)} color={t.onAccent} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={{ color: t.text, fontWeight: '900', fontSize: t.font(18) }}>FluxerHooks</Text>
-            <Text numberOfLines={1} style={{ color: t.textMuted, fontSize: t.font(11) }}>
-              {targets ? `${targets} destination${targets > 1 ? 's prêtes' : ' prête'}` : 'Aucune destination'}
-            </Text>
-          </View>
-          <IconBtn icon="archive-outline" label="Sauvegardes, modèles et automatisations" onPress={() => setSheet('data')} />
-          <IconBtn icon="code-slash-outline" label="JSON" onPress={() => setSheet('json')} />
-          <Pressable onPress={() => setSheet('account')} accessibilityLabel="Mon profil Fluxer" hitSlop={6} style={{ padding: 4 }}>
-            {session.user ? (
-              <Avatar uri={avatarUrl(ep, session.user.id, session.user.avatar)} name={session.user.global_name || session.user.username} size={t.z(28)} />
-            ) : (
-              <Ionicons name="person-circle-outline" size={t.z(26)} color={t.text} />
-            )}
-          </Pressable>
-          <IconBtn icon="settings-sharp" label="Paramètres" color={t.text} size={22} onPress={() => setSheet('settings')} />
-        </View>
-        {!split && (
-          <Segmented<Tab>
-            value={tab}
-            onChange={setTab}
-            options={[
-              { value: 'editor', label: 'Éditeur', icon: 'create-outline' },
-              { value: 'preview', label: 'Aperçu', icon: 'eye-outline' },
-            ]}
-          />
-        )}
-      </View>
-
-      {/* Contenu : onglets sur téléphone, écran partagé sur tablette / paysage */}
-      {split ? (
-        <View style={{ flex: 1, flexDirection: 'row' }}>
-          <View style={{ flex: 1, borderRightWidth: 1, borderRightColor: t.border }}>{editor}</View>
-          <View style={{ flex: 1 }}>{preview}</View>
-        </View>
+      {page === 'home' ? (
+        <Animated.View style={{ flex: 1, opacity: fade }}>
+          <LandingPage onOpenEditor={() => go('editor')} onAction={(a: LandingAction) => setSheet(a)} />
+        </Animated.View>
       ) : (
-        <View style={{ flex: 1 }}>{tab === 'editor' ? editor : preview}</View>
-      )}
+        <Animated.View style={{ flex: 1, opacity: fade, transform: [{ translateX: fade.interpolate({ inputRange: [0, 1], outputRange: [24, 0] }) }] }}>
+          {/* Barre supérieure de l'éditeur */}
+          <View
+            style={[
+              {
+                paddingTop: insets.top + 6,
+                paddingBottom: 8,
+                paddingHorizontal: 10,
+                backgroundColor: t.bgAlt,
+                borderBottomWidth: 1,
+                borderBottomColor: t.border,
+              },
+              t.css.header,
+            ]}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Pressable
+                onPress={() => go('home')}
+                accessibilityRole="button"
+                accessibilityLabel="Retour à l’accueil"
+                hitSlop={6}
+                style={({ pressed }) => ({
+                  width: t.z(40),
+                  height: t.z(40),
+                  borderRadius: t.z(14),
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: pressed ? t.accentSoft : t.surface2,
+                  transform: [{ scale: pressed ? 0.94 : 1 }],
+                })}
+              >
+                <MaterialCommunityIcons name="arrow-left" size={t.z(22)} color={t.text} />
+              </Pressable>
+              <View style={{ flex: 1, minWidth: 0, marginLeft: 4 }}>
+                <Text numberOfLines={1} style={{ color: t.text, fontWeight: '900', fontSize: t.font(17) }}>
+                  {tab === 'preview' && !split ? 'Aperçu' : 'Éditeur'}
+                </Text>
+                <Text numberOfLines={1} style={{ color: t.textMuted, fontSize: t.font(11) }}>
+                  {targets ? `${targets} destination${targets > 1 ? 's prêtes' : ' prête'}` : 'Aucune destination'}
+                </Text>
+              </View>
+              <IconBtn icon="archive-outline" label="Sauvegardes, modèles et automatisations" onPress={() => setSheet('data')} />
+              <IconBtn icon="code-slash-outline" label="JSON" onPress={() => setSheet('json')} />
+              <Pressable onPress={() => setSheet('account')} accessibilityLabel="Mon profil Fluxer" hitSlop={6} style={{ padding: 4 }}>
+                {session.user ? (
+                  <Avatar uri={avatarUrl(ep, session.user.id, session.user.avatar)} name={session.user.global_name || session.user.username} size={t.z(26)} />
+                ) : (
+                  <Ionicons name="person-circle-outline" size={t.z(25)} color={t.text} />
+                )}
+              </Pressable>
+              <IconBtn icon="settings-sharp" label="Paramètres" color={t.text} size={21} onPress={() => setSheet('settings')} />
+              {/* Envoyer : déplacé dans la barre supérieure */}
+              <Pressable
+                onPress={sendAll}
+                disabled={!targets || busy === 'all'}
+                accessibilityRole="button"
+                accessibilityLabel={hasEdits ? 'Envoyer et mettre à jour' : state.messages.length > 1 ? 'Tout envoyer' : 'Envoyer'}
+                style={({ pressed }) => ({
+                  height: t.z(40),
+                  minWidth: t.z(40),
+                  paddingHorizontal: t.z(10),
+                  borderRadius: t.z(14),
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 4,
+                  backgroundColor: !targets ? t.surface2 : pressed ? t.accentPressed : t.accent,
+                  opacity: !targets ? 0.6 : 1,
+                  transform: [{ scale: pressed ? 0.94 : 1 }],
+                })}
+              >
+                {busy === 'all' ? (
+                  <ActivityIndicator size="small" color={t.onAccent} />
+                ) : (
+                  <MaterialCommunityIcons name={hasEdits ? 'content-save-outline' : 'send'} size={t.z(20)} color={targets ? t.onAccent : t.textMuted} />
+                )}
+                {state.messages.length > 1 && (
+                  <Text style={{ color: targets ? t.onAccent : t.textMuted, fontWeight: '800', fontSize: t.font(13) }}>{state.messages.length}</Text>
+                )}
+              </Pressable>
+            </View>
+          </View>
 
-      {/* Barre d'action flottante */}
-      <View
-        style={[
-          {
-            position: 'absolute',
-            left: 12,
-            right: 12,
-            bottom: insets.bottom + 12,
-            flexDirection: 'row',
-            gap: 8,
-            padding: 8,
-            borderRadius: t.radius + 4,
-            backgroundColor: t.hasWallpaper ? base.bgAlt : t.bgAlt,
-            borderWidth: 1,
-            borderColor: t.border,
-            elevation: 10,
-            shadowColor: '#000',
-            shadowOpacity: 0.3,
-            shadowRadius: 12,
-            shadowOffset: { width: 0, height: 4 },
-          },
-          t.css.actionbar,
-        ]}
-      >
-        {!split && (
-          <Button
-            icon={tab === 'editor' ? 'eye-outline' : 'create-outline'}
-            onPress={() => setTab(tab === 'editor' ? 'preview' : 'editor')}
-          />
-        )}
-        <Button
-          flex
-          variant="primary"
-          icon={hasEdits ? 'save' : 'paper-plane'}
-          label={
-            state.messages.length > 1
-              ? `${hasEdits ? 'Envoyer / mettre à jour' : 'Tout envoyer'} (${state.messages.length})`
-              : hasEdits
-                ? 'Mettre à jour'
-                : 'Envoyer'
-          }
-          onPress={sendAll}
-          loading={busy === 'all'}
-          disabled={!targets}
-        />
-      </View>
+          {/* Contenu : éditeur ou aperçu sur téléphone, écran partagé sur tablette / paysage */}
+          {split ? (
+            <View style={{ flex: 1, flexDirection: 'row' }}>
+              <View style={{ flex: 1, borderRightWidth: 1, borderRightColor: t.border }}>{editor}</View>
+              <View style={{ flex: 1 }}>{preview}</View>
+            </View>
+          ) : (
+            <View style={{ flex: 1 }}>{tab === 'editor' ? editor : preview}</View>
+          )}
+
+          {/* Aperçu : bouton flottant */}
+          {!split && (
+            <Pressable
+              onPress={() => setTab(tab === 'editor' ? 'preview' : 'editor')}
+              accessibilityRole="button"
+              accessibilityLabel={tab === 'editor' ? 'Afficher l’aperçu' : 'Revenir à l’éditeur'}
+              style={({ pressed }) => [
+                {
+                  position: 'absolute',
+                  right: 18,
+                  bottom: insets.bottom + 18,
+                  width: t.z(60),
+                  height: t.z(60),
+                  borderRadius: t.z(30),
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: pressed ? '#3732B8' : '#4641D9',
+                  transform: [{ scale: pressed ? 0.92 : 1 }],
+                  elevation: 10,
+                  shadowColor: '#4641D9',
+                  shadowOpacity: 0.5,
+                  shadowRadius: 14,
+                  shadowOffset: { width: 0, height: 6 },
+                },
+              ]}
+            >
+              <MaterialCommunityIcons name={tab === 'editor' ? 'eye-outline' : 'pencil-outline'} size={t.z(28)} color="#FFFFFF" />
+            </Pressable>
+          )}
+        </Animated.View>
+      )}
 
       <SettingsSheet
         visible={sheet === 'settings'}

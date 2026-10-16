@@ -22,7 +22,7 @@ export const newEmbed = (): Embed => ({
 
 export const newMessage = (): DraftMessage => ({
   id: uid(),
-  collapsed: false,
+  collapsed: true,
   content: '',
   username: '',
   avatar_url: '',

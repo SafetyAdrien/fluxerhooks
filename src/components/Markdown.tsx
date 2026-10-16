@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Image, Linking, Platform, Pressable, Text, View, type TextStyle } from 'react-native';
 import { useEndpoints } from '../state/useEndpoints';
 import { emojiUrl } from '../api/fluxer';
+import { EmojiInfoPopup, type EmojiTarget } from './EmojiInfo';
 import { useTheme, type Theme } from '../state/settings';
 
 /**
@@ -29,6 +30,8 @@ interface Ctx {
   media?: string;
   /** Taille des emojis personnalisés (agrandis si le texte ne contient que des emojis). */
   emojiSize: number;
+  /** Ouvre la fiche d'un emoji (nom + description) au toucher. */
+  onEmoji?: (e: EmojiTarget) => void;
 }
 
 export type MentionResolver = (kind: 'channel' | 'role' | 'user' | 'emoji', id: string) => string | undefined;
@@ -122,13 +125,14 @@ const RULES: InlineRule[] = [
     re: /^<(a)?:(\w+):(\d+)>/,
     render: (m, c, k) =>
       c.media ? (
-        <Image
-          key={k}
-          accessibilityLabel={`:${m[2]}:`}
-          source={{ uri: emojiUrl({ media: c.media } as any, m[3], !!m[1], c.emojiSize > 40 ? 128 : 64) }}
-          style={{ width: c.emojiSize, height: c.emojiSize }}
-          resizeMode="contain"
-        />
+        <Text key={k} onPress={c.onEmoji ? () => c.onEmoji!({ kind: 'custom', id: m[3], name: m[2], animated: !!m[1] }) : undefined} suppressHighlighting>
+          <Image
+            accessibilityLabel={`:${m[2]}:`}
+            source={{ uri: emojiUrl({ media: c.media } as any, m[3], !!m[1], c.emojiSize > 40 ? 128 : 64) }}
+            style={{ width: c.emojiSize, height: c.emojiSize }}
+            resizeMode="contain"
+          />
+        </Text>
       ) : (
         <Text key={k} style={{ color: c.t.textMuted }}>:{m[2]}:</Text>
       ),
@@ -145,11 +149,31 @@ const RULES: InlineRule[] = [
 
 const SPECIAL = /[\\`|\[h<*_~@]/;
 
+/** Texte brut : chaque emoji Unicode devient touchable (fiche d'info). */
+function pushText(out: Node[], text: string, ctx: Ctx, key: () => string) {
+  if (!ctx.onEmoji || !EMOJI_RE) return void out.push(text);
+  const re = new RegExp(EMOJI_RE.source, 'gu');
+  let last = 0;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text))) {
+    if (m.index > last) out.push(text.slice(last, m.index));
+    const char = m[0];
+    out.push(
+      <Text key={key()} onPress={() => ctx.onEmoji!({ kind: 'unicode', char })} suppressHighlighting accessibilityRole="button">
+        {char}
+      </Text>,
+    );
+    last = m.index + char.length;
+  }
+  if (last < text.length) out.push(text.slice(last));
+}
+
 export function inline(text: string, ctx: Ctx): Node[] {
   const out: Node[] = [];
   let buf = '';
   let i = 0;
   let k = 0;
+  const key = () => `e${k++}`;
   while (i < text.length) {
     const ch = text[i];
     if (SPECIAL.test(ch)) {
@@ -160,7 +184,7 @@ export function inline(text: string, ctx: Ctx): Node[] {
         const m = r.re.exec(rest);
         if (m) {
           if (buf) {
-            out.push(buf);
+            pushText(out, buf, ctx, key);
             buf = '';
           }
           out.push(r.render(m, ctx, `i${k++}`));
@@ -174,7 +198,7 @@ export function inline(text: string, ctx: Ctx): Node[] {
     buf += ch;
     i++;
   }
-  if (buf) out.push(buf);
+  if (buf) pushText(out, buf, ctx, key);
   return out;
 }
 
@@ -273,13 +297,22 @@ export function Markdown({
   const t = useTheme();
   const resolve = React.useContext(MentionContext);
   const ep = useEndpoints();
+  const [emoji, setEmoji] = useState<EmojiTarget | null>(null);
+  const onEmoji = setEmoji;
+  const popup = emoji ? <EmojiInfoPopup target={emoji} onClose={() => setEmoji(null)} /> : null;
   const fs = t.font(size);
   const jumbo = !singleLine && !embed && isEmojiOnly(text);
   const base: TextStyle = jumbo
     ? { color: color ?? t.text, fontSize: fs * 2.4, lineHeight: fs * 3.3 }
     : { color: color ?? t.text, fontSize: fs, lineHeight: fs * 1.38, fontWeight: bold ? '700' : undefined };
-  const ctx: Ctx = { t, base, embed, resolve, bio, media: ep.media, emojiSize: jumbo ? fs * 3 : fs * 1.375 };
-  if (singleLine) return <Text style={base}>{inline(text, ctx)}</Text>;
+  const ctx: Ctx = { t, base, embed, resolve, bio, media: ep.media, emojiSize: jumbo ? fs * 3 : fs * 1.375, onEmoji };
+  if (singleLine)
+    return (
+      <>
+        <Text style={base}>{inline(text, ctx)}</Text>
+        {popup}
+      </>
+    );
   const blocks = parseBlocks(text, bio);
   return (
     <View style={{ gap: 2 }}>
@@ -333,6 +366,7 @@ export function Markdown({
             );
         }
       })}
+      {popup}
     </View>
   );
 }

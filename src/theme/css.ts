@@ -53,7 +53,7 @@ export const ESSENTIAL: CssCategory = {
   vars: [
     col('brand-primary', 'Couleur principale', { setting: 'accent' }, (t) => t.accent, 'Boutons principaux, éléments actifs et liens d’action.'),
     col('background-primary', 'Fond principal', { palette: 'bg' }, (t) => t.bg, 'Avec un fond d’écran, tu ne verras pas cette couleur.'),
-    col('background-secondary', 'Fond secondaire', { palette: 'bgAlt' }, (t) => t.bgAlt, 'Barre supérieure, onglets et barre d’action.'),
+    col('background-secondary', 'Fond secondaire', { palette: 'bgAlt' }, (t) => t.bgAlt, 'Barre supérieure de l’éditeur.'),
     col('background-surface', 'Conteneurs', { palette: 'surface' }, (t) => t.surface),
     col('background-input', 'Champs et boutons', { palette: 'surface2' }, (t) => t.surface2),
     col('border-color', 'Bordures', { palette: 'border' }, (t) => t.border),
@@ -75,8 +75,6 @@ export const CSS_CATEGORIES: CssCategory[] = [
     vars: [
       col('app-background', 'Fond de l’application', { selector: 'app', prop: 'backgroundColor' }, (t) => t.bg),
       col('header-background', 'Barre supérieure', { selector: 'header', prop: 'backgroundColor' }, (t) => t.bgAlt),
-      col('actionbar-background', 'Barre d’action', { selector: 'actionbar', prop: 'backgroundColor' }, (t) => t.bgAlt, 'La barre flottante avec « Envoyer ».'),
-      size('actionbar-radius', 'Arrondi de la barre d’action', { selector: 'actionbar', prop: 'borderRadius' }, (t) => t.radius + 4, 0, 40),
       col('sheet-background', 'Fenêtres', { selector: 'sheet', prop: 'backgroundColor' }, (t) => t.bg, 'Paramètres, profil, JSON…'),
     ],
     label: 'Structure',
@@ -84,10 +82,9 @@ export const CSS_CATEGORIES: CssCategory[] = [
     selectors: [
       { name: 'app', description: 'Fond général de l’application' },
       { name: 'header', description: 'Barre supérieure' },
-      { name: 'actionbar', description: 'Barre d’action flottante (Envoyer)' },
       { name: 'sheet', description: 'Fenêtres modales (paramètres, JSON…)' },
     ],
-    example: 'header {\n  background: #101018;\n  border-bottom-width: 0;\n}\nactionbar {\n  border-radius: 28px;\n}',
+    example: 'header {\n  background: #101018;\n  border-bottom-width: 0;\n}',
   },
   {
     key: 'components',

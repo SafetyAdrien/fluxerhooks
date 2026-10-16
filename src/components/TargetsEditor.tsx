@@ -122,6 +122,7 @@ export function BotCard({ onBrowse }: { onBrowse: () => void }) {
     <Box
       title="Bot Fluxer"
       icon="hardware-chip-outline"
+      defaultCollapsed
       subtitle={
         botToken
           ? `${botUser ? botUser.username : 'Bot'} · ${gw.state.state === 'online' ? 'en ligne' : gw.state.state === 'error' ? 'erreur' : gw.state.state === 'offline' ? 'arrêté' : 'connexion…'} · ${list.length ? `${list.length} salon(s)` : 'choisis où publier'}`
@@ -406,6 +407,7 @@ export function TargetsEditor({ onBrowse }: { onBrowse: () => void }) {
     <Box
       title="Webhooks"
       icon="link"
+      defaultCollapsed
       subtitle={valid ? `${valid} webhook(s) vérifié(s)` : 'Colle l’URL d’un webhook Fluxer'}
       badge={hooks.length > 1 ? String(hooks.length) : undefined}
     >

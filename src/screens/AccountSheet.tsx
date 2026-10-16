@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Image, Linking, Text, View } from 'react-native';
+import { Image, Linking, Pressable, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import { apiFor, avatarUrl, bannerUrl, guildIconUrl, loginMfaTotp, loginWithPassword } from '../api/fluxer';
 import { CaptchaBox, useCaptcha } from '../components/CaptchaBox';
@@ -158,6 +158,42 @@ function InfoRow({ icon, label, value, onCopy, action }: { icon: React.Component
   );
 }
 
+/** Badge du profil Fluxer, en icône seule (libellé au toucher et pour les lecteurs d'écran). */
+const PLUTONIUM = require('../../assets/badges/plutonium.png');
+function IconBadge({ label, mci, color, image }: { label: string; mci?: React.ComponentProps<typeof MaterialCommunityIcons>['name']; color?: string; image?: number }) {
+  const { theme: t, haptic } = useSettings();
+  const toast = useToast();
+  const size = t.z(34);
+  return (
+    <Pressable
+      onPress={() => {
+        haptic('light');
+        toast(label, 'info');
+      }}
+      accessibilityRole="image"
+      accessibilityLabel={label}
+      hitSlop={4}
+      style={({ pressed }) => ({
+        width: size,
+        height: size,
+        borderRadius: size / 2,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: t.surface2,
+        borderWidth: 1,
+        borderColor: t.border,
+        transform: [{ scale: pressed ? 0.9 : 1 }],
+      })}
+    >
+      {image ? (
+        <Image source={image} style={{ width: size * 0.72, height: size * 0.72 }} resizeMode="contain" />
+      ) : (
+        <MaterialCommunityIcons name={mci!} size={size * 0.56} color={color ?? t.text} />
+      )}
+    </Pressable>
+  );
+}
+
 const CONNECTION_ICONS: Record<string, React.ComponentProps<typeof Ionicons>['name']> = {
   bsky: 'at-circle-outline',
   bluesky: 'at-circle-outline',
@@ -238,10 +274,10 @@ function Profile({ onBrowse }: { onBrowse: () => void }) {
               <Avatar uri={avatarUrl(ep, user.id, user.avatar, 256)} name={name} size={avatar} />
             </View>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, flex: 1, minWidth: t.z(140), justifyContent: 'flex-end', paddingBottom: 6 }}>
-              {!!user.premium_type && <Badge text="Plutonium" color={accent} />}
-              {user.verified && <Badge text="E-mail vérifié" />}
-              {user.mfa_enabled && <Badge text="2FA" />}
-              {user.bot && <Badge text="BOT" />}
+              {!!user.premium_type && <IconBadge label="Plutonium" image={PLUTONIUM} />}
+              {user.verified && <IconBadge label="E-mail vérifié" mci="email-check-outline" color={t.success} />}
+              {user.mfa_enabled && <IconBadge label="Double authentification (2FA) activée" mci="shield-key-outline" color={t.accent} />}
+              {user.bot && <IconBadge label="Compte bot" mci="robot-outline" color={t.textMuted} />}
             </View>
           </View>
           <View style={{ padding: t.pad, paddingTop: 8, gap: 4 }}>
@@ -268,7 +304,7 @@ function Profile({ onBrowse }: { onBrowse: () => void }) {
             </Box>
           )}
 
-          <Box title="Informations" icon="information-circle-outline">
+          <Box title="Informations" icon="information-circle-outline" defaultCollapsed>
             <InfoRow icon="finger-print-outline" label="Identifiant" value={user.id} onCopy={copy('ID', user.id)} />
             {!!user.email && (
               <InfoRow
@@ -285,7 +321,7 @@ function Profile({ onBrowse }: { onBrowse: () => void }) {
           </Box>
 
           {connections.length > 0 && (
-            <Box title="Connexions" icon="link-outline" badge={String(connections.length)}>
+            <Box title="Connexions" icon="link-outline" badge={String(connections.length)} defaultCollapsed>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                 {connections.map((c) => (
                   <View key={c.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 6, borderRadius: t.radiusSm, backgroundColor: t.surface2, maxWidth: '100%' }}>
@@ -298,7 +334,7 @@ function Profile({ onBrowse }: { onBrowse: () => void }) {
             </Box>
           )}
 
-          <Box title="Serveurs" icon="server-outline" badge={String(list.length)}>
+          <Box title="Serveurs" icon="server-outline" badge={String(list.length)} defaultCollapsed>
             <Grid min={t.z(132)} gap={8}>
               {(allGuilds ? list : list.slice(0, 12)).map((g) => (
                 <View key={g.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, padding: 6, borderRadius: t.radiusSm, backgroundColor: t.surface2 }}>

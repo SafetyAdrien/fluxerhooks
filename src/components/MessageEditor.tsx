@@ -109,7 +109,7 @@ export function MessageEditor({
         onImportImages={() => setImporting(true)}
       />
 
-      <Box nested title={hasBot && !hasHook ? 'Profil (webhooks)' : 'Profil du webhook'} icon="person-outline" subtitle={m.username.trim() || info?.name || 'Nom et avatar par défaut'} defaultCollapsed={!m.username && !m.avatar_url}>
+      <Box nested title={hasBot && !hasHook ? 'Profil (webhooks)' : 'Profil du webhook'} icon="person-outline" subtitle={m.username.trim() || info?.name || 'Nom et avatar par défaut'} defaultCollapsed>
         {hasBot && (
           <Text style={{ color: t.textMuted, fontSize: t.font(12) }}>
             Les salons du bot utilisent toujours le nom et l’avatar du bot ; ces réglages s’appliquent aux webhooks.
@@ -132,7 +132,7 @@ export function MessageEditor({
         title="Destination"
         icon="git-branch-outline"
         subtitle={m.threadMode === 'channel' ? (botForum ? `Nouveau post : ${m.thread_name || '—'}` : 'Salon de la destination') : m.threadMode === 'thread' ? `Thread ${m.thread_id || '—'}` : `Nouveau post : ${m.thread_name || '—'}`}
-        defaultCollapsed={m.threadMode === 'channel' && !forum}
+        defaultCollapsed
       >
         <Segmented<ThreadMode>
           value={m.threadMode}
@@ -209,7 +209,7 @@ export function MessageEditor({
       ))}
       <Button icon="add-circle-outline" label="Ajouter un embed" onPress={() => addEmbed(m.id)} disabled={m.embeds.length >= LIMITS.embeds} />
 
-      <Box nested title="Fichiers du message" icon="attach" badge={files.length ? String(files.length) : undefined} defaultCollapsed={!files.length}>
+      <Box nested title="Fichiers du message" icon="attach" badge={files.length ? String(files.length) : undefined} defaultCollapsed>
         {isEdit && <Text style={{ color: t.textFaint, fontSize: t.font(12) }}>Les fichiers ne sont envoyés qu’avec un nouveau message.</Text>}
         {files.map((a) => (
           <View key={a.id} style={{ backgroundColor: t.surface, borderRadius: t.radiusSm, padding: 10, gap: 6, borderWidth: 1, borderColor: t.border }}>
@@ -268,7 +268,7 @@ export function MessageEditor({
         />
       </Box>
 
-      <Box nested title="Modifier un message envoyé" icon="create-outline" subtitle={isEdit ? 'Mode édition actif' : 'Lien ou ID du message'} defaultCollapsed={!isEdit}>
+      <Box nested title="Modifier un message envoyé" icon="create-outline" subtitle={isEdit ? 'Mode édition actif' : 'Lien ou ID du message'} defaultCollapsed>
         <Input
           value={m.reference}
           onChangeText={(v) => set({ reference: v })}

@@ -57,7 +57,8 @@ export function EditorProvider({ children }: { children: React.ReactNode }) {
         const raw = await AsyncStorage.getItem(KEY);
         if (raw) {
           const parsed = JSON.parse(raw) as EditorState;
-          if (parsed?.messages?.length) setState(parsed);
+          // Au lancement, tous les messages sont repliés.
+          if (parsed?.messages?.length) setState({ ...parsed, messages: parsed.messages.map((m) => ({ ...m, collapsed: true })) });
         }
         const b = await AsyncStorage.getItem(BACKUPS_KEY);
         if (b) setBackups(JSON.parse(b));
