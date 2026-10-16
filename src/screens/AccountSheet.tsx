@@ -3,13 +3,14 @@ import { Image, Linking, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
-import { avatarUrl, bannerUrl, guildIconUrl, loginMfaTotp, loginWithPassword } from '../api/fluxer';
+import { apiFor, avatarUrl, bannerUrl, guildIconUrl, loginMfaTotp, loginWithPassword } from '../api/fluxer';
 import { CaptchaBox, useCaptcha } from '../components/CaptchaBox';
 import { useSettings } from '../state/settings';
 import { useSession } from '../state/session';
 import { useEndpoints } from '../state/useEndpoints';
-import { Avatar, Badge, Box, Button, Input, ListRow, Segmented, Sheet, Stack, useToast } from '../components/ui';
-import { Markdown } from '../components/Markdown';
+import { Avatar, Badge, Box, Button, FieldButton, Grid, Input, Segmented, Sheet, Stack, useToast } from '../components/ui';
+import { Markdown, MentionContext } from '../components/Markdown';
+import type { FluxerProfile } from '../types';
 import { intToHex } from '../utils/parse';
 
 function LoginForm({ onDone }: { onDone: () => void }) {
@@ -137,18 +138,57 @@ function LoginForm({ onDone }: { onDone: () => void }) {
   );
 }
 
+/** Ligne d'information flexible : libellé au-dessus, valeur qui passe à la ligne, bouton d'action dans le thème. */
+function InfoRow({ icon, label, value, onCopy, action }: { icon: React.ComponentProps<typeof Ionicons>['name']; label: string; value: string; onCopy?: () => void; action?: React.ReactNode }) {
+  const { theme: t } = useSettings();
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, minWidth: 0 }}>
+      <View style={{ width: t.z(34), height: t.z(34), borderRadius: t.radiusSm, backgroundColor: t.accentSoft, alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+        <Ionicons name={icon} size={t.z(17)} color={t.accent} />
+      </View>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text style={{ color: t.textMuted, fontSize: t.font(11), fontWeight: '800', letterSpacing: 0.6 }}>{label.toUpperCase()}</Text>
+        <Text selectable style={{ color: t.text, fontSize: t.font(14), flexShrink: 1 }}>
+          {value}
+        </Text>
+      </View>
+      {action}
+      {onCopy && <FieldButton mci="content-copy" label={`Copier : ${label}`} onPress={onCopy} />}
+    </View>
+  );
+}
+
+const CONNECTION_ICONS: Record<string, React.ComponentProps<typeof Ionicons>['name']> = {
+  bsky: 'at-circle-outline',
+  bluesky: 'at-circle-outline',
+  domain: 'globe-outline',
+};
+
 function Profile({ onBrowse }: { onBrowse: () => void }) {
   const { theme: t } = useSettings();
   const ep = useEndpoints();
   const toast = useToast();
-  const { user, guilds, loadGuilds, signOut, refreshMe } = useSession();
+  const session = useSession();
+  const { user, guilds, loadGuilds, signOut, refreshMe, credential, resolve } = session;
   const [showEmail, setShowEmail] = useState(false);
+  const [profile, setProfile] = useState<FluxerProfile | null>(null);
+  const [allGuilds, setAllGuilds] = useState(false);
+  const [width, setWidth] = useState(0);
   const loaded = useRef(false);
   useEffect(() => {
     if (loaded.current) return;
     loaded.current = true;
     loadGuilds('user').catch(() => {});
   }, [loadGuilds]);
+  useEffect(() => {
+    const c = credential('user');
+    if (!user || !c) return;
+    apiFor(ep, c)
+      .profile(user.id)
+      .then(setProfile)
+      .catch(() => setProfile(null));
+  }, [user, ep, credential]);
+
   if (!user) {
     return (
       <Stack>
@@ -158,93 +198,128 @@ function Profile({ onBrowse }: { onBrowse: () => void }) {
       </Stack>
     );
   }
+  const up = profile?.user_profile;
   const name = user.global_name || user.username;
-  const banner = bannerUrl(ep, user.id, user.banner);
-  const accent = user.accent_color != null ? intToHex(user.accent_color) : t.accent;
+  const bio = up?.bio ?? user.bio ?? '';
+  const pronouns = up?.pronouns ?? user.pronouns ?? '';
+  const banner = bannerUrl(ep, user.id, up?.banner ?? user.banner, 960);
+  const accentInt = up?.accent_color ?? up?.banner_color ?? user.accent_color;
+  const accent = accentInt != null ? intToHex(accentInt) : t.accent;
   const list = guilds.user;
+  const connections = profile?.connected_accounts ?? [];
+  const premiumSince = profile?.premium_since ?? user.premium_since;
+  const copy = (label: string, v: string) => async () => {
+    await Clipboard.setStringAsync(v);
+    toast(`${label} copié.`, 'success');
+  };
+  // Mise en page fluide : la bannière garde une hauteur raisonnable sur grand écran.
+  const bannerH = width ? Math.min(width / 2.6, t.z(170)) : t.z(130);
+  const avatar = width ? Math.max(t.z(72), Math.min(t.z(112), width * 0.22)) : t.z(84);
   const extra = Object.entries(user).filter(
     ([k, v]) =>
       !['id', 'username', 'discriminator', 'global_name', 'avatar', 'banner', 'bio', 'pronouns', 'accent_color', 'email', 'verified', 'mfa_enabled', 'premium_type', 'premium_since', 'bot', 'flags'].includes(k) &&
       (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') &&
       v !== '' &&
-      !/token|password|secret/i.test(k),
+      !/token|password|secret|phone/i.test(k),
   );
 
   return (
-    <Stack>
-      <View style={{ borderRadius: t.radius, overflow: 'hidden', backgroundColor: t.surface, borderWidth: 1, borderColor: t.border }}>
-        {banner ? (
-          <Image source={{ uri: banner }} style={{ width: '100%', aspectRatio: 3 }} />
-        ) : (
-          <LinearGradient colors={[accent, t.accentPressed]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ width: '100%', aspectRatio: 3 }} />
-        )}
-        <View style={{ paddingHorizontal: t.pad, marginTop: -t.z(40) }}>
-          <View style={{ borderRadius: 999, borderWidth: 5, borderColor: t.surface, alignSelf: 'flex-start' }}>
-            <Avatar uri={avatarUrl(ep, user.id, user.avatar, 256)} name={name} size={t.z(80)} />
-          </View>
-        </View>
-        <View style={{ padding: t.pad, gap: 6 }}>
-          <Text style={{ color: t.text, fontSize: t.font(22), fontWeight: '900' }}>{name}</Text>
-          <Text style={{ color: t.textMuted, fontSize: t.font(14) }}>
-            @{user.username}
-            {user.discriminator && user.discriminator !== '0' && user.discriminator !== '0000' ? `#${user.discriminator}` : ''}
-            {user.pronouns ? ` · ${user.pronouns}` : ''}
-          </Text>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 2 }}>
-            {!!user.premium_type && <Badge text="Plutonium" />}
-            {user.verified && <Badge text="E-mail vérifié" />}
-            {user.mfa_enabled && <Badge text="2FA activée" />}
-            {user.bot && <Badge text="BOT" />}
-          </View>
-          {!!user.bio && (
-            <View style={{ marginTop: 6, gap: 4 }}>
-              <Text style={{ color: t.textMuted, fontWeight: '800', fontSize: t.font(11), letterSpacing: 0.8 }}>À PROPOS</Text>
-              <Markdown text={user.bio} size={14} />
-            </View>
+    <MentionContext.Provider value={resolve}>
+      <Stack>
+        {/* ----- En-tête ----- */}
+        <View onLayout={(e) => setWidth(e.nativeEvent.layout.width)} style={{ borderRadius: t.radius, overflow: 'hidden', backgroundColor: t.surface, borderWidth: 1, borderColor: t.border }}>
+          {banner ? (
+            <Image source={{ uri: banner }} style={{ width: '100%', height: bannerH }} resizeMode="cover" />
+          ) : (
+            <LinearGradient colors={[accent, t.accentPressed]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ width: '100%', height: bannerH }} />
           )}
+          <View style={{ flexDirection: 'row', alignItems: 'flex-end', flexWrap: 'wrap', gap: 10, paddingHorizontal: t.pad, marginTop: -avatar / 2 }}>
+            <View style={{ borderRadius: 999, borderWidth: 5, borderColor: t.surface, backgroundColor: t.surface }}>
+              <Avatar uri={avatarUrl(ep, user.id, user.avatar, 256)} name={name} size={avatar} />
+            </View>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, flex: 1, minWidth: t.z(140), justifyContent: 'flex-end', paddingBottom: 6 }}>
+              {!!user.premium_type && <Badge text="Plutonium" color={accent} />}
+              {user.verified && <Badge text="E-mail vérifié" />}
+              {user.mfa_enabled && <Badge text="2FA" />}
+              {user.bot && <Badge text="BOT" />}
+            </View>
+          </View>
+          <View style={{ padding: t.pad, paddingTop: 8, gap: 4 }}>
+            <Text style={{ color: t.text, fontSize: t.font(22), lineHeight: t.font(28), fontWeight: '900', flexShrink: 1 }}>{name}</Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 6 }}>
+              <Text style={{ color: t.textMuted, fontSize: t.font(14) }}>
+                @{user.username}
+                {user.discriminator && user.discriminator !== '0' && user.discriminator !== '0000' ? `#${user.discriminator}` : ''}
+              </Text>
+              {!!pronouns && (
+                <View style={{ paddingHorizontal: 8, paddingVertical: 2, borderRadius: 999, backgroundColor: t.surface2, maxWidth: '100%' }}>
+                  <Markdown text={pronouns} size={12} color={t.textMuted} singleLine bio />
+                </View>
+              )}
+            </View>
+          </View>
         </View>
-      </View>
 
-      <Box title="Informations" icon="information-circle-outline" collapsible={false}>
-        <ListRow
-          icon="finger-print-outline"
-          title="Identifiant"
-          subtitle={user.id}
-          right={<Ionicons name="copy-outline" size={t.z(18)} color={t.textMuted} />}
-          onPress={async () => {
-            await Clipboard.setStringAsync(user.id);
-            toast('ID copié.', 'success');
-          }}
-        />
-        {!!user.email && (
-          <ListRow
-            icon="mail-outline"
-            title="E-mail"
-            subtitle={showEmail ? user.email : user.email.replace(/^(.).*(@.*)$/, '$1•••••$2')}
-            right={<Ionicons name={showEmail ? 'eye-off-outline' : 'eye-outline'} size={t.z(18)} color={t.textMuted} />}
-            onPress={() => setShowEmail((v) => !v)}
-          />
-        )}
-        {!!user.premium_since && <ListRow icon="diamond-outline" title="Premium depuis" subtitle={new Date(user.premium_since).toLocaleDateString('fr-FR')} />}
-        {extra.slice(0, 8).map(([k, v]) => (
-          <ListRow key={k} icon="ellipse-outline" title={k.replace(/_/g, ' ')} subtitle={String(v)} />
-        ))}
-      </Box>
+        {/* ----- Sections : grille fluide, chaque section est repliable ----- */}
+        <Grid min={300}>
+          {!!bio.trim() && (
+            <Box title="À propos de moi" icon="reader-outline">
+              <Markdown text={bio} size={14} bio />
+            </Box>
+          )}
 
-      <Box title={`Serveurs (${list.length})`} icon="server-outline" collapsible={false}>
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
-          {list.slice(0, 40).map((g) => (
-            <Avatar key={g.id} uri={guildIconUrl(ep, g.id, g.icon)} name={g.name} size={t.z(44)} shape="rounded" />
-          ))}
-        </View>
-        <Button icon="albums-outline" label="Parcourir mes serveurs et salons" onPress={onBrowse} />
-      </Box>
+          <Box title="Informations" icon="information-circle-outline">
+            <InfoRow icon="finger-print-outline" label="Identifiant" value={user.id} onCopy={copy('ID', user.id)} />
+            {!!user.email && (
+              <InfoRow
+                icon="mail-outline"
+                label="E-mail"
+                value={showEmail ? user.email : user.email.replace(/^(.).*(@.*)$/, '$1•••••$2')}
+                action={<FieldButton mci={showEmail ? 'eye-off-outline' : 'eye-outline'} label={showEmail ? 'Masquer l’e-mail' : 'Afficher l’e-mail'} onPress={() => setShowEmail((v) => !v)} />}
+              />
+            )}
+            {!!premiumSince && <InfoRow icon="diamond-outline" label="Plutonium depuis" value={new Date(premiumSince).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })} />}
+            {extra.slice(0, 8).map(([k, v]) => (
+              <InfoRow key={k} icon="ellipse-outline" label={k.replace(/_/g, ' ')} value={String(v)} />
+            ))}
+          </Box>
 
-      <Stack row gap={8}>
-        <Button flex icon="open-outline" label="Ouvrir Fluxer" onPress={() => Linking.openURL(ep.webapp)} />
-        <Button flex variant="danger" icon="log-out-outline" label="Déconnexion" onPress={signOut} />
+          {connections.length > 0 && (
+            <Box title="Connexions" icon="link-outline" badge={String(connections.length)}>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                {connections.map((c) => (
+                  <View key={c.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 6, borderRadius: t.radiusSm, backgroundColor: t.surface2, maxWidth: '100%' }}>
+                    <Ionicons name={CONNECTION_ICONS[String(c.type).toLowerCase()] ?? 'link-outline'} size={t.z(16)} color={t.textMuted} />
+                    <Text style={{ color: t.text, fontSize: t.font(13), flexShrink: 1 }}>{c.name}</Text>
+                    {c.verified && <Ionicons name="checkmark-circle" size={t.z(14)} color={t.success} />}
+                  </View>
+                ))}
+              </View>
+            </Box>
+          )}
+
+          <Box title="Serveurs" icon="server-outline" badge={String(list.length)}>
+            <Grid min={t.z(132)} gap={8}>
+              {(allGuilds ? list : list.slice(0, 12)).map((g) => (
+                <View key={g.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, padding: 6, borderRadius: t.radiusSm, backgroundColor: t.surface2 }}>
+                  <Avatar uri={guildIconUrl(ep, g.id, g.icon)} name={g.name} size={t.z(32)} shape="rounded" />
+                  <Text numberOfLines={2} style={{ color: t.text, fontSize: t.font(12), fontWeight: '600', flex: 1 }}>
+                    {g.name}
+                  </Text>
+                </View>
+              ))}
+            </Grid>
+            {list.length > 12 && <Button small variant="ghost" icon={allGuilds ? 'chevron-up' : 'chevron-down'} label={allGuilds ? 'Afficher moins' : `Afficher les ${list.length}`} onPress={() => setAllGuilds((v) => !v)} />}
+            <Button icon="albums-outline" label="Parcourir mes serveurs et salons" onPress={onBrowse} />
+          </Box>
+        </Grid>
+
+        <Stack row wrap gap={8}>
+          <Button flex icon="open-outline" label="Ouvrir Fluxer" onPress={() => Linking.openURL(ep.webapp)} />
+          <Button flex variant="danger" icon="log-out-outline" label="Déconnexion" onPress={signOut} />
+        </Stack>
       </Stack>
-    </Stack>
+    </MentionContext.Provider>
   );
 }
 

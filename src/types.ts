@@ -195,6 +195,23 @@ export interface FluxerUser {
   [k: string]: unknown;
 }
 
+/** Réponse de GET /users/{id}/profile. */
+export interface FluxerProfile {
+  user: FluxerUser;
+  user_profile: {
+    bio: string | null;
+    pronouns: string | null;
+    banner: string | null;
+    banner_color?: number | null;
+    accent_color: number | null;
+  };
+  premium_type?: number;
+  premium_since?: string;
+  connected_accounts?: { id: string; type: string; name: string; verified: boolean }[];
+  timezone_offset?: number | null;
+  [k: string]: unknown;
+}
+
 export interface ApiRole {
   id: string;
   name: string;

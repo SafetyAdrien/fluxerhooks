@@ -1,4 +1,5 @@
 import type {
+  FluxerProfile,
   ApiChannel,
   ApiEmoji,
   ApiGuild,
@@ -297,6 +298,8 @@ export function apiFor(ep: Endpoints, c: Credential) {
   const a = auth(c);
   return {
     me: () => request<FluxerUser>(ep, '/users/@me', a),
+    /** Profil complet (bio, pronoms, bannière, connexions…) : GET /users/{id}/profile. */
+    profile: (userId: string) => request<FluxerProfile>(ep, `/users/${userId}/profile`, a),
     guilds: () => request<ApiGuild[]>(ep, '/users/@me/guilds', { ...a, query: { limit: '200', with_counts: 'true' } }),
     channels: (guildId: string) => request<ApiChannel[]>(ep, `/guilds/${guildId}/channels`, a),
     channel: (channelId: string) => request<ApiChannel>(ep, `/channels/${channelId}`, a),
@@ -407,6 +410,9 @@ export const avatarUrl = (ep: Endpoints, id: string, hash: string | null | undef
 
 export const bannerUrl = (ep: Endpoints, id: string, hash: string | null | undefined, size = 600) =>
   hash ? `${ep.media}/banners/${id}/${hash}.${hash.startsWith('a_') ? 'gif' : 'png'}?size=${size}` : null;
+
+export const emojiUrl = (ep: Endpoints, id: string, animated?: boolean, size = 96) =>
+  `${ep.media}/emojis/${id}.webp?size=${size}${animated ? '&animated=true' : ''}`;
 
 export const guildIconUrl = (ep: Endpoints, id: string, hash: string | null | undefined, size = 96) =>
   hash ? `${ep.media}/icons/${id}/${hash}.${hash.startsWith('a_') ? 'gif' : 'png'}?size=${size}` : null;

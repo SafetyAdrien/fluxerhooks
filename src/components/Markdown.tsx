@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
-import { Linking, Platform, Pressable, Text, View, type TextStyle } from 'react-native';
+import { Image, Linking, Platform, Pressable, Text, View, type TextStyle } from 'react-native';
+import { useEndpoints } from '../state/useEndpoints';
+import { emojiUrl } from '../api/fluxer';
 import { useTheme, type Theme } from '../state/settings';
 
 /**
@@ -13,6 +15,7 @@ const mono = Platform.OS === 'android' ? 'monospace' : 'Menlo';
 
 interface InlineRule {
   re: RegExp;
+  bioOff?: boolean;
   render: (m: RegExpExecArray, ctx: Ctx, key: string) => Node;
 }
 
@@ -21,6 +24,11 @@ interface Ctx {
   base: TextStyle;
   embed?: boolean;
   resolve?: MentionResolver;
+  /** Bio de profil : syntaxe restreinte de Fluxer (pas de rôles / @everyone). */
+  bio?: boolean;
+  media?: string;
+  /** Taille des emojis personnalisés (agrandis si le texte ne contient que des emojis). */
+  emojiSize: number;
 }
 
 export type MentionResolver = (kind: 'channel' | 'role' | 'user' | 'emoji', id: string) => string | undefined;
@@ -106,11 +114,25 @@ const RULES: InlineRule[] = [
   { re: /^_(?!\s)([\s\S]+?)_(?!\w)/, render: (m, c, k) => <Text key={k} style={{ fontStyle: 'italic' }}>{inline(m[1], c)}</Text> },
   { re: /^~~([\s\S]+?)~~/, render: (m, c, k) => <Text key={k} style={{ textDecorationLine: 'line-through' }}>{inline(m[1], c)}</Text> },
   { re: /^<@!?(\d+)>/, render: (m, c, k) => mention(c, `@${c.resolve?.('user', m[1]) ?? 'utilisateur'}`, k) },
-  { re: /^<@&(\d+)>/, render: (m, c, k) => mention(c, `@${c.resolve?.('role', m[1]) ?? 'rôle'}`, k) },
+  { re: /^<@&(\d+)>/, bioOff: true, render: (m, c, k) => mention(c, `@${c.resolve?.('role', m[1]) ?? 'rôle'}`, k) },
   { re: /^<#(\d+)>/, render: (m, c, k) => mention(c, `#${c.resolve?.('channel', m[1]) ?? 'salon'}`, k) },
   { re: /^<id:(customize|browse|guide)>/, render: (m, c, k) => mention(c, m[1] === 'browse' ? '#Parcourir les salons' : m[1] === 'guide' ? '#Guide du serveur' : '#Salons et rôles', k) },
-  { re: /^@(everyone|here)\b/, render: (m, c, k) => mention(c, `@${m[1]}`, k) },
-  { re: /^<a?:(\w+):(\d+)>/, render: (m, c, k) => <Text key={k} style={{ color: c.t.textMuted }}>:{m[1]}:</Text> },
+  { re: /^@(everyone|here)\b/, bioOff: true, render: (m, c, k) => mention(c, `@${m[1]}`, k) },
+  {
+    re: /^<(a)?:(\w+):(\d+)>/,
+    render: (m, c, k) =>
+      c.media ? (
+        <Image
+          key={k}
+          accessibilityLabel={`:${m[2]}:`}
+          source={{ uri: emojiUrl({ media: c.media } as any, m[3], !!m[1], c.emojiSize > 40 ? 128 : 64) }}
+          style={{ width: c.emojiSize, height: c.emojiSize }}
+          resizeMode="contain"
+        />
+      ) : (
+        <Text key={k} style={{ color: c.t.textMuted }}>:{m[2]}:</Text>
+      ),
+  },
   {
     re: /^<t:(-?\d+)(?::([tTdDfFR]))?>/,
     render: (m, c, k) => (
@@ -134,6 +156,7 @@ export function inline(text: string, ctx: Ctx): Node[] {
       const rest = text.slice(i);
       let matched = false;
       for (const r of RULES) {
+        if (r.bioOff && ctx.bio) continue;
         const m = r.re.exec(rest);
         if (m) {
           if (buf) {
@@ -163,7 +186,7 @@ interface Block {
   depth?: number;
 }
 
-function parseBlocks(src: string): Block[] {
+function parseBlocks(src: string, bio = false): Block[] {
   const lines = src.replace(/\r\n/g, '\n').split('\n');
   const blocks: Block[] = [];
   let para: string[] = [];
@@ -173,7 +196,7 @@ function parseBlocks(src: string): Block[] {
   };
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    const fence = line.match(/^```(\w*)\s*(.*)$/);
+    const fence = bio ? null : line.match(/^```(\w*)\s*(.*)$/);
     if (fence) {
       flush();
       const body: string[] = [];
@@ -201,13 +224,13 @@ function parseBlocks(src: string): Block[] {
       else blocks.push({ kind: 'quote', text: q[1] });
       continue;
     }
-    const h = line.match(/^(#{1,3}) (.+)$/);
+    const h = bio ? null : line.match(/^(#{1,3}) (.+)$/);
     if (h) {
       flush();
       blocks.push({ kind: (['h1', 'h2', 'h3'] as const)[h[1].length - 1], text: h[2] });
       continue;
     }
-    const sub = line.match(/^-# (.+)$/);
+    const sub = bio ? null : line.match(/^-# (.+)$/);
     if (sub) {
       flush();
       blocks.push({ kind: 'sub', text: sub[1] });
@@ -237,7 +260,9 @@ export function Markdown({
   embed,
   singleLine,
   bold,
+  bio,
 }: {
+  bio?: boolean;
   bold?: boolean;
   text: string;
   size?: number;
@@ -247,11 +272,15 @@ export function Markdown({
 }) {
   const t = useTheme();
   const resolve = React.useContext(MentionContext);
+  const ep = useEndpoints();
   const fs = t.font(size);
-  const base: TextStyle = { color: color ?? t.text, fontSize: fs, lineHeight: fs * 1.38, fontWeight: bold ? '700' : undefined };
-  const ctx: Ctx = { t, base, embed, resolve };
+  const jumbo = !singleLine && !embed && isEmojiOnly(text);
+  const base: TextStyle = jumbo
+    ? { color: color ?? t.text, fontSize: fs * 2.4, lineHeight: fs * 3.3 }
+    : { color: color ?? t.text, fontSize: fs, lineHeight: fs * 1.38, fontWeight: bold ? '700' : undefined };
+  const ctx: Ctx = { t, base, embed, resolve, bio, media: ep.media, emojiSize: jumbo ? fs * 3 : fs * 1.375 };
   if (singleLine) return <Text style={base}>{inline(text, ctx)}</Text>;
-  const blocks = parseBlocks(text);
+  const blocks = parseBlocks(text, bio);
   return (
     <View style={{ gap: 2 }}>
       {blocks.map((b, i) => {
@@ -277,7 +306,7 @@ export function Markdown({
               <View key={i} style={{ flexDirection: 'row', gap: 8 }}>
                 <View style={{ width: 4, borderRadius: 2, backgroundColor: t.textFaint }} />
                 <View style={{ flex: 1 }}>
-                  <Markdown text={b.text} size={size} color={color} embed={embed} />
+                  <Markdown text={b.text} size={size} color={color} embed={embed} bio={bio} />
                 </View>
               </View>
             );
@@ -306,6 +335,30 @@ export function Markdown({
       })}
     </View>
   );
+}
+
+/* Emojis seuls (≤ 27, comme Discord/Fluxer) → affichés en grand. */
+let EMOJI_RE: RegExp | null = null;
+try {
+  EMOJI_RE = new RegExp('(?:\\p{Extended_Pictographic}|\\p{Regional_Indicator})(?:\\uFE0F|\\u200D|\\p{Emoji_Modifier}|\\p{Extended_Pictographic})*', 'gu');
+} catch {
+  EMOJI_RE = null;
+}
+export function isEmojiOnly(text: string): boolean {
+  const s = text.trim();
+  if (!s || s.length > 400 || !EMOJI_RE) return false;
+  let count = 0;
+  const rest = s
+    .replace(/<a?:\w+:\d+>/g, () => {
+      count++;
+      return '';
+    })
+    .replace(EMOJI_RE, () => {
+      count++;
+      return '';
+    })
+    .replace(/[\s\uFE0F\u200D\u20E3]/g, '');
+  return rest.length === 0 && count > 0 && count <= 27;
 }
 
 /** Petite aide visuelle pour la barre d'outils markdown. */

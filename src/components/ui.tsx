@@ -277,6 +277,7 @@ export function Input({
             onBlur?.(e);
           }}
           textAlignVertical={multiline ? 'top' : 'center'}
+          accessibilityLabel={label ?? (typeof rest.placeholder === 'string' ? rest.placeholder : undefined)}
           style={[
             {
               flex: 1,
