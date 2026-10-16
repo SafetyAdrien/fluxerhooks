@@ -20,7 +20,12 @@ interface Ctx {
   t: Theme;
   base: TextStyle;
   embed?: boolean;
+  resolve?: MentionResolver;
 }
+
+export type MentionResolver = (kind: 'channel' | 'role' | 'user' | 'emoji', id: string) => string | undefined;
+/** Fournit les noms connus (#salon, @rôle…) à l'aperçu. */
+export const MentionContext = React.createContext<MentionResolver | undefined>(undefined);
 
 function Spoiler({ children, t }: { children: Node; t: Theme }) {
   const [open, setOpen] = useState(false);
@@ -100,9 +105,10 @@ const RULES: InlineRule[] = [
   { re: /^\*(?!\s)([\s\S]+?)\*(?!\*)/, render: (m, c, k) => <Text key={k} style={{ fontStyle: 'italic' }}>{inline(m[1], c)}</Text> },
   { re: /^_(?!\s)([\s\S]+?)_(?!\w)/, render: (m, c, k) => <Text key={k} style={{ fontStyle: 'italic' }}>{inline(m[1], c)}</Text> },
   { re: /^~~([\s\S]+?)~~/, render: (m, c, k) => <Text key={k} style={{ textDecorationLine: 'line-through' }}>{inline(m[1], c)}</Text> },
-  { re: /^<@!?(\d+)>/, render: (m, c, k) => mention(c, `@utilisateur`, k) },
-  { re: /^<@&(\d+)>/, render: (m, c, k) => mention(c, `@rôle`, k) },
-  { re: /^<#(\d+)>/, render: (m, c, k) => mention(c, `#salon`, k) },
+  { re: /^<@!?(\d+)>/, render: (m, c, k) => mention(c, `@${c.resolve?.('user', m[1]) ?? 'utilisateur'}`, k) },
+  { re: /^<@&(\d+)>/, render: (m, c, k) => mention(c, `@${c.resolve?.('role', m[1]) ?? 'rôle'}`, k) },
+  { re: /^<#(\d+)>/, render: (m, c, k) => mention(c, `#${c.resolve?.('channel', m[1]) ?? 'salon'}`, k) },
+  { re: /^<id:(customize|browse|guide)>/, render: (m, c, k) => mention(c, m[1] === 'browse' ? '#Parcourir les salons' : m[1] === 'guide' ? '#Guide du serveur' : '#Salons et rôles', k) },
   { re: /^@(everyone|here)\b/, render: (m, c, k) => mention(c, `@${m[1]}`, k) },
   { re: /^<a?:(\w+):(\d+)>/, render: (m, c, k) => <Text key={k} style={{ color: c.t.textMuted }}>:{m[1]}:</Text> },
   {
@@ -240,9 +246,10 @@ export function Markdown({
   singleLine?: boolean;
 }) {
   const t = useTheme();
+  const resolve = React.useContext(MentionContext);
   const fs = t.font(size);
   const base: TextStyle = { color: color ?? t.text, fontSize: fs, lineHeight: fs * 1.38, fontWeight: bold ? '700' : undefined };
-  const ctx: Ctx = { t, base, embed };
+  const ctx: Ctx = { t, base, embed, resolve };
   if (singleLine) return <Text style={base}>{inline(text, ctx)}</Text>;
   const blocks = parseBlocks(text);
   return (

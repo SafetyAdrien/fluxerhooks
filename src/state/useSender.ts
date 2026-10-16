@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 import { Alert } from 'react-native';
-import { bot, deleteWebhookMessage, fetchWebhookMessage, getWebhook, sendMessage, FluxerError } from '../api/fluxer';
+import { apiFor, deleteWebhookMessage, fetchWebhookMessage, getWebhook, sendMessage, FluxerError } from '../api/fluxer';
 import { useEditor } from './editor';
 import { useSettings } from './settings';
 import { getEndpoints } from './useEndpoints';
@@ -13,7 +13,7 @@ const errText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 export function useSender() {
   const { state, updateMessage, updateTarget } = useEditor();
-  const { settings, botToken, haptic } = useSettings();
+  const { settings, botToken, userToken, haptic } = useSettings();
   const toast = useToast();
   const [busy, setBusy] = useState<string | null>(null); // id du message en cours ou 'all'
 
@@ -32,9 +32,10 @@ export function useSender() {
       try {
         const ep = await getEndpoints(settings.instance);
         const info = await getWebhook(ep, target.url);
-        if (botToken) {
+        const cred = userToken ? ({ kind: 'user', token: userToken } as const) : botToken ? ({ kind: 'bot', token: botToken } as const) : null;
+        if (cred) {
           try {
-            const ch = await bot.channel(ep, botToken, info.channel_id);
+            const ch = await apiFor(ep, cred).channel(info.channel_id);
             info.channelName = ch.name;
             info.channelType = ch.type;
             info.availableTags = ch.available_tags;
@@ -47,7 +48,7 @@ export function useSender() {
         updateTarget(target.id, { info: undefined, error: errText(e) });
       }
     },
-    [settings.instance, botToken, updateTarget],
+    [settings.instance, botToken, userToken, updateTarget],
   );
 
   const doSend = useCallback(

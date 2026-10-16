@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ScrollView, Text, View, useWindowDimensions } from 'react-native';
+import { Image, ScrollView, Text, View, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSettings } from '../state/settings';
@@ -11,18 +11,29 @@ import { PreviewList } from '../components/Preview';
 import { Button, IconBtn, Segmented, Stack } from '../components/ui';
 import { SettingsSheet } from './SettingsSheet';
 import { BotBrowser } from './BotBrowser';
-import { BackupsSheet, JsonSheet } from './DataSheets';
+import { JsonSheet } from './DataSheets';
+import { DataHubSheet } from './DataHubSheet';
+import { AccountSheet } from './AccountSheet';
+import { CssEditorSheet } from './CssEditorSheet';
+import { useSession } from '../state/session';
+import { useEndpoints } from '../state/useEndpoints';
+import { avatarUrl } from '../api/fluxer';
+import { Avatar } from '../components/ui';
+import { Pressable } from 'react-native';
 
 type Tab = 'editor' | 'preview';
 
-export function HomeScreen() {
-  const { theme: t, settings } = useSettings();
+export function HomeScreen({ onRestored }: { onRestored: () => void }) {
+  const { theme: t, settings, base } = useSettings();
+  const session = useSession();
+  const ep = useEndpoints();
+  const wp = settings.wallpaper;
   const { state, addMessage, setAllCollapsed } = useEditor();
   const { busy, sendAll, activeTargets } = useSender();
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
   const [tab, setTab] = useState<Tab>('editor');
-  const [sheet, setSheet] = useState<null | 'settings' | 'bot' | 'json' | 'backups'>(null);
+  const [sheet, setSheet] = useState<null | 'settings' | 'bot' | 'json' | 'data' | 'account' | 'css'>(null);
 
   const split = settings.splitView === 'auto' && (width >= 760 || (width > height && width >= 640));
   const info = state.targets.find((x) => x.enabled && x.info)?.info;
@@ -71,22 +82,32 @@ export function HomeScreen() {
   );
 
   return (
-    <View style={{ flex: 1, backgroundColor: t.bg }}>
+    <View style={[{ flex: 1, backgroundColor: base.bg }, t.css.app]}>
+      {/* Fond d'écran personnalisé, assombri (« DIM ») */}
+      {!!wp.uri && (
+        <View pointerEvents="none" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
+          <Image source={{ uri: wp.uri }} blurRadius={wp.blur} resizeMode="cover" style={{ width: '100%', height: '100%' }} />
+          <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: wp.tint === 'accent' ? t.accent : '#000', opacity: wp.dim }} />
+        </View>
+      )}
       {/* Barre supérieure */}
       <View
-        style={{
-          paddingTop: insets.top + 6,
-          paddingBottom: 8,
-          paddingHorizontal: 12,
-          backgroundColor: t.bgAlt,
-          borderBottomWidth: 1,
-          borderBottomColor: t.border,
-          gap: 8,
-        }}
+        style={[
+          {
+            paddingTop: insets.top + 6,
+            paddingBottom: 8,
+            paddingHorizontal: 12,
+            backgroundColor: t.bgAlt,
+            borderBottomWidth: 1,
+            borderBottomColor: t.border,
+            gap: 8,
+          },
+          t.css.header,
+        ]}
       >
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: t.accent, alignItems: 'center', justifyContent: 'center' }}>
-            <Ionicons name="flash" size={20} color={t.onAccent} />
+          <View style={{ width: t.z(34), height: t.z(34), borderRadius: 10, backgroundColor: t.accent, alignItems: 'center', justifyContent: 'center' }}>
+            <Ionicons name="flash" size={t.z(20)} color={t.onAccent} />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={{ color: t.text, fontWeight: '900', fontSize: t.font(18) }}>FluxerHooks</Text>
@@ -94,8 +115,15 @@ export function HomeScreen() {
               {targets ? `${targets} webhook(s) prêt(s)` : 'Aucun webhook configuré'}
             </Text>
           </View>
-          <IconBtn icon="archive-outline" label="Sauvegardes" onPress={() => setSheet('backups')} />
+          <IconBtn icon="archive-outline" label="Sauvegardes, modèles et automatisations" onPress={() => setSheet('data')} />
           <IconBtn icon="code-slash-outline" label="JSON" onPress={() => setSheet('json')} />
+          <Pressable onPress={() => setSheet('account')} accessibilityLabel="Mon profil Fluxer" hitSlop={6} style={{ padding: 4 }}>
+            {session.user ? (
+              <Avatar uri={avatarUrl(ep, session.user.id, session.user.avatar)} name={session.user.global_name || session.user.username} size={t.z(28)} />
+            ) : (
+              <Ionicons name="person-circle-outline" size={t.z(26)} color={t.text} />
+            )}
+          </Pressable>
           <IconBtn icon="settings-sharp" label="Paramètres" color={t.text} size={22} onPress={() => setSheet('settings')} />
         </View>
         {!split && (
@@ -122,24 +150,27 @@ export function HomeScreen() {
 
       {/* Barre d'action flottante */}
       <View
-        style={{
-          position: 'absolute',
-          left: 12,
-          right: 12,
-          bottom: insets.bottom + 12,
-          flexDirection: 'row',
-          gap: 8,
-          padding: 8,
-          borderRadius: t.radius + 4,
-          backgroundColor: t.bgAlt,
-          borderWidth: 1,
-          borderColor: t.border,
-          elevation: 10,
-          shadowColor: '#000',
-          shadowOpacity: 0.3,
-          shadowRadius: 12,
-          shadowOffset: { width: 0, height: 4 },
-        }}
+        style={[
+          {
+            position: 'absolute',
+            left: 12,
+            right: 12,
+            bottom: insets.bottom + 12,
+            flexDirection: 'row',
+            gap: 8,
+            padding: 8,
+            borderRadius: t.radius + 4,
+            backgroundColor: t.hasWallpaper ? base.bgAlt : t.bgAlt,
+            borderWidth: 1,
+            borderColor: t.border,
+            elevation: 10,
+            shadowColor: '#000',
+            shadowOpacity: 0.3,
+            shadowRadius: 12,
+            shadowOffset: { width: 0, height: 4 },
+          },
+          t.css.actionbar,
+        ]}
       >
         {!split && (
           <Button
@@ -168,12 +199,16 @@ export function HomeScreen() {
         visible={sheet === 'settings'}
         onClose={() => setSheet(null)}
         onOpenBot={() => setSheet('bot')}
+        onOpenAccount={() => setSheet('account')}
         onOpenJson={() => setSheet('json')}
-        onOpenBackups={() => setSheet('backups')}
+        onOpenData={() => setSheet('data')}
+        onOpenCss={() => setSheet('css')}
       />
-      <BotBrowser visible={sheet === 'bot'} onClose={() => setSheet(null)} />
-      <JsonSheet visible={sheet === 'json'} onClose={() => setSheet(null)} />
-      <BackupsSheet visible={sheet === 'backups'} onClose={() => setSheet(null)} />
+      {sheet === 'bot' && <BotBrowser visible onClose={() => setSheet(null)} onOpenAccount={() => setSheet('account')} />}
+      {sheet === 'json' && <JsonSheet visible onClose={() => setSheet(null)} />}
+      {sheet === 'data' && <DataHubSheet visible onClose={() => setSheet(null)} onRestored={onRestored} />}
+      {sheet === 'account' && <AccountSheet visible onClose={() => setSheet(null)} onBrowse={() => setSheet('bot')} />}
+      {sheet === 'css' && <CssEditorSheet visible onClose={() => setSheet(null)} />}
     </View>
   );
 }

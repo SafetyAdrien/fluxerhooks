@@ -1,7 +1,10 @@
 import type {
   ApiChannel,
+  ApiEmoji,
   ApiGuild,
+  ApiRole,
   ApiWebhook,
+  FluxerUser,
   DraftMessage,
   WebhookInfo,
 } from '../types';
@@ -31,6 +34,7 @@ const cache = new Map<string, Endpoints>();
 export class FluxerError extends Error {
   status: number;
   code?: string;
+  body?: any;
   constructor(message: string, status: number, code?: string) {
     super(message);
     this.status = status;
@@ -106,6 +110,8 @@ function describe(json: any, status: number): string {
 interface ReqOpts {
   method?: string;
   bot?: string; // token de bot
+  user?: string; // token de session utilisateur
+  headers?: Record<string, string>;
   json?: unknown;
   form?: FormData;
   query?: Record<string, string | undefined>;
@@ -121,6 +127,12 @@ async function request<T>(ep: Endpoints, path: string, opts: ReqOpts = {}, attem
   const url = `${ep.api}/v1${path}${q ? `?${q}` : ''}`;
   const headers: Record<string, string> = { Accept: 'application/json' };
   if (opts.bot) headers.Authorization = `Bot ${opts.bot}`;
+  if (opts.user) {
+    // Un token de session s'envoie sans préfixe ; channel_threads donne accès aux threads et forums.
+    headers.Authorization = opts.user;
+    headers['X-Fluxer-Features'] = 'channel_threads';
+  }
+  if (opts.headers) Object.assign(headers, opts.headers);
   let body: any;
   if (opts.form) body = opts.form;
   else if (opts.json !== undefined) {
@@ -141,7 +153,11 @@ async function request<T>(ep: Endpoints, path: string, opts: ReqOpts = {}, attem
     await new Promise((r) => setTimeout(r, wait * 1000 + 100));
     return request<T>(ep, path, opts, attempt + 1);
   }
-  if (!res.ok) throw new FluxerError(describe(json, res.status), res.status, json?.code);
+  if (!res.ok) {
+    const err = new FluxerError(describe(json, res.status), res.status, json?.code);
+    err.body = json;
+    throw err;
+  }
   return json as T;
 }
 
@@ -243,6 +259,98 @@ export const bot = {
     request<ApiWebhook>(ep, `/channels/${channelId}/webhooks`, { bot: token, method: 'POST', json: { name } }),
 };
 
+/* ---------- Client générique : bot OU compte utilisateur ---------- */
+
+export type Credential = { kind: 'bot' | 'user'; token: string };
+
+const auth = (c: Credential): Partial<ReqOpts> => (c.kind === 'bot' ? { bot: c.token } : { user: c.token });
+
+export function apiFor(ep: Endpoints, c: Credential) {
+  const a = auth(c);
+  return {
+    me: () => request<FluxerUser>(ep, '/users/@me', a),
+    guilds: () => request<ApiGuild[]>(ep, '/users/@me/guilds', { ...a, query: { limit: '200', with_counts: 'true' } }),
+    channels: (guildId: string) => request<ApiChannel[]>(ep, `/guilds/${guildId}/channels`, a),
+    channel: (channelId: string) => request<ApiChannel>(ep, `/channels/${channelId}`, a),
+    roles: (guildId: string) => request<ApiRole[]>(ep, `/guilds/${guildId}/roles`, a),
+    emojis: (guildId: string) => request<ApiEmoji[]>(ep, `/guilds/${guildId}/emojis`, a),
+    activeThreads: async (guildId: string, channels: ApiChannel[]): Promise<ApiChannel[]> => {
+      if (c.kind === 'bot') {
+        const r = await request<{ threads: ApiChannel[] }>(ep, `/guilds/${guildId}/threads/active`, a).catch(() => ({ threads: [] }));
+        return r.threads ?? [];
+      }
+      // Pour un compte utilisateur, l'API ne liste pas les threads actifs du serveur :
+      // on interroge la recherche de threads des salons forum (et texte) concernés.
+      const parents = channels.filter((x) => [0, 5, 15, 16].includes(x.type)).slice(0, 25);
+      const lists = await Promise.all(
+        parents.map((p) =>
+          request<{ threads: ApiChannel[] }>(ep, `/channels/${p.id}/threads/search`, { ...a, query: { archived: 'false', limit: '25' } })
+            .then((r) => r.threads ?? [])
+            .catch(() => [] as ApiChannel[]),
+        ),
+      );
+      return lists.flat();
+    },
+    archivedThreads: (channelId: string) =>
+      request<{ threads: ApiChannel[] }>(ep, `/channels/${channelId}/threads/archived/public`, { ...a, query: { limit: '50' } }).then((r) => r.threads ?? []),
+    webhooks: (channelId: string) => request<ApiWebhook[]>(ep, `/channels/${channelId}/webhooks`, a),
+    createWebhook: (channelId: string, name: string) =>
+      request<ApiWebhook>(ep, `/channels/${channelId}/webhooks`, { ...a, method: 'POST', json: { name } }),
+  };
+}
+
+/* ---------- Connexion à un compte Fluxer ---------- */
+
+export interface LoginResult {
+  token?: string;
+  user?: FluxerUser;
+  mfa?: { ticket: string; methods: string[] };
+}
+
+/** POST /v1/auth/login ; gère CAPTCHA_REQUIRED via le callback `solve`. */
+export async function loginWithPassword(
+  ep: Endpoints,
+  login: string,
+  password: string,
+  solve: (challenge: any) => Promise<string>,
+): Promise<LoginResult> {
+  let captcha: string | undefined;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const r = await request<any>(ep, '/auth/login', {
+        method: 'POST',
+        json: login.includes('@') ? { email: login.trim(), password } : { login: login.trim(), password },
+        headers: captcha ? { 'X-Captcha-Token': captcha } : undefined,
+      });
+      if (r?.mfa) return { mfa: { ticket: r.ticket, methods: r.allowed_methods ?? [] } };
+      return { token: r.token, user: r.user };
+    } catch (e) {
+      const fe = e as FluxerError;
+      if ((fe.code === 'CAPTCHA_REQUIRED' || fe.code === 'INVALID_CAPTCHA') && fe.body?.altcha_challenge) {
+        captcha = await solve(fe.body.altcha_challenge);
+        continue;
+      }
+      if (fe.code === 'IP_AUTHORIZATION_REQUIRED') {
+        throw new FluxerError(
+          `Nouvelle adresse IP : Fluxer t’a envoyé un e-mail${fe.body?.email ? ` (${fe.body.email})` : ''}. Valide la connexion depuis cet e-mail, puis appuie de nouveau sur « Se connecter ».`,
+          403,
+          fe.code,
+        );
+      }
+      throw e;
+    }
+  }
+  throw new FluxerError('Échec du CAPTCHA, réessaie.', 400, 'INVALID_CAPTCHA');
+}
+
+export async function loginMfaTotp(ep: Endpoints, ticket: string, code: string): Promise<LoginResult> {
+  const r = await request<any>(ep, '/auth/login/mfa/totp', { method: 'POST', json: { ticket, code: code.replace(/\s/g, '') } });
+  return { token: r.token, user: r.user };
+}
+
+export const logout = (ep: Endpoints, token: string) =>
+  request<void>(ep, '/auth/logout', { method: 'POST', user: token }).catch(() => undefined);
+
 /* ---------- Médias ---------- */
 
 export const webhookUrlOf = (ep: Endpoints, w: { id: string; token?: string }) =>
@@ -250,6 +358,9 @@ export const webhookUrlOf = (ep: Endpoints, w: { id: string; token?: string }) =
 
 export const avatarUrl = (ep: Endpoints, id: string, hash: string | null | undefined, size = 128) =>
   hash ? `${ep.media}/avatars/${id}/${hash}.${hash.startsWith('a_') ? 'gif' : 'png'}?size=${size}` : null;
+
+export const bannerUrl = (ep: Endpoints, id: string, hash: string | null | undefined, size = 600) =>
+  hash ? `${ep.media}/banners/${id}/${hash}.${hash.startsWith('a_') ? 'gif' : 'png'}?size=${size}` : null;
 
 export const guildIconUrl = (ep: Endpoints, id: string, hash: string | null | undefined, size = 96) =>
   hash ? `${ep.media}/icons/${id}/${hash}.${hash.startsWith('a_') ? 'gif' : 'png'}?size=${size}` : null;

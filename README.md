@@ -14,7 +14,13 @@ Application Android (React Native + Expo) pour composer et envoyer des messages 
 - **Aperçu** façon Fluxer (markdown complet : gras, italique, souligné, barré, code, blocs, spoilers, liens, titres, sous-texte, citations, listes, mentions, `<t:…>`).
 - **Compte bot (optionnel)** : liste tes serveurs, salons, threads actifs, posts de forum et tags ; crée des webhooks. Token stocké chiffré (Android Keystore).
 - **Sauvegardes** locales et **import/export JSON** (compatible avec le format de partage Discohook et les payloads bruts).
-- **Paramètres** (icône engrenage) : 6 thèmes (Sombre, Clair, AMOLED, Indigo, Minuit, Système), couleur d’accent, taille du texte, arrondi des conteneurs, densité, aperçu compact, écran partagé tablette/paysage, confirmation d’envoi, vibrations, instance auto-hébergée.
+- **Compte Fluxer** : connexion par e-mail et mot de passe (CAPTCHA ALTCHA résolu sur le téléphone, double authentification TOTP) ou par token ; profil complet via l’icône de profil.
+- **Menus déroulants** serveur → salon, rangés par catégorie avec les icônes de chaque type de salon (texte, annonces, vocal, forum, média, threads), pour le compte comme pour le bot.
+- **Sélecteur de couleur moderne** (spectre, teinte, palettes, nuances, couleurs récentes, hex et RVB).
+- **Import d’images** avec retouche : rotation ±90°, miroir horizontal/vertical, redimensionnement, format et qualité.
+- **Compositeur** sur tous les champs texte : barre markdown complète et insertion de #salons, @rôles, @membres, émojis du serveur, horodatages `<t:…>` et liens de navigation.
+- **Données** : sauvegardes, modèles (8 intégrés + les tiens), automatisations (une fois, intervalle, quotidien, hebdomadaire, avec variables) et backup complet exportable.
+- **Paramètres** (icône engrenage) : zoom de l’interface mémorisé, fond d’écran assombri (DIM, flou, opacité), apparence des messages (avatars, tailles, bulles, espacement, embeds), éditeur de styles façon CSS par catégorie : 6 thèmes (Sombre, Clair, AMOLED, Indigo, Minuit, Système), couleur d’accent, taille du texte, arrondi des conteneurs, densité, aperçu compact, écran partagé tablette/paysage, confirmation d’envoi, vibrations, instance auto-hébergée.
 
 ## Compatibilité Android
 

@@ -1,7 +1,10 @@
 import React, { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import type { Embed } from '../types';
+import { LinearGradient } from 'expo-linear-gradient';
+import { ColorPickerModal } from './ColorPicker';
+import type { Embed, LocalAttachment } from '../types';
+import { ImageImportSheet } from './ImageImportSheet';
 import { useEditor } from '../state/editor';
 import { useSettings } from '../state/settings';
 import { EMBED_COLORS } from '../theme/themes';
@@ -17,42 +20,45 @@ const urlError = (v: string, allowAttachment = false) =>
       ? 'URL http(s) ou attachment://image.png attendue'
       : 'URL http(s) attendue';
 
-function ColorPicker({ value, onChange }: { value: number | null; onChange: (v: number | null) => void }) {
-  const { theme: t } = useSettings();
+function ColorField({ value, onChange }: { value: number | null; onChange: (v: number | null) => void }) {
+  const { theme: t, settings } = useSettings();
   const [hex, setHex] = useState(intToHex(value));
+  const [open, setOpen] = useState(false);
   React.useEffect(() => setHex(intToHex(value)), [value]);
+  // Couleurs proposées : récentes d'abord, puis préréglages (sans doublons).
+  const swatches = [...settings.recentColors, ...EMBED_COLORS].filter((c, i, a) => a.indexOf(c) === i).slice(0, 14);
+  const dot = t.z(34);
   return (
     <View style={{ gap: 8 }}>
       <SectionLabel>Couleur</SectionLabel>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
         <Pressable
+          onPress={() => setOpen(true)}
+          accessibilityLabel="Ouvrir le sélecteur de couleur"
+          style={{ width: dot, height: dot, borderRadius: dot / 2, overflow: 'hidden', borderWidth: 2, borderColor: t.accent }}
+        >
+          <LinearGradient
+            colors={['#FF0000', '#FFFF00', '#00FF00', '#00FFFF', '#0000FF', '#FF00FF']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}
+          >
+            <Ionicons name="add" size={t.z(20)} color="#fff" />
+          </LinearGradient>
+        </Pressable>
+        <Pressable
           onPress={() => onChange(null)}
           accessibilityLabel="Aucune couleur"
-          style={{
-            width: 34,
-            height: 34,
-            borderRadius: 17,
-            borderWidth: 2,
-            borderColor: value === null ? t.accent : t.border,
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
+          style={{ width: dot, height: dot, borderRadius: dot / 2, borderWidth: 2, borderColor: value === null ? t.accent : t.border, alignItems: 'center', justifyContent: 'center' }}
         >
-          <Ionicons name="close" size={16} color={t.textMuted} />
+          <Ionicons name="close" size={t.z(16)} color={t.textMuted} />
         </Pressable>
-        {EMBED_COLORS.map((c) => (
+        {swatches.map((c) => (
           <Pressable
             key={c}
             onPress={() => onChange(c)}
             accessibilityLabel={`Couleur ${intToHex(c)}`}
-            style={{
-              width: 34,
-              height: 34,
-              borderRadius: 17,
-              backgroundColor: intToHex(c),
-              borderWidth: value === c ? 3 : 1,
-              borderColor: value === c ? t.text : t.border,
-            }}
+            style={{ width: dot, height: dot, borderRadius: dot / 2, backgroundColor: intToHex(c), borderWidth: value === c ? 3 : 1, borderColor: value === c ? t.text : t.border }}
           />
         ))}
       </View>
@@ -68,8 +74,11 @@ function ColorPicker({ value, onChange }: { value: number | null; onChange: (v: 
         autoCapitalize="characters"
         autoCorrect={false}
         mono
-        right={<View style={{ width: 26, height: 26, borderRadius: 6, backgroundColor: value !== null ? intToHex(value) : 'transparent', borderWidth: 1, borderColor: t.border }} />}
+        right={
+          <Pressable onPress={() => setOpen(true)} accessibilityLabel="Ouvrir le sélecteur de couleur" style={{ width: 28, height: 28, borderRadius: 7, backgroundColor: value !== null ? intToHex(value) : 'transparent', borderWidth: 1, borderColor: t.border }} />
+        }
       />
+      {open && <ColorPickerModal visible value={value} onClose={() => setOpen(false)} onPick={onChange} title="Couleur de l’embed" />}
     </View>
   );
 }
@@ -78,6 +87,17 @@ export function EmbedEditor({ mid, e, index, count }: { mid: string; e: Embed; i
   const { theme: t } = useSettings();
   const { updateEmbed, removeEmbed, duplicateEmbed, moveEmbed, addField, updateField, removeField, moveField } = useEditor();
   const [collapsed, setCollapsed] = useState(false);
+  const { state, updateMessage } = useEditor();
+  const [importFor, setImportFor] = useState<'image' | 'thumbnail' | null>(null);
+  // Les images importées deviennent des pièces jointes du message, référencées en attachment://.
+  const onImported = (files: LocalAttachment[]) => {
+    const msg = state.messages.find((x) => x.id === mid);
+    if (!msg || !files.length) return;
+    updateMessage(mid, { attachments: [...msg.attachments, ...files].slice(0, LIMITS.attachments) });
+    const ref = `attachment://${files[0].name}`;
+    if (importFor === 'thumbnail') up({ thumbnail: { url: ref } });
+    else up({ image: { url: ref } });
+  };
   const up = (u: Partial<Embed>) => updateEmbed(mid, e.id, u);
   const total = embedLength(e);
 
@@ -100,7 +120,7 @@ export function EmbedEditor({ mid, e, index, count }: { mid: string; e: Embed; i
       }
     >
       <Box title="Auteur" icon="person-circle-outline" defaultCollapsed={!e.author.name}>
-        <Input label="Nom" value={e.author.name} max={LIMITS.authorName} onChangeText={(v) => up({ author: { ...e.author, name: v } })} placeholder="Nom de l'auteur" />
+        <RichInput singleLine label="Nom" value={e.author.name} max={LIMITS.authorName} onChange={(v) => up({ author: { ...e.author, name: v } })} placeholder="Nom de l'auteur" />
         <Grid min={220}>
           <Input label="Lien" value={e.author.url} error={urlError(e.author.url)} onChangeText={(v) => up({ author: { ...e.author, url: v } })} placeholder="https://" autoCapitalize="none" keyboardType="url" />
           <Input label="Icône (URL)" value={e.author.icon_url} error={urlError(e.author.icon_url)} onChangeText={(v) => up({ author: { ...e.author, icon_url: v } })} placeholder="https://…/icon.png" autoCapitalize="none" keyboardType="url" />
@@ -108,10 +128,10 @@ export function EmbedEditor({ mid, e, index, count }: { mid: string; e: Embed; i
       </Box>
 
       <Box title="Corps" icon="document-text-outline">
-        <Input label="Titre" value={e.title} max={LIMITS.embedTitle} onChangeText={(v) => up({ title: v })} placeholder="Titre de l'embed" />
+        <RichInput singleLine label="Titre" value={e.title} max={LIMITS.embedTitle} onChange={(v) => up({ title: v })} placeholder="Titre de l'embed (markdown)" />
         <Input label="Lien du titre" value={e.url} error={urlError(e.url)} onChangeText={(v) => up({ url: v })} placeholder="https://" autoCapitalize="none" keyboardType="url" />
-        <RichInput label="Description" value={e.description} max={LIMITS.embedDescription} onChange={(v) => up({ description: v })} placeholder="Texte de l'embed (markdown accepté)" />
-        <ColorPicker value={e.color} onChange={(c) => up({ color: c })} />
+        <RichInput label="Description" value={e.description} max={LIMITS.embedDescription} onChange={(v) => up({ description: v })} placeholder="Texte de l'embed (markdown, mentions…)" onImportImages={() => setImportFor('image')} />
+        <ColorField value={e.color} onChange={(c) => up({ color: c })} />
       </Box>
 
       <Box title="Champs" icon="grid-outline" defaultCollapsed={!e.fields.length} badge={e.fields.length ? `${e.fields.length}/${LIMITS.fields}` : undefined}>
@@ -123,8 +143,8 @@ export function EmbedEditor({ mid, e, index, count }: { mid: string; e: Embed; i
               <IconBtn icon="arrow-down" label="Descendre le champ" size={17} onPress={() => moveField(mid, e.id, f.id, 1)} disabled={i === e.fields.length - 1} />
               <IconBtn icon="close-circle-outline" label="Supprimer le champ" size={18} color={t.danger} onPress={() => removeField(mid, e.id, f.id)} />
             </Stack>
-            <Input label="Nom" value={f.name} max={LIMITS.fieldName} onChangeText={(v) => updateField(mid, e.id, f.id, { name: v })} placeholder="Nom du champ" />
-            <Input label="Valeur" value={f.value} max={LIMITS.fieldValue} multiline style={{ minHeight: 60 }} onChangeText={(v) => updateField(mid, e.id, f.id, { value: v })} placeholder="Valeur (markdown)" />
+            <RichInput singleLine label="Nom" value={f.name} max={LIMITS.fieldName} onChange={(v) => updateField(mid, e.id, f.id, { name: v })} placeholder="Nom du champ" />
+            <RichInput label="Valeur" value={f.value} max={LIMITS.fieldValue} minHeight={60} onChange={(v) => updateField(mid, e.id, f.id, { value: v })} placeholder="Valeur (markdown, mentions…)" />
             <ToggleRow label="En ligne" description="Affiche jusqu'à 3 champs côte à côte" value={f.inline} onChange={(v) => updateField(mid, e.id, f.id, { inline: v })} />
           </View>
         ))}
@@ -150,10 +170,14 @@ export function EmbedEditor({ mid, e, index, count }: { mid: string; e: Embed; i
           autoCapitalize="none"
           keyboardType="url"
         />
+        <Stack row wrap gap={8}>
+          <Button small icon="cloud-upload-outline" label="Importer l’image" onPress={() => setImportFor('image')} />
+          <Button small icon="cloud-upload-outline" label="Importer la miniature" onPress={() => setImportFor('thumbnail')} />
+        </Stack>
       </Box>
 
       <Box title="Pied de page" icon="reorder-two-outline" defaultCollapsed={!e.footer.text && !e.timestamp}>
-        <Input label="Texte" value={e.footer.text} max={LIMITS.footer} onChangeText={(v) => up({ footer: { ...e.footer, text: v } })} placeholder="Texte du pied de page" />
+        <RichInput singleLine label="Texte" value={e.footer.text} max={LIMITS.footer} onChange={(v) => up({ footer: { ...e.footer, text: v } })} placeholder="Texte du pied de page" />
         <Input label="Icône (URL)" value={e.footer.icon_url} error={urlError(e.footer.icon_url)} onChangeText={(v) => up({ footer: { ...e.footer, icon_url: v } })} placeholder="https://…/icon.png" autoCapitalize="none" keyboardType="url" />
         <SectionLabel>Horodatage</SectionLabel>
         <Input
@@ -174,6 +198,16 @@ export function EmbedEditor({ mid, e, index, count }: { mid: string; e: Embed; i
         <Text style={{ color: t.warning, fontSize: t.font(12) }}>
           Attention : {total} caractères au total, au-delà de {LIMITS.embedTotal} l'embed devient difficile à lire.
         </Text>
+      )}
+      {importFor && (
+        <ImageImportSheet
+          visible
+          single
+          title={importFor === 'thumbnail' ? 'Miniature de l’embed' : 'Image de l’embed'}
+          confirmLabel="Utiliser cette image"
+          onClose={() => setImportFor(null)}
+          onConfirm={onImported}
+        />
       )}
     </Box>
   );

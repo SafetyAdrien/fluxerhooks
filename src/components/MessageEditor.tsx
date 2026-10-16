@@ -14,6 +14,7 @@ import { uid } from '../utils/factory';
 import { Box, Button, Chip, IconBtn, Input, SectionLabel, Segmented, Stack, ToggleRow, useToast } from './ui';
 import { RichInput } from './RichInput';
 import { EmbedEditor } from './EmbedEditor';
+import { ImageImportSheet } from './ImageImportSheet';
 
 export function MessageEditor({
   m,
@@ -36,6 +37,7 @@ export function MessageEditor({
   const forum = info?.channelType !== undefined && isForumType(info.channelType);
   const tags = info?.availableTags ?? [];
   const isEdit = !!m.reference.trim();
+  const [importing, setImporting] = React.useState(false);
 
   const pickFiles = async () => {
     try {
@@ -72,6 +74,7 @@ export function MessageEditor({
         <>
           <IconBtn icon="arrow-up" label="Monter le message" onPress={() => moveMessage(m.id, -1)} disabled={index === 0} size={18} />
           <IconBtn icon="arrow-down" label="Descendre le message" onPress={() => moveMessage(m.id, 1)} disabled={index === count - 1} size={18} />
+          <IconBtn icon="images-outline" label="Importer des images" onPress={() => setImporting(true)} size={18} />
           <IconBtn icon="copy-outline" label="Dupliquer le message" onPress={() => duplicateMessage(m.id)} size={18} />
           <IconBtn
             icon="trash-outline"
@@ -93,7 +96,8 @@ export function MessageEditor({
         value={m.content}
         max={LIMITS.content}
         onChange={(v) => set({ content: v })}
-        placeholder="Écris ton message… (markdown, mentions <@id>, <t:horodatage>)"
+        placeholder="Écris ton message… (markdown, @ pour les mentions)"
+        onImportImages={() => setImporting(true)}
       />
 
       <Box nested title="Profil du webhook" icon="person-outline" subtitle={m.username.trim() || info?.name || 'Nom et avatar par défaut'} defaultCollapsed={!m.username && !m.avatar_url}>
@@ -218,7 +222,10 @@ export function MessageEditor({
             />
           </View>
         ))}
-        <Button icon="cloud-upload-outline" label="Ajouter des fichiers" onPress={pickFiles} disabled={m.attachments.length >= LIMITS.attachments} />
+        <Stack row gap={8}>
+          <Button flex icon="images-outline" label="Images" onPress={() => setImporting(true)} disabled={m.attachments.length >= LIMITS.attachments} />
+          <Button flex icon="document-attach-outline" label="Fichiers" onPress={pickFiles} disabled={m.attachments.length >= LIMITS.attachments} />
+        </Stack>
       </Box>
 
       <Box nested title="Options" icon="options-outline" defaultCollapsed>
@@ -293,6 +300,13 @@ export function MessageEditor({
         onPress={() => sendOne(m)}
         loading={isBusy}
       />
+      {importing && (
+        <ImageImportSheet
+          visible
+          onClose={() => setImporting(false)}
+          onConfirm={(files) => set({ attachments: [...m.attachments, ...files].slice(0, LIMITS.attachments) })}
+        />
+      )}
     </Box>
   );
 }

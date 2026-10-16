@@ -82,7 +82,7 @@ function TargetRow({ tg, canRemove }: { tg: WebhookTarget; canRemove: boolean })
 
 export function TargetsEditor({ onBrowse }: { onBrowse: () => void }) {
   const { state, addTarget } = useEditor();
-  const { botToken } = useSettings();
+  const { botToken, userToken } = useSettings();
   const valid = state.targets.filter((x) => x.info).length;
   return (
     <Box
@@ -96,7 +96,7 @@ export function TargetsEditor({ onBrowse }: { onBrowse: () => void }) {
       ))}
       <Stack row wrap gap={8}>
         <Button small icon="add" label="Autre webhook" onPress={() => addTarget()} />
-        <Button small icon="server-outline" label={botToken ? 'Parcourir mes serveurs' : 'Connecter un bot'} onPress={onBrowse} />
+        <Button small icon="server-outline" label={botToken || userToken ? 'Parcourir mes serveurs' : 'Choisir sur mon serveur'} onPress={onBrowse} />
       </Stack>
     </Box>
   );

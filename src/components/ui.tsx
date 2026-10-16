@@ -135,6 +135,8 @@ export function Box({
           overflow: 'hidden',
         },
         accent ? { borderLeftWidth: 4, borderLeftColor: accent } : null,
+        t.css.box,
+        nested ? t.css['box-nested'] : null,
         style,
       ]}
     >
@@ -147,15 +149,15 @@ export function Box({
           style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: t.pad, paddingVertical: t.pad - 2, gap: 10 }}
         >
           {collapsible && (
-            <Ionicons name={isCollapsed ? 'chevron-forward' : 'chevron-down'} size={18} color={t.textMuted} />
+            <Ionicons name={isCollapsed ? 'chevron-forward' : 'chevron-down'} size={t.z(18)} color={t.textMuted} />
           )}
-          {icon && <Ionicons name={icon} size={18} color={accent ?? t.accent} />}
+          {icon && <Ionicons name={icon} size={t.z(18)} color={accent ?? t.accent} />}
           <View style={{ flex: 1, minWidth: 0 }}>
-            <Text numberOfLines={1} style={{ color: t.text, fontWeight: '700', fontSize: t.font(15) }}>
+            <Text numberOfLines={1} style={[{ color: t.text, fontWeight: '700', fontSize: t.font(15) }, t.css.title]}>
               {title}
             </Text>
             {!!subtitle && (
-              <Text numberOfLines={1} style={{ color: t.textMuted, fontSize: t.font(12), marginTop: 1 }}>
+              <Text numberOfLines={1} style={[{ color: t.textMuted, fontSize: t.font(12), marginTop: 1 }, t.css.subtitle]}>
                 {subtitle}
               </Text>
             )}
@@ -189,7 +191,7 @@ export function SectionLabel({ children, right }: { children: React.ReactNode; r
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
       <Text
-        style={{ flex: 1, color: t.textMuted, fontSize: t.font(11), fontWeight: '800', letterSpacing: 0.8, textTransform: 'uppercase' }}
+        style={[{ flex: 1, color: t.textMuted, fontSize: t.font(11), fontWeight: '800', letterSpacing: 0.8, textTransform: 'uppercase' }, t.css.label]}
       >
         {children}
       </Text>
@@ -233,7 +235,7 @@ export function Input({
       {(label || (max && settings.showCounters)) && (
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           {!!label && (
-            <Text style={{ flex: 1, color: t.textMuted, fontSize: t.font(12), fontWeight: '700' }}>{label}</Text>
+            <Text style={[{ flex: 1, color: t.textMuted, fontSize: t.font(12), fontWeight: '700' }, t.css.label]}>{label}</Text>
           )}
           {max !== undefined && settings.showCounters && (focus || over || len > max * 0.85) && (
             <Text style={{ color: over ? t.danger : t.textFaint, fontSize: t.font(11) }}>
@@ -243,14 +245,18 @@ export function Input({
         </View>
       )}
       <View
-        style={{
-          flexDirection: 'row',
-          alignItems: multiline ? 'flex-start' : 'center',
-          backgroundColor: fieldBg,
-          borderRadius: t.radiusSm,
-          borderWidth: 1.5,
-          borderColor: error || over ? t.danger : focus ? t.accent : 'transparent',
-        }}
+        style={[
+          {
+            flexDirection: 'row',
+            alignItems: multiline ? 'flex-start' : 'center',
+            backgroundColor: fieldBg,
+            borderRadius: t.radiusSm,
+            borderWidth: 1.5,
+            borderColor: 'transparent',
+          },
+          t.css.input,
+          error || over ? { borderColor: t.danger, borderWidth: 1.5 } : focus ? { borderColor: t.accent, borderWidth: 1.5 } : null,
+        ]}
       >
         <TextInput
           value={value}
@@ -275,9 +281,10 @@ export function Input({
               fontSize: t.font(15),
               paddingHorizontal: 12,
               paddingVertical: Platform.OS === 'android' ? 9 : 11,
-              minHeight: multiline ? 92 : 44,
+              minHeight: t.z(multiline ? 92 : 44),
               fontFamily: mono ? (Platform.OS === 'android' ? 'monospace' : 'Menlo') : undefined,
             },
+            t.css['input-text'],
             style,
           ]}
           {...rest}
@@ -340,8 +347,8 @@ export function Button({
         {
           backgroundColor: bg,
           borderRadius: t.radiusSm,
-          minHeight: small ? 34 : 44,
-          paddingHorizontal: small ? 10 : 16,
+          minHeight: t.z(small ? 34 : 44),
+          paddingHorizontal: t.z(small ? 10 : 16),
           flexDirection: 'row',
           alignItems: 'center',
           justifyContent: 'center',
@@ -350,16 +357,18 @@ export function Button({
           overflow: 'hidden',
         },
         flex ? { flex: 1 } : null,
+        t.css.button,
+        variant === 'primary' ? t.css['button-primary'] : null,
         style,
       ]}
     >
       {loading ? (
         <ActivityIndicator size="small" color={fg} />
       ) : (
-        icon && <Ionicons name={icon} size={small ? 16 : 18} color={fg} />
+        icon && <Ionicons name={icon} size={t.z(small ? 16 : 18)} color={fg} />
       )}
       {!!label && (
-        <Text numberOfLines={1} style={{ color: fg, fontWeight: '700', fontSize: t.font(small ? 13 : 14) }}>
+        <Text numberOfLines={1} style={[{ color: fg, fontWeight: '700', fontSize: t.font(small ? 13 : 14) }, t.css['button-text']]}>
           {label}
         </Text>
       )}
@@ -396,7 +405,7 @@ export function IconBtn({
       android_ripple={{ color: t.accentSoft, borderless: true, radius: 20 }}
       style={({ pressed }) => ({ padding: 7, borderRadius: 999, opacity: disabled ? 0.35 : pressed ? 0.6 : 1 })}
     >
-      <Ionicons name={icon} size={size} color={color ?? t.textMuted} />
+      <Ionicons name={icon} size={t.z(size)} color={color ?? t.textMuted} />
     </Pressable>
   );
 }
@@ -451,7 +460,7 @@ export function Segmented<T extends string>({
   const { theme: t, haptic } = useSettings();
   const surface = useContext(SurfaceContext);
   return (
-    <View style={{ flexDirection: 'row', backgroundColor: surface === 'surface2' ? t.surface : t.surface2, borderRadius: t.radiusSm, padding: 3, gap: 3 }}>
+    <View style={[{ flexDirection: 'row', backgroundColor: surface === 'surface2' ? t.surface : t.surface2, borderRadius: t.radiusSm, padding: 3, gap: 3 }, t.css.segmented]}>
       {options.map((o) => {
         const active = o.value === value;
         return (
@@ -465,7 +474,7 @@ export function Segmented<T extends string>({
             accessibilityState={{ selected: active }}
             style={{
               flex: 1,
-              minHeight: 36,
+              minHeight: t.z(36),
               borderRadius: Math.max(3, t.radiusSm - 3),
               backgroundColor: active ? t.accent : 'transparent',
               alignItems: 'center',
@@ -475,7 +484,7 @@ export function Segmented<T extends string>({
               paddingHorizontal: 6,
             }}
           >
-            {o.icon && <Ionicons name={o.icon} size={15} color={active ? t.onAccent : t.textMuted} />}
+            {o.icon && <Ionicons name={o.icon} size={t.z(15)} color={active ? t.onAccent : t.textMuted} />}
             <Text
               numberOfLines={1}
               style={{ color: active ? t.onAccent : t.textMuted, fontWeight: '700', fontSize: t.font(13) }}
@@ -508,17 +517,20 @@ export function Chip({
       onPress={onPress}
       accessibilityRole="button"
       accessibilityState={{ selected }}
-      style={{
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 5,
-        borderRadius: 999,
-        paddingHorizontal: 12,
-        minHeight: 32,
-        backgroundColor: selected ? (color ?? t.accent) : t.surface2,
-        borderWidth: 1,
-        borderColor: selected ? (color ?? t.accent) : t.border,
-      }}
+      style={[
+        {
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 5,
+          borderRadius: 999,
+          paddingHorizontal: t.z(12),
+          minHeight: t.z(32),
+          backgroundColor: selected ? (color ?? t.accent) : t.surface2,
+          borderWidth: 1,
+          borderColor: selected ? (color ?? t.accent) : t.border,
+        },
+        t.css.chip,
+      ]}
     >
       {icon && <Ionicons name={icon} size={14} color={selected ? t.onAccent : t.textMuted} />}
       <Text style={{ color: selected ? t.onAccent : t.text, fontSize: t.font(13), fontWeight: '600' }}>{label}</Text>
@@ -528,8 +540,19 @@ export function Chip({
 
 /* ---------- Avatar avec repli ---------- */
 
-export function Avatar({ uri, name, size = 40 }: { uri?: string | null; name?: string; size?: number }) {
+export function Avatar({
+  uri,
+  name,
+  size = 40,
+  shape = 'circle',
+}: {
+  uri?: string | null;
+  name?: string;
+  size?: number;
+  shape?: 'circle' | 'rounded' | 'square';
+}) {
   const t = useTheme();
+  const br = shape === 'circle' ? size / 2 : shape === 'rounded' ? size * 0.28 : size * 0.08;
   const [failed, setFailed] = useState(false);
   useEffect(() => setFailed(false), [uri]);
   const initials = Array.from((name || '?').trim())[0]?.toUpperCase() ?? '?';
@@ -538,13 +561,13 @@ export function Avatar({ uri, name, size = 40 }: { uri?: string | null; name?: s
       <Image
         source={{ uri }}
         onError={() => setFailed(true)}
-        style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: t.surface2 }}
+        style={{ width: size, height: size, borderRadius: br, backgroundColor: t.surface2 }}
       />
     );
   }
   return (
     <View
-      style={{ width: size, height: size, borderRadius: size / 2, backgroundColor: t.accent, alignItems: 'center', justifyContent: 'center' }}
+      style={{ width: size, height: size, borderRadius: br, backgroundColor: t.accent, alignItems: 'center', justifyContent: 'center' }}
     >
       <Text style={{ color: t.onAccent, fontWeight: '800', fontSize: size * 0.38 }}>{initials}</Text>
     </View>
@@ -568,21 +591,24 @@ export function Sheet({
   footer?: React.ReactNode;
   full?: boolean;
 }) {
-  const t = useTheme();
+  const { theme: t, base } = useSettings();
   const insets = useSafeAreaInsets();
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose} statusBarTranslucent>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.55)' }} onPress={onClose} accessibilityLabel="Fermer" />
         <View
-          style={{
-            backgroundColor: t.bg,
-            borderTopLeftRadius: t.radius + 6,
-            borderTopRightRadius: t.radius + 6,
-            maxHeight: full ? '94%' : '86%',
-            height: full ? '94%' : undefined,
-            paddingBottom: insets.bottom + 8,
-          }}
+          style={[
+            {
+              backgroundColor: base.bg,
+              borderTopLeftRadius: t.radius + 6,
+              borderTopRightRadius: t.radius + 6,
+              maxHeight: full ? '94%' : '86%',
+              height: full ? '94%' : undefined,
+              paddingBottom: insets.bottom + 8,
+            },
+            t.css.sheet,
+          ]}
         >
           <View style={{ alignItems: 'center', paddingTop: 8 }}>
             <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: t.border }} />
@@ -741,6 +767,94 @@ export function EmptyState({ icon, title, text, action }: { icon: IconName; titl
       <Text style={{ color: t.text, fontWeight: '700', fontSize: t.font(16), textAlign: 'center' }}>{title}</Text>
       {!!text && <Text style={{ color: t.textMuted, textAlign: 'center', fontSize: t.font(13) }}>{text}</Text>}
       {action}
+    </View>
+  );
+}
+
+/* ---------- Curseur (slider) ---------- */
+
+export function Slider({
+  label,
+  value,
+  min,
+  max,
+  step = 1,
+  onChange,
+  format,
+  icon,
+}: {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  step?: number;
+  onChange: (v: number) => void;
+  format?: (v: number) => string;
+  icon?: IconName;
+}) {
+  const { theme: t, haptic } = useSettings();
+  const [w, setW] = useState(0);
+  const [drag, setDrag] = useState<number | null>(null);
+  const shown = drag ?? value;
+  const ratio = (shown - min) / (max - min);
+  const toValue = (x: number) => {
+    const r = Math.min(1, Math.max(0, x / (w || 1)));
+    const raw = min + r * (max - min);
+    return Math.round(Math.round(raw / step) * step * 1000) / 1000;
+  };
+  const thumb = t.z(24);
+  const set = (v: number) => {
+    const clamped = Math.min(max, Math.max(min, Math.round(v / step) * step));
+    haptic('light');
+    onChange(Math.round(clamped * 1000) / 1000);
+  };
+  return (
+    <View style={{ gap: 4 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        {icon && <Ionicons name={icon} size={t.z(18)} color={t.textMuted} />}
+        <Text style={[{ flex: 1, color: t.text, fontSize: t.font(14), fontWeight: '600' }, t.css.label]}>{label}</Text>
+        <Text style={{ color: t.accent, fontWeight: '800', fontSize: t.font(13), minWidth: 44, textAlign: 'right' }}>
+          {format ? format(shown) : String(shown)}
+        </Text>
+      </View>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+        <IconBtn icon="remove" label={`Diminuer ${label}`} size={16} onPress={() => set(value - step)} disabled={value <= min} />
+        <View
+          style={{ flex: 1, height: thumb + 12, justifyContent: 'center' }}
+          onLayout={(e) => setW(e.nativeEvent.layout.width)}
+          onStartShouldSetResponder={() => true}
+          onMoveShouldSetResponder={() => true}
+          onResponderTerminationRequest={() => false}
+          onResponderGrant={(e) => setDrag(toValue(e.nativeEvent.locationX))}
+          onResponderMove={(e) => setDrag(toValue(e.nativeEvent.locationX))}
+          onResponderRelease={() => {
+            if (drag !== null) onChange(drag);
+            setDrag(null);
+          }}
+          accessibilityRole="adjustable"
+          accessibilityLabel={label}
+          accessibilityValue={{ min, max, now: value }}
+        >
+          <View pointerEvents="none" style={{ height: 6, borderRadius: 3, backgroundColor: t.surface2 }}>
+            <View style={{ width: `${ratio * 100}%`, height: 6, borderRadius: 3, backgroundColor: t.accent }} />
+          </View>
+          <View
+            pointerEvents="none"
+            style={{
+              position: 'absolute',
+              left: Math.max(0, ratio * w - thumb / 2),
+              width: thumb,
+              height: thumb,
+              borderRadius: thumb / 2,
+              backgroundColor: t.accent,
+              borderWidth: 3,
+              borderColor: '#fff',
+              elevation: 3,
+            }}
+          />
+        </View>
+        <IconBtn icon="add" label={`Augmenter ${label}`} size={16} onPress={() => set(value + step)} disabled={value >= max} />
+      </View>
     </View>
   );
 }

@@ -108,6 +108,102 @@ export interface AppSettings {
   autoCollapseSent: boolean;
   instance: string; // ex: https://fluxer.app
   showCounters: boolean;
+  /** Zoom global de l'interface (texte, espacements, icônes) : 0.8 – 1.4. */
+  zoom: number;
+  wallpaper: WallpaperSettings;
+  messageStyle: MessageStyle;
+  /** Styles personnalisés façon CSS, une feuille par catégorie (voir theme/css.ts). */
+  customCss: Record<string, string>;
+  customCssEnabled: boolean;
+  recentColors: number[];
+}
+
+export interface WallpaperSettings {
+  uri: string | null;
+  /** Assombrissement 0 – 0.9 (« DIM »). */
+  dim: number;
+  blur: number;
+  /** Opacité des conteneurs posés sur le fond (0.55 – 1). */
+  surfaceOpacity: number;
+  /** Teinte de l'assombrissement : noir ou couleur d'accent. */
+  tint: 'black' | 'accent';
+}
+
+export interface MessageStyle {
+  avatarShape: 'circle' | 'rounded' | 'square';
+  avatarSize: number;
+  fontSize: number;
+  showTimestamps: boolean;
+  showBotTag: boolean;
+  bubbles: boolean;
+  spacing: 'tight' | 'normal' | 'airy';
+  embedMaxWidth: number;
+  embedBarWidth: number;
+  groupMessages: boolean;
+}
+
+export interface Template {
+  id: string;
+  name: string;
+  icon: string;
+  description: string;
+  builtin?: boolean;
+  messages: DraftMessage[];
+}
+
+export type ScheduleKind = 'once' | 'interval' | 'daily' | 'weekly';
+
+export interface Automation {
+  id: string;
+  name: string;
+  enabled: boolean;
+  /** Source des messages : une sauvegarde ou un modèle. */
+  source: { kind: 'backup' | 'template'; id: string };
+  /** URL des webhooks visés (les cibles de la source sont utilisées si vide). */
+  targets: string[];
+  schedule: {
+    kind: ScheduleKind;
+    at: string; // ISO de la première exécution
+    everyMinutes?: number; // interval
+    weekdays?: number[]; // weekly : 0 = dimanche
+  };
+  nextRun: string | null;
+  lastRun?: string;
+  lastResult?: string;
+  runs: number;
+}
+
+export interface FluxerUser {
+  id: string;
+  username: string;
+  discriminator?: string;
+  global_name?: string | null;
+  avatar?: string | null;
+  banner?: string | null;
+  bio?: string | null;
+  pronouns?: string | null;
+  accent_color?: number | null;
+  email?: string | null;
+  verified?: boolean;
+  mfa_enabled?: boolean;
+  premium_type?: number | null;
+  premium_since?: string | null;
+  bot?: boolean;
+  flags?: number;
+  [k: string]: unknown;
+}
+
+export interface ApiRole {
+  id: string;
+  name: string;
+  color: number;
+  position: number;
+}
+
+export interface ApiEmoji {
+  id: string;
+  name: string;
+  animated?: boolean;
 }
 
 /* Objets renvoyés par l'API */

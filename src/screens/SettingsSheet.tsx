@@ -1,14 +1,21 @@
 import React, { useState } from 'react';
-import { Alert, Linking, Pressable, Text, View } from 'react-native';
+import { Alert, Image, Linking, Pressable, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import * as ImagePicker from 'expo-image-picker';
+import * as FS from 'expo-file-system/legacy';
 import Constants from 'expo-constants';
-import { useSettings } from '../state/settings';
+import { DEFAULT_MESSAGE_STYLE, DEFAULT_WALLPAPER, useSettings } from '../state/settings';
 import { useEditor } from '../state/editor';
+import { useSession } from '../state/session';
 import { PALETTES, ACCENTS } from '../theme/themes';
 import { clearEndpointCache, resolveEndpoints } from '../api/fluxer';
-import { hexToInt } from '../utils/parse';
-import { Box, Button, Grid, Input, ListRow, Segmented, Sheet, Stack, ToggleRow, useToast } from '../components/ui';
-import type { ThemeName } from '../types';
+import { hexToInt, intToHex } from '../utils/parse';
+import { Box, Button, Grid, Input, ListRow, Segmented, Sheet, Slider, Stack, ToggleRow, useToast } from '../components/ui';
+import { ColorPickerModal } from '../components/ColorPicker';
+import { MessagePreview } from '../components/Preview';
+import { newEmbed, newMessage } from '../utils/factory';
+import type { MessageStyle, ThemeName, WallpaperSettings } from '../types';
 
 function ThemeCard({ name, label, selected, onPress }: { name: ThemeName; label: string; selected: boolean; onPress: () => void }) {
   const { theme: t } = useSettings();
@@ -20,7 +27,7 @@ function ThemeCard({ name, label, selected, onPress }: { name: ThemeName; label:
       accessibilityState={{ selected }}
       style={{ borderRadius: t.radiusSm, borderWidth: 2, borderColor: selected ? t.accent : t.border, overflow: 'hidden' }}
     >
-      <View style={{ height: 54, flexDirection: 'row' }}>
+      <View style={{ height: t.z(54), flexDirection: 'row' }}>
         {p ? (
           <>
             <View style={{ width: 18, backgroundColor: p.bgAlt }} />
@@ -38,32 +45,56 @@ function ThemeCard({ name, label, selected, onPress }: { name: ThemeName; label:
         )}
       </View>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, padding: 8, backgroundColor: t.surface }}>
-        <Ionicons name={selected ? 'radio-button-on' : 'radio-button-off'} size={16} color={selected ? t.accent : t.textFaint} />
+        <Ionicons name={selected ? 'radio-button-on' : 'radio-button-off'} size={t.z(16)} color={selected ? t.accent : t.textFaint} />
         <Text style={{ color: t.text, fontWeight: '600', fontSize: t.font(13) }}>{label}</Text>
       </View>
     </Pressable>
   );
 }
 
+const SAMPLE = (() => {
+  const m = newMessage();
+  m.content = 'Aperçu du **style des messages** avec une <@&1> mention.';
+  const e = newEmbed();
+  e.title = 'Exemple d’embed';
+  e.description = 'Les réglages s’appliquent en direct.';
+  e.color = 0x4641d9;
+  m.embeds = [e];
+  return m;
+})();
+
 export function SettingsSheet({
   visible,
   onClose,
   onOpenBot,
+  onOpenAccount,
   onOpenJson,
-  onOpenBackups,
+  onOpenData,
+  onOpenCss,
 }: {
   visible: boolean;
   onClose: () => void;
   onOpenBot: () => void;
+  onOpenAccount: () => void;
   onOpenJson: () => void;
-  onOpenBackups: () => void;
+  onOpenData: () => void;
+  onOpenCss: () => void;
 }) {
   const { theme: t, settings, update, reset, botToken, setBotToken } = useSettings();
   const { clearAll } = useEditor();
+  const session = useSession();
   const toast = useToast();
   const [instance, setInstance] = useState(settings.instance);
-  const [accentHex, setAccentHex] = useState(settings.accent);
   const [testing, setTesting] = useState(false);
+  const [accentOpen, setAccentOpen] = useState(false);
+  const wp = settings.wallpaper;
+  const ms = settings.messageStyle;
+  const setWp = (p: Partial<WallpaperSettings>) => update({ wallpaper: { ...wp, ...p } });
+  const setMs = (p: Partial<MessageStyle>) => update({ messageStyle: { ...ms, ...p } });
+  const go = (fn: () => void) => () => {
+    onClose();
+    fn();
+  };
 
   const themes: { name: ThemeName; label: string }[] = [
     { name: 'dark', label: 'Sombre' },
@@ -73,6 +104,21 @@ export function SettingsSheet({
     { name: 'midnight', label: 'Minuit' },
     { name: 'system', label: 'Système' },
   ];
+
+  const pickWallpaper = async () => {
+    try {
+      const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.9 });
+      if (res.canceled) return;
+      // On copie l'image dans le stockage de l'app pour qu'elle survive au nettoyage du cache.
+      const dest = `${FS.documentDirectory}wallpaper-${Date.now()}.jpg`;
+      await FS.copyAsync({ from: res.assets[0].uri, to: dest });
+      if (wp.uri?.startsWith(FS.documentDirectory ?? '§')) FS.deleteAsync(wp.uri, { idempotent: true }).catch(() => {});
+      setWp({ uri: dest });
+      toast('Fond d’écran appliqué.', 'success');
+    } catch {
+      toast('Impossible d’ouvrir la galerie.', 'error');
+    }
+  };
 
   const testInstance = async () => {
     setTesting(true);
@@ -84,9 +130,12 @@ export function SettingsSheet({
     toast(`API : ${ep.api}`, 'success');
   };
 
+  const pct = (v: number) => `${Math.round(v * 100)} %`;
+
   return (
     <Sheet visible={visible} onClose={onClose} title="Paramètres" full>
-      <Box title="Thème" icon="color-palette-outline" collapsible={false}>
+      {/* ---------- Thème ---------- */}
+      <Box title="Thème et couleur" icon="color-palette-outline">
         <Grid min={100} gap={8}>
           {themes.map((x) => (
             <ThemeCard key={x.name} name={x.name} label={x.label} selected={settings.theme === x.name} onPress={() => update({ theme: x.name })} />
@@ -94,18 +143,24 @@ export function SettingsSheet({
         </Grid>
         <Text style={{ color: t.textMuted, fontWeight: '700', fontSize: t.font(12) }}>Couleur d’accent</Text>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
+          <Pressable
+            onPress={() => setAccentOpen(true)}
+            accessibilityLabel="Couleur d’accent personnalisée"
+            style={{ width: t.z(38), height: t.z(38), borderRadius: t.z(19), overflow: 'hidden', borderWidth: 2, borderColor: t.text }}
+          >
+            <LinearGradient colors={['#FF0000', '#FFFF00', '#00FF00', '#00FFFF', '#0000FF', '#FF00FF']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+              <Ionicons name="add" size={t.z(20)} color="#fff" />
+            </LinearGradient>
+          </Pressable>
           {ACCENTS.map((c) => (
             <Pressable
               key={c}
-              onPress={() => {
-                update({ accent: c });
-                setAccentHex(c);
-              }}
+              onPress={() => update({ accent: c })}
               accessibilityLabel={`Accent ${c}`}
               style={{
-                width: 36,
-                height: 36,
-                borderRadius: 18,
+                width: t.z(38),
+                height: t.z(38),
+                borderRadius: t.z(19),
                 backgroundColor: c,
                 borderWidth: settings.accent.toLowerCase() === c.toLowerCase() ? 3 : 0,
                 borderColor: t.text,
@@ -113,43 +168,21 @@ export function SettingsSheet({
             />
           ))}
         </View>
-        <Input
-          value={accentHex}
-          onChangeText={(v) => {
-            setAccentHex(v);
-            const n = hexToInt(v);
-            if (n !== null) update({ accent: '#' + n.toString(16).padStart(6, '0').toUpperCase() });
-          }}
-          placeholder="#4641D9"
-          autoCapitalize="characters"
-          mono
+        <ColorPickerModal
+          visible={accentOpen}
+          value={hexToInt(settings.accent)}
+          allowNone={false}
+          title="Couleur d’accent"
+          onClose={() => setAccentOpen(false)}
+          onPick={(c) => c !== null && update({ accent: intToHex(c) })}
         />
       </Box>
 
-      <Box title="Interface" icon="phone-portrait-outline" collapsible={false}>
-        <Text style={{ color: t.textMuted, fontWeight: '700', fontSize: t.font(12) }}>Taille du texte</Text>
-        <Segmented
-          value={String(settings.fontScale)}
-          onChange={(v) => update({ fontScale: Number(v) })}
-          options={[
-            { value: '0.85', label: 'Petit' },
-            { value: '1', label: 'Normal' },
-            { value: '1.15', label: 'Grand' },
-            { value: '1.3', label: 'Max' },
-          ]}
-        />
-        <Text style={{ color: t.textMuted, fontWeight: '700', fontSize: t.font(12) }}>Arrondi des conteneurs</Text>
-        <Segmented
-          value={String(settings.radius)}
-          onChange={(v) => update({ radius: Number(v) })}
-          options={[
-            { value: '4', label: 'Carré' },
-            { value: '8', label: 'Doux' },
-            { value: '12', label: 'Rond' },
-            { value: '18', label: 'Bulle' },
-          ]}
-        />
-        <Text style={{ color: t.textMuted, fontWeight: '700', fontSize: t.font(12) }}>Densité</Text>
+      {/* ---------- Zoom & interface ---------- */}
+      <Box title="Zoom et interface" icon="phone-portrait-outline" subtitle={`Zoom ${pct(settings.zoom)}`}>
+        <Slider icon="search-outline" label="Zoom de l’interface" value={settings.zoom} min={0.8} max={1.4} step={0.05} format={pct} onChange={(v) => update({ zoom: v })} />
+        <Slider icon="text-outline" label="Taille du texte" value={settings.fontScale} min={0.85} max={1.3} step={0.05} format={pct} onChange={(v) => update({ fontScale: v })} />
+        <Slider icon="square-outline" label="Arrondi des conteneurs" value={settings.radius} min={0} max={24} step={2} format={(v) => `${v} px`} onChange={(v) => update({ radius: v })} />
         <Segmented
           value={settings.density}
           onChange={(v) => update({ density: v })}
@@ -158,46 +191,128 @@ export function SettingsSheet({
             { value: 'compact', label: 'Compacte', icon: 'contract-outline' },
           ]}
         />
-        <Text style={{ color: t.textMuted, fontWeight: '700', fontSize: t.font(12) }}>Affichage de l’aperçu</Text>
+        <ToggleRow icon="tablet-landscape-outline" label="Écran partagé" description="Éditeur et aperçu côte à côte sur tablette et en paysage" value={settings.splitView === 'auto'} onChange={(v) => update({ splitView: v ? 'auto' : 'off' })} />
+        <ToggleRow icon="calculator-outline" label="Compteurs de caractères" value={settings.showCounters} onChange={(v) => update({ showCounters: v })} />
+      </Box>
+
+      {/* ---------- Fond d'écran DIM ---------- */}
+      <Box title="Fond d’écran (DIM)" icon="image-outline" subtitle={wp.uri ? `Assombri à ${pct(wp.dim)}` : 'Aucun'} defaultCollapsed={!wp.uri}>
+        <View style={{ borderRadius: t.radiusSm, overflow: 'hidden', aspectRatio: 16 / 9, backgroundColor: t.surface2, borderWidth: 1, borderColor: t.border }}>
+          {wp.uri ? (
+            <>
+              <Image source={{ uri: wp.uri }} blurRadius={wp.blur} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} resizeMode="cover" />
+              <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: wp.tint === 'accent' ? t.accent : '#000', opacity: wp.dim }} />
+              <View style={{ margin: 12, padding: 10, borderRadius: t.radiusSm, backgroundColor: t.surface, alignSelf: 'flex-start' }}>
+                <Text style={{ color: t.text, fontWeight: '700' }}>Aperçu d’un conteneur</Text>
+              </View>
+            </>
+          ) : (
+            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+              <Ionicons name="images-outline" size={t.z(32)} color={t.textFaint} />
+              <Text style={{ color: t.textMuted }}>Choisis une image de ta galerie</Text>
+            </View>
+          )}
+        </View>
+        <Stack row gap={8}>
+          <Button flex icon="images-outline" label={wp.uri ? 'Changer' : 'Choisir une image'} onPress={pickWallpaper} />
+          {!!wp.uri && <Button variant="danger" icon="trash-outline" onPress={() => setWp({ uri: null })} />}
+        </Stack>
+        {!!wp.uri && (
+          <>
+            <Slider icon="moon-outline" label="Assombrissement" value={wp.dim} min={0} max={0.9} step={0.05} format={pct} onChange={(v) => setWp({ dim: v })} />
+            <Slider icon="water-outline" label="Flou" value={wp.blur} min={0} max={20} step={1} format={(v) => `${v}`} onChange={(v) => setWp({ blur: v })} />
+            <Slider icon="layers-outline" label="Opacité des conteneurs" value={wp.surfaceOpacity} min={0.55} max={1} step={0.05} format={pct} onChange={(v) => setWp({ surfaceOpacity: v })} />
+            <Segmented
+              value={wp.tint}
+              onChange={(v) => setWp({ tint: v })}
+              options={[
+                { value: 'black', label: 'Voile noir', icon: 'contrast-outline' },
+                { value: 'accent', label: 'Voile accent', icon: 'color-fill-outline' },
+              ]}
+            />
+            <Button variant="ghost" icon="refresh-outline" label="Valeurs par défaut" onPress={() => setWp({ ...DEFAULT_WALLPAPER, uri: wp.uri })} />
+          </>
+        )}
+      </Box>
+
+      {/* ---------- Apparence des messages ---------- */}
+      <Box title="Apparence des messages" icon="chatbubbles-outline" defaultCollapsed>
+        <View style={{ backgroundColor: t.preview, borderRadius: t.radiusSm, borderWidth: 1, borderColor: t.border, paddingVertical: 4 }}>
+          <MessagePreview m={SAMPLE} />
+        </View>
         <Segmented
           value={settings.previewDisplay}
           onChange={(v) => update({ previewDisplay: v })}
           options={[
-            { value: 'cozy', label: 'Avec avatars' },
-            { value: 'compact', label: 'Compact' },
+            { value: 'cozy', label: 'Avec avatars', icon: 'person-circle-outline' },
+            { value: 'compact', label: 'Compact', icon: 'list-outline' },
           ]}
         />
-        <ToggleRow
-          icon="tablet-landscape-outline"
-          label="Écran partagé"
-          description="Éditeur et aperçu côte à côte sur tablette et en paysage"
-          value={settings.splitView === 'auto'}
-          onChange={(v) => update({ splitView: v ? 'auto' : 'off' })}
+        <Text style={{ color: t.textMuted, fontWeight: '700', fontSize: t.font(12) }}>Forme des avatars</Text>
+        <Segmented
+          value={ms.avatarShape}
+          onChange={(v) => setMs({ avatarShape: v })}
+          options={[
+            { value: 'circle', label: 'Rond', icon: 'ellipse-outline' },
+            { value: 'rounded', label: 'Arrondi', icon: 'square-outline' },
+            { value: 'square', label: 'Carré', icon: 'stop-outline' },
+          ]}
         />
-        <ToggleRow icon="calculator-outline" label="Compteurs de caractères" value={settings.showCounters} onChange={(v) => update({ showCounters: v })} />
+        <Slider label="Taille des avatars" value={ms.avatarSize} min={28} max={56} step={2} format={(v) => `${v} px`} onChange={(v) => setMs({ avatarSize: v })} />
+        <Slider label="Taille du texte des messages" value={ms.fontSize} min={12} max={20} step={1} format={(v) => `${v} px`} onChange={(v) => setMs({ fontSize: v })} />
+        <Text style={{ color: t.textMuted, fontWeight: '700', fontSize: t.font(12) }}>Espacement</Text>
+        <Segmented
+          value={ms.spacing}
+          onChange={(v) => setMs({ spacing: v })}
+          options={[
+            { value: 'tight', label: 'Serré' },
+            { value: 'normal', label: 'Normal' },
+            { value: 'airy', label: 'Aéré' },
+          ]}
+        />
+        <Slider label="Largeur max. des embeds" value={ms.embedMaxWidth} min={260} max={720} step={20} format={(v) => `${v} px`} onChange={(v) => setMs({ embedMaxWidth: v })} />
+        <Slider label="Épaisseur de la barre d’embed" value={ms.embedBarWidth} min={2} max={8} step={1} format={(v) => `${v} px`} onChange={(v) => setMs({ embedBarWidth: v })} />
+        <ToggleRow icon="chatbox-outline" label="Messages en bulles" value={ms.bubbles} onChange={(v) => setMs({ bubbles: v })} />
+        <ToggleRow icon="albums-outline" label="Regrouper les messages consécutifs" value={ms.groupMessages} onChange={(v) => setMs({ groupMessages: v })} />
+        <ToggleRow icon="time-outline" label="Afficher l’heure" value={ms.showTimestamps} onChange={(v) => setMs({ showTimestamps: v })} />
+        <ToggleRow icon="pricetag-outline" label="Afficher le badge BOT" value={ms.showBotTag} onChange={(v) => setMs({ showBotTag: v })} />
+        <Button variant="ghost" icon="refresh-outline" label="Valeurs par défaut" onPress={() => update({ messageStyle: DEFAULT_MESSAGE_STYLE, previewDisplay: 'cozy' })} />
       </Box>
 
-      <Box title="Envoi" icon="paper-plane-outline" collapsible={false}>
+      {/* ---------- CSS ---------- */}
+      <Box title="Styles personnalisés (CSS)" icon="code-slash-outline" collapsible={false}>
+        <Text style={{ color: t.textMuted, fontSize: t.font(13) }}>
+          Personnalise chaque partie de l’interface par catégorie : structure, composants, texte, champs et aperçu.
+        </Text>
+        <Button icon="color-wand-outline" label="Ouvrir l’éditeur de styles" onPress={go(onOpenCss)} />
+      </Box>
+
+      {/* ---------- Envoi ---------- */}
+      <Box title="Envoi" icon="paper-plane-outline" defaultCollapsed>
         <ToggleRow icon="shield-checkmark-outline" label="Confirmer avant d’envoyer" value={settings.confirmBeforeSend} onChange={(v) => update({ confirmBeforeSend: v })} />
         <ToggleRow icon="contract-outline" label="Replier les messages envoyés" value={settings.autoCollapseSent} onChange={(v) => update({ autoCollapseSent: v })} />
         <ToggleRow icon="pulse-outline" label="Vibrations" value={settings.haptics} onChange={(v) => update({ haptics: v })} />
       </Box>
 
-      <Box title="Compte bot" icon="hardware-chip-outline" collapsible={false}>
+      {/* ---------- Comptes ---------- */}
+      <Box title="Comptes" icon="people-outline" collapsible={false}>
         <ListRow
-          icon={botToken ? 'checkmark-circle' : 'ellipse-outline'}
-          title={botToken ? 'Bot connecté' : 'Aucun bot'}
-          subtitle={botToken ? 'Serveurs, salons, threads et tags de forum accessibles' : 'Optionnel : pour parcourir tes serveurs'}
-          onPress={() => {
-            onClose();
-            onOpenBot();
-          }}
+          icon={session.hasUser ? 'person-circle' : 'person-circle-outline'}
+          title={session.hasUser ? (session.user?.global_name || session.user?.username || 'Compte connecté') : 'Compte Fluxer'}
+          subtitle={session.hasUser ? 'Voir mon profil' : 'Se connecter pour accéder à ses serveurs'}
+          onPress={go(onOpenAccount)}
+        />
+        <ListRow
+          icon={botToken ? 'hardware-chip' : 'hardware-chip-outline'}
+          title={botToken ? (session.botUser?.username ?? 'Bot connecté') : 'Bot'}
+          subtitle={botToken ? 'Parcourir les serveurs du bot' : 'Optionnel : token d’un bot'}
+          onPress={go(onOpenBot)}
         />
         {!!botToken && (
           <Button
             variant="ghost"
             icon="log-out-outline"
-            label="Supprimer le token"
+            label="Supprimer le token du bot"
             onPress={() => Alert.alert('Supprimer le token du bot ?', undefined, [{ text: 'Annuler', style: 'cancel' }, { text: 'Supprimer', style: 'destructive', onPress: () => setBotToken('') }])}
           />
         )}
@@ -215,9 +330,10 @@ export function SettingsSheet({
         <Button icon="pulse-outline" label="Tester et enregistrer" loading={testing} onPress={testInstance} />
       </Box>
 
+      {/* ---------- Données ---------- */}
       <Box title="Données" icon="folder-open-outline" collapsible={false}>
-        <ListRow icon="archive-outline" title="Sauvegardes" subtitle="Enregistrer et recharger des brouillons" onPress={() => { onClose(); onOpenBackups(); }} />
-        <ListRow icon="code-slash-outline" title="Importer / exporter en JSON" subtitle="Compatible Discohook" onPress={() => { onClose(); onOpenJson(); }} />
+        <ListRow icon="archive-outline" title="Sauvegardes, backups, modèles et automatisations" onPress={go(onOpenData)} />
+        <ListRow icon="code-slash-outline" title="Importer / exporter en JSON" subtitle="Compatible Discohook" onPress={go(onOpenJson)} />
         <Stack row gap={8}>
           <Button
             flex
@@ -230,7 +346,7 @@ export function SettingsSheet({
             flex
             icon="refresh-outline"
             label="Réinitialiser"
-            onPress={() => Alert.alert('Réinitialiser les paramètres ?', undefined, [{ text: 'Annuler', style: 'cancel' }, { text: 'Réinitialiser', onPress: () => { reset(); setAccentHex('#4641D9'); setInstance('https://fluxer.app'); } }])}
+            onPress={() => Alert.alert('Réinitialiser l’apparence ?', 'Thème, zoom, fond, styles et apparence des messages reviennent par défaut.', [{ text: 'Annuler', style: 'cancel' }, { text: 'Réinitialiser', onPress: reset }])}
           />
         </Stack>
       </Box>

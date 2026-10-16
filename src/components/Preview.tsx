@@ -6,7 +6,8 @@ import { useSettings } from '../state/settings';
 import { useEndpoints } from '../state/useEndpoints';
 import { avatarUrl } from '../api/fluxer';
 import { Avatar } from './ui';
-import { Markdown } from './Markdown';
+import { Markdown, MentionContext } from './Markdown';
+import { useSession } from '../state/session';
 import { formatBytes, formatTime, intToHex, isHttpUrl } from '../utils/parse';
 import { isEmbedEmpty } from '../utils/payload';
 
@@ -51,17 +52,20 @@ function EmbedView({ e, attachments }: { e: Embed; attachments: LocalAttachment[
 
   return (
     <View
-      style={{
-        flexDirection: 'row',
-        backgroundColor: t.embedBg,
-        borderRadius: 6,
-        overflow: 'hidden',
-        maxWidth: 520,
-        borderWidth: t.dark ? 0 : 1,
-        borderColor: t.border,
-      }}
+      style={[
+        {
+          flexDirection: 'row',
+          backgroundColor: t.embedBg,
+          borderRadius: 6,
+          overflow: 'hidden',
+          maxWidth: t.z(t.msg.embedMaxWidth),
+          borderWidth: t.dark ? 0 : 1,
+          borderColor: t.border,
+        },
+        t.css.embed,
+      ]}
     >
-      <View style={{ width: 4, backgroundColor: e.color !== null ? intToHex(e.color) : t.border }} />
+      <View style={{ width: t.msg.embedBarWidth, backgroundColor: e.color !== null ? intToHex(e.color) : t.border }} />
       <View style={{ flex: 1, padding: 12, gap: 8, minWidth: 0 }}>
         <View style={{ flexDirection: 'row', gap: 12 }}>
           <View style={{ flex: 1, gap: 6, minWidth: 0 }}>
@@ -166,32 +170,46 @@ export function MessagePreview({
   grouped?: boolean;
 }) {
   const { theme: t, settings } = useSettings();
+  const ms = t.msg;
   const ep = useEndpoints();
   const name = m.username.trim() || info?.name || 'Webhook';
   const avatar = m.avatar_url.trim() || (info ? avatarUrl(ep, info.id, info.avatar) : null);
   const compact = settings.previewDisplay === 'compact';
   const embeds = m.suppressEmbeds ? [] : m.embeds.filter((e) => !isEmbedEmpty(e));
   const empty = !m.content.trim() && !embeds.length && !m.attachments.length;
+  const av = t.z(ms.avatarSize);
+  const padV = ms.spacing === 'tight' ? 4 : ms.spacing === 'airy' ? 14 : 8;
 
   const header = (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-      <Text style={{ color: t.text, fontWeight: '700', fontSize: t.font(15) }}>{name}</Text>
-      <View style={{ backgroundColor: t.accent, borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1, flexDirection: 'row', alignItems: 'center', gap: 2 }}>
-        <Ionicons name="checkmark" size={10} color={t.onAccent} />
-        <Text style={{ color: t.onAccent, fontSize: t.font(10), fontWeight: '800' }}>BOT</Text>
-      </View>
-      <Text style={{ color: t.textFaint, fontSize: t.font(12) }}>{formatTime(m.lastSent?.at)}</Text>
+      <Text style={[{ color: t.text, fontWeight: '700', fontSize: t.font(ms.fontSize) }, t.css['message-name']]}>{name}</Text>
+      {ms.showBotTag && (
+        <View style={{ backgroundColor: t.accent, borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1, flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+          <Ionicons name="checkmark" size={t.z(10)} color={t.onAccent} />
+          <Text style={{ color: t.onAccent, fontSize: t.font(10), fontWeight: '800' }}>BOT</Text>
+        </View>
+      )}
+      {ms.showTimestamps && <Text style={{ color: t.textFaint, fontSize: t.font(12) }}>{formatTime(m.lastSent?.at)}</Text>}
       {!!m.reference.trim() && <Text style={{ color: t.textFaint, fontSize: t.font(11) }}>(modifié)</Text>}
     </View>
   );
 
   const body = (
-    <View style={{ gap: 6, flex: 1, minWidth: 0 }}>
+    <View
+      style={[
+        { gap: 6, flex: 1, minWidth: 0 },
+        ms.bubbles ? { backgroundColor: t.surface2, borderRadius: t.radius, padding: 10, borderTopLeftRadius: compact ? t.radius : 4 } : null,
+      ]}
+    >
       {!grouped && !compact && header}
       {empty ? (
         <Text style={{ color: t.textFaint, fontStyle: 'italic' }}>Message vide</Text>
       ) : (
-        !!m.content.trim() && <Markdown text={m.content} />
+        !!m.content.trim() && (
+          <View style={t.css['message-text']}>
+            <Markdown text={m.content} size={ms.fontSize} color={t.css['message-text']?.color as string | undefined} />
+          </View>
+        )
       )}
       {m.attachments.map((a) => (
         <AttachmentView key={a.id} a={a} />
@@ -203,16 +221,16 @@ export function MessagePreview({
   );
 
   return (
-    <View style={{ paddingHorizontal: 14, paddingVertical: grouped ? 2 : 8 }}>
+    <View style={[{ paddingHorizontal: 14, paddingVertical: grouped ? 2 : padV }, t.css.message]}>
       {!!m.reply_to.trim() && (
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginLeft: compact ? 0 : 20, marginBottom: 4 }}>
-          <Ionicons name="return-up-forward" size={14} color={t.textFaint} />
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginLeft: compact ? 0 : av / 2, marginBottom: 4 }}>
+          <Ionicons name="return-up-forward" size={t.z(14)} color={t.textFaint} />
           <Text style={{ color: t.textFaint, fontSize: t.font(12) }}>Réponse au message {m.reply_to.trim()}</Text>
         </View>
       )}
       {m.threadMode === 'forum_post' && !!m.thread_name.trim() && !grouped && (
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-          <Ionicons name="chatbubbles" size={14} color={t.accent} />
+          <Ionicons name="chatbubbles" size={t.z(14)} color={t.accent} />
           <Text style={{ color: t.text, fontWeight: '800', fontSize: t.font(16), flex: 1 }}>{m.thread_name}</Text>
         </View>
       )}
@@ -223,7 +241,7 @@ export function MessagePreview({
         </View>
       ) : (
         <View style={{ flexDirection: 'row', gap: 12 }}>
-          <View style={{ width: 40 }}>{!grouped && <Avatar uri={avatar} name={name} size={40} />}</View>
+          <View style={{ width: av }}>{!grouped && <Avatar uri={avatar} name={name} size={av} shape={ms.avatarShape} />}</View>
           {body}
         </View>
       )}
@@ -233,18 +251,22 @@ export function MessagePreview({
 
 export function PreviewList({ messages, info }: { messages: DraftMessage[]; info?: WebhookInfo }) {
   const { theme: t } = useSettings();
+  const resolve = useSession().resolve;
   return (
-    <View style={{ backgroundColor: t.preview, borderRadius: t.radius, paddingVertical: 8, borderWidth: 1, borderColor: t.border }}>
-      {messages.map((m, i) => {
-        const prev = messages[i - 1];
-        const same =
-          !!prev &&
-          prev.username.trim() === m.username.trim() &&
-          prev.avatar_url.trim() === m.avatar_url.trim() &&
-          m.threadMode !== 'forum_post' &&
-          !m.reply_to.trim();
-        return <MessagePreview key={m.id} m={m} info={info} grouped={same} />;
-      })}
-    </View>
+    <MentionContext.Provider value={resolve}>
+      <View style={[{ backgroundColor: t.preview, borderRadius: t.radius, paddingVertical: 8, borderWidth: 1, borderColor: t.border }, t.css.preview]}>
+        {messages.map((m, i) => {
+          const prev = messages[i - 1];
+          const same =
+            t.msg.groupMessages &&
+            !!prev &&
+            prev.username.trim() === m.username.trim() &&
+            prev.avatar_url.trim() === m.avatar_url.trim() &&
+            m.threadMode !== 'forum_post' &&
+            !m.reply_to.trim();
+          return <MessagePreview key={m.id} m={m} info={info} grouped={same} />;
+        })}
+      </View>
+    </MentionContext.Provider>
   );
 }
