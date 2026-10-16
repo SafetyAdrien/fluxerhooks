@@ -14,7 +14,7 @@ const post = async (captcha?: string) => {
 };
 
 // Même construction de jeton que src/api/altcha.ts, avec PBKDF2 natif de Node pour la vitesse.
-const { base64Utf8 } = await import('../src/api/altcha.ts');
+const { base64Utf8 } = await import('../src/utils/base64.ts');
 const first = await post();
 const ch = first?.altcha_challenge;
 if (!ch) throw new Error('pas de défi : ' + JSON.stringify(first));

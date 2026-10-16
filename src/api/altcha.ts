@@ -1,6 +1,8 @@
 import { pbkdf2 } from '@noble/hashes/pbkdf2';
 import { sha256, sha384, sha512 } from '@noble/hashes/sha2';
 import { AltchaSolver } from '../../modules/altcha-solver/src';
+import { base64Utf8 } from '../utils/base64';
+export { base64Utf8 };
 
 /**
  * Solveur ALTCHA v2 (preuve de travail PBKDF2) utilisé par Fluxer pour le CAPTCHA de connexion.
@@ -33,28 +35,6 @@ const bytesToHex = (b: Uint8Array) => {
   for (let i = 0; i < b.length; i++) s += b[i].toString(16).padStart(2, '0');
   return s;
 };
-
-const B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
-function utf8(str: string): number[] {
-  const out: number[] = [];
-  for (const ch of str) {
-    let c = ch.codePointAt(0)!;
-    if (c < 0x80) out.push(c);
-    else if (c < 0x800) out.push(0xc0 | (c >> 6), 0x80 | (c & 63));
-    else if (c < 0x10000) out.push(0xe0 | (c >> 12), 0x80 | ((c >> 6) & 63), 0x80 | (c & 63));
-    else out.push(0xf0 | (c >> 18), 0x80 | ((c >> 12) & 63), 0x80 | ((c >> 6) & 63), 0x80 | (c & 63));
-  }
-  return out;
-}
-export function base64Utf8(str: string): string {
-  const b = utf8(str);
-  let s = '';
-  for (let i = 0; i < b.length; i += 3) {
-    const n = (b[i] << 16) | ((b[i + 1] ?? 0) << 8) | (b[i + 2] ?? 0);
-    s += B64[(n >> 18) & 63] + B64[(n >> 12) & 63] + (i + 1 < b.length ? B64[(n >> 6) & 63] : '=') + (i + 2 < b.length ? B64[n & 63] : '=');
-  }
-  return s;
-}
 
 const HASHES: Record<string, any> = {
   'PBKDF2/SHA-256': sha256,
