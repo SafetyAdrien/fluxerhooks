@@ -9,7 +9,7 @@ import { useSettings } from '../state/settings';
 import { EMBED_COLORS } from '../theme/themes';
 import { LIMITS, embedLength } from '../utils/limits';
 import { hexToInt, intToHex, isAttachmentRef, isHttpUrl, readableOn } from '../utils/parse';
-import { Box, Button, Grid, IconBtn, Input, SectionLabel, Stack, ToggleRow } from './ui';
+import { Box, Button, FieldButton, FieldButtons, Grid, IconBtn, Input, SectionLabel, Stack, ToggleRow } from './ui';
 import { RichInput } from './RichInput';
 
 const urlError = (v: string, allowAttachment = false) =>
@@ -60,23 +60,13 @@ function ColorField({ value, onChange }: { value: number | null; onChange: (v: n
         autoCorrect={false}
         mono
         right={
-          <Pressable
+          <FieldButton
+            mci="palette-outline"
+            label="Ouvrir le sélecteur de couleur"
             onPress={() => setOpen(true)}
-            accessibilityLabel="Ouvrir le sélecteur de couleur"
-            hitSlop={6}
-            style={{
-              width: t.z(34),
-              height: t.z(34),
-              borderRadius: t.radiusSm,
-              backgroundColor: value !== null ? intToHex(value) : t.surface,
-              borderWidth: 1,
-              borderColor: t.border,
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <Ionicons name="color-palette" size={t.z(18)} color={value !== null ? readableOn(intToHex(value)) : t.textMuted} />
-          </Pressable>
+            bg={value !== null ? intToHex(value) : undefined}
+            color={value !== null ? readableOn(intToHex(value)) : undefined}
+          />
         }
       />
       {open && <ColorPickerModal visible value={value} onClose={() => setOpen(false)} onPick={onChange} title="Couleur de l’embed" />}
@@ -182,8 +172,10 @@ export function EmbedEditor({ mid, e, index, count }: { mid: string; e: Embed; i
                     <Text style={{ color: t.text, fontWeight: '700', fontSize: t.font(13) }}>{slot === 'image' ? 'Image de l’embed' : 'Miniature'}</Text>
                     <Text numberOfLines={1} style={{ color: t.textFaint, fontSize: t.font(11) }}>Importée depuis le téléphone</Text>
                   </View>
-                  <IconBtn icon="swap-horizontal-outline" label="Remplacer" onPress={() => setImportFor(slot)} />
-                  <IconBtn icon="trash-outline" label="Retirer" color={t.danger} onPress={() => removeSlot(slot)} />
+                  <FieldButtons>
+                    <FieldButton mci="image-edit-outline" label="Remplacer" onPress={() => setImportFor(slot)} />
+                    <FieldButton icon="trash-outline" label="Retirer" color={t.danger} onPress={() => removeSlot(slot)} />
+                  </FieldButtons>
                 </View>
               ) : (
                 <Input
@@ -194,7 +186,7 @@ export function EmbedEditor({ mid, e, index, count }: { mid: string; e: Embed; i
                   placeholder="https://… ou importer ↗"
                   autoCapitalize="none"
                   keyboardType="url"
-                  right={<IconBtn icon="cloud-upload-outline" label={slot === 'image' ? 'Importer l’image' : 'Importer la miniature'} onPress={() => setImportFor(slot)} />}
+                  right={<FieldButton mci="image-plus-outline" label={slot === 'image' ? 'Importer l’image' : 'Importer la miniature'} onPress={() => setImportFor(slot)} />}
                 />
               )}
             </View>

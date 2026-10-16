@@ -134,8 +134,8 @@ export function ImageImportSheet({
       full
       footer={
         <Stack row gap={8}>
-          <Button icon="images-outline" onPress={() => pick(false)} />
-          <Button icon="camera-outline" onPress={() => pick(true)} />
+          <Button mci="image-multiple-outline" onPress={() => pick(false)} />
+          <Button mci="camera-plus-outline" onPress={() => pick(true)} />
           <Button flex variant="primary" icon="checkmark" label={`${confirmLabel}${items.length > 1 ? ` (${items.length})` : ''}`} disabled={!items.length} loading={busy} onPress={confirm} />
         </Stack>
       }
@@ -147,8 +147,8 @@ export function ImageImportSheet({
           text={single ? 'Choisis une image à importer.' : 'Choisis une ou plusieurs images (10 max.) depuis ta galerie ou l’appareil photo.'}
           action={
             <Stack row gap={8}>
-              <Button variant="primary" icon="images-outline" label="Galerie" onPress={() => pick(false)} />
-              <Button icon="camera-outline" label="Photo" onPress={() => pick(true)} />
+              <Button variant="primary" mci="image-multiple-outline" label="Galerie" onPress={() => pick(false)} />
+              <Button mci="camera-plus-outline" label="Photo" onPress={() => pick(true)} />
             </Stack>
           }
         />

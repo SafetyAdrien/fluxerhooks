@@ -77,7 +77,7 @@ export function MessageEditor({
         <>
           <IconBtn icon="arrow-up" label="Monter le message" onPress={() => moveMessage(m.id, -1)} disabled={index === 0} size={18} />
           <IconBtn icon="arrow-down" label="Descendre le message" onPress={() => moveMessage(m.id, 1)} disabled={index === count - 1} size={18} />
-          <IconBtn icon="images-outline" label="Importer des images" onPress={() => setImporting(true)} size={18} />
+          <IconBtn mci="image-plus-outline" icon="image" label="Importer des images" onPress={() => setImporting(true)} size={19} />
           <IconBtn icon="copy-outline" label="Dupliquer le message" onPress={() => duplicateMessage(m.id)} size={18} />
           <IconBtn
             icon="trash-outline"
@@ -226,8 +226,8 @@ export function MessageEditor({
           </View>
         ))}
         <Stack row gap={8}>
-          <Button flex icon="images-outline" label="Images" onPress={() => setImporting(true)} disabled={m.attachments.length >= LIMITS.attachments} />
-          <Button flex icon="document-attach-outline" label="Fichiers" onPress={pickFiles} disabled={m.attachments.length >= LIMITS.attachments} />
+          <Button flex mci="image-plus-outline" label="Images" onPress={() => setImporting(true)} disabled={m.attachments.length >= LIMITS.attachments} />
+          <Button flex mci="paperclip-plus" label="Fichiers" onPress={pickFiles} disabled={m.attachments.length >= LIMITS.attachments} />
         </Stack>
       </Box>
 

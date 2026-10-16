@@ -18,10 +18,11 @@ import {
   type TextInputProps,
   type ViewStyle,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
 import { useSettings, useTheme } from '../state/settings';
+import { withAlpha } from '../utils/parse';
 
 export type IconName = React.ComponentProps<typeof Ionicons>['name'];
 
@@ -314,7 +315,9 @@ export function Button({
   small,
   flex,
   style,
+  mci,
 }: {
+  mci?: React.ComponentProps<typeof MaterialCommunityIcons>['name'];
   label?: string;
   icon?: IconName;
   onPress?: () => void;
@@ -369,7 +372,7 @@ export function Button({
       {loading ? (
         <ActivityIndicator size="small" color={fg} />
       ) : (
-        icon && <Ionicons name={icon} size={t.z(small ? 16 : 18)} color={fg} />
+        mci ? <MaterialCommunityIcons name={mci} size={t.z(small ? 17 : 19)} color={fg} /> : icon && <Ionicons name={icon} size={t.z(small ? 16 : 18)} color={fg} />
       )}
       {!!label && (
         <Text numberOfLines={1} style={[{ color: fg, fontWeight: '700', fontSize: t.font(small ? 13 : 14) }, t.css['button-text']]}>
@@ -387,7 +390,9 @@ export function IconBtn({
   label,
   size = 20,
   disabled,
+  mci,
 }: {
+  mci?: React.ComponentProps<typeof MaterialCommunityIcons>['name'];
   icon: IconName;
   onPress?: () => void;
   color?: string;
@@ -409,7 +414,11 @@ export function IconBtn({
       android_ripple={{ color: t.accentSoft, borderless: true, radius: 20 }}
       style={({ pressed }) => ({ padding: 7, borderRadius: 999, opacity: disabled ? 0.35 : pressed ? 0.6 : 1 })}
     >
-      <Ionicons name={icon} size={t.z(size)} color={color ?? t.textMuted} />
+      {mci ? (
+        <MaterialCommunityIcons name={mci} size={t.z(size)} color={color ?? t.textMuted} />
+      ) : (
+        <Ionicons name={icon} size={t.z(size)} color={color ?? t.textMuted} />
+      )}
     </Pressable>
   );
 }
@@ -947,4 +956,65 @@ export function Dialog({
       </KeyboardAvoidingView>
     </Modal>
   );
+}
+
+/* ---------- Bouton intégré aux champs de saisie ---------- */
+
+export type MciName = React.ComponentProps<typeof MaterialCommunityIcons>['name'];
+
+/**
+ * Petit bouton carré posé dans un champ : teinte légèrement plus foncée que le champ,
+ * plus claire à l'appui ; variante « active » teintée de la couleur d'accent.
+ */
+export function FieldButton({
+  icon,
+  mci,
+  label,
+  onPress,
+  active,
+  color,
+  bg,
+}: {
+  icon?: IconName;
+  mci?: MciName;
+  label: string;
+  onPress?: () => void;
+  active?: boolean;
+  color?: string;
+  bg?: string;
+}) {
+  const { theme: t, haptic } = useSettings();
+  const size = t.z(34);
+  const normal = active ? t.accentSoft : t.dark ? 'rgba(0,0,0,0.22)' : 'rgba(0,0,0,0.07)';
+  const pressedBg = active ? withAlpha(t.accent, 0.38) : t.dark ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.75)';
+  const fg = color ?? (active ? t.accent : t.textMuted);
+  return (
+    <Pressable
+      onPress={() => {
+        haptic('light');
+        onPress?.();
+      }}
+      hitSlop={4}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      style={({ pressed }) => ({
+        width: size,
+        height: size,
+        borderRadius: Math.max(6, t.radiusSm - 2),
+        backgroundColor: bg ?? (pressed ? pressedBg : normal),
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: active ? 1 : 0,
+        borderColor: withAlpha(t.accent, 0.5),
+        transform: [{ scale: pressed ? 0.94 : 1 }],
+      })}
+    >
+      {mci ? <MaterialCommunityIcons name={mci} size={t.z(19)} color={fg} /> : icon ? <Ionicons name={icon} size={t.z(18)} color={fg} /> : null}
+    </Pressable>
+  );
+}
+
+/** Rangée de boutons de champ, espacés. */
+export function FieldButtons({ children }: { children: React.ReactNode }) {
+  return <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>{children}</View>;
 }

@@ -1,13 +1,14 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Switch, Text, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { useEditor } from '../state/editor';
 import { useSettings } from '../state/settings';
 import { useSender } from '../state/useSender';
 import { useEndpoints } from '../state/useEndpoints';
-import { avatarUrl, isForumType } from '../api/fluxer';
+import { apiFor, avatarUrl, isForumType } from '../api/fluxer';
+import { useSession } from '../state/session';
 import { parseWebhookUrl } from '../utils/parse';
-import { Avatar, Box, Button, IconBtn, Input, Stack } from './ui';
+import { Avatar, Box, Button, FieldButton, FieldButtons, IconBtn, Input, Stack, useToast } from './ui';
 import type { WebhookTarget } from '../types';
 
 function TargetRow({ tg, canRemove }: { tg: WebhookTarget; canRemove: boolean }) {
@@ -46,15 +47,10 @@ function TargetRow({ tg, canRemove }: { tg: WebhookTarget; canRemove: boolean })
         secureTextEntry={false}
         error={tg.error}
         right={
-          <Stack row gap={0}>
-            <IconBtn
-              icon="clipboard-outline"
-              label="Coller depuis le presse-papiers"
-              size={18}
-              onPress={async () => updateTarget(tg.id, { url: (await Clipboard.getStringAsync()).trim() })}
-            />
-            {canRemove && <IconBtn icon="close" label="Retirer ce webhook" size={18} onPress={() => removeTarget(tg.id)} />}
-          </Stack>
+          <FieldButtons>
+            <FieldButton mci="content-paste" label="Coller depuis le presse-papiers" onPress={async () => updateTarget(tg.id, { url: (await Clipboard.getStringAsync()).trim() })} />
+            {canRemove && <FieldButton icon="close" label="Retirer ce webhook" onPress={() => removeTarget(tg.id)} />}
+          </FieldButtons>
         }
       />
       {info && (
@@ -80,6 +76,85 @@ function TargetRow({ tg, canRemove }: { tg: WebhookTarget; canRemove: boolean })
   );
 }
 
+/** Token du bot Fluxer, juste sous les webhooks : vérifié avant d'être enregistré (chiffré). */
+function BotTokenRow({ onBrowse }: { onBrowse: () => void }) {
+  const { theme: t, botToken, setBotToken, haptic } = useSettings();
+  const ep = useEndpoints();
+  const toast = useToast();
+  const { botUser } = useSession();
+  const [draft, setDraft] = useState('');
+  const [show, setShow] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const connect = async () => {
+    const tok = draft.trim().replace(/^Bot\s+/i, '');
+    if (!tok) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const me = await apiFor(ep, { kind: 'bot', token: tok }).me();
+      await setBotToken(tok);
+      setDraft('');
+      haptic('success');
+      toast(`Bot « ${me.username} » connecté.`, 'success');
+    } catch (e) {
+      haptic('error');
+      setError(e instanceof Error ? e.message : 'Token invalide.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Box
+      nested
+      title="Bot Fluxer"
+      icon="hardware-chip-outline"
+      subtitle={botToken ? (botUser ? `Connecté : ${botUser.username}` : 'Token enregistré') : 'Optionnel : salons, threads et tags'}
+      defaultCollapsed={!!botToken}
+    >
+      {botToken ? (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <Avatar uri={botUser ? avatarUrl(ep, botUser.id, botUser.avatar) : null} name={botUser?.username ?? 'Bot'} size={t.z(36)} />
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text numberOfLines={1} style={{ color: t.text, fontWeight: '700', fontSize: t.font(14) }}>{botUser?.username ?? 'Bot connecté'}</Text>
+            <Text numberOfLines={1} style={{ color: t.textMuted, fontSize: t.font(12) }}>Token chiffré sur ce téléphone</Text>
+          </View>
+          <FieldButtons>
+            <FieldButton icon="albums-outline" label="Parcourir les serveurs du bot" onPress={onBrowse} />
+            <FieldButton icon="log-out-outline" label="Retirer le token" color={t.danger} onPress={() => setBotToken('')} />
+          </FieldButtons>
+        </View>
+      ) : (
+        <>
+          <Input
+            value={draft}
+            onChangeText={(v) => {
+              setDraft(v);
+              setError(null);
+            }}
+            placeholder="Token du bot (ID_application.secret)"
+            secureTextEntry={!show}
+            autoCapitalize="none"
+            autoCorrect={false}
+            mono
+            error={error}
+            hint="Envoyé uniquement à l’API Fluxer, stocké chiffré (Android Keystore)."
+            right={
+              <FieldButtons>
+                <FieldButton mci={show ? 'eye-off-outline' : 'eye-outline'} label={show ? 'Masquer le token' : 'Afficher le token'} onPress={() => setShow((v) => !v)} />
+                <FieldButton mci="content-paste" label="Coller le token" onPress={async () => setDraft((await Clipboard.getStringAsync()).trim())} />
+              </FieldButtons>
+            }
+          />
+          <Button small variant="primary" icon="log-in-outline" label="Connecter le bot" loading={busy} disabled={!draft.trim()} onPress={connect} />
+        </>
+      )}
+    </Box>
+  );
+}
+
 export function TargetsEditor({ onBrowse }: { onBrowse: () => void }) {
   const { state, addTarget } = useEditor();
   const { botToken, userToken } = useSettings();
@@ -98,6 +173,7 @@ export function TargetsEditor({ onBrowse }: { onBrowse: () => void }) {
         <Button small icon="add" label="Autre webhook" onPress={() => addTarget()} />
         <Button small icon="server-outline" label={botToken || userToken ? 'Parcourir mes serveurs' : 'Choisir sur mon serveur'} onPress={onBrowse} />
       </Stack>
+      <BotTokenRow onBrowse={onBrowse} />
     </Box>
   );
 }

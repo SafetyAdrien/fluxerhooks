@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { ScrollView, Text, View, Pressable } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { Input, type IconName } from './ui';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { FieldButton, FieldButtons, Input, type IconName } from './ui';
 import { useSettings } from '../state/settings';
 import { MentionComposer } from './MentionComposer';
 
@@ -126,14 +126,10 @@ export function RichInput({
         onSelectionChange={(e) => (sel.current = e.nativeEvent.selection)}
         onFocus={() => setShowBar(true)}
         right={
-          <View style={{ flexDirection: 'row' }}>
-            <Pressable onPress={() => setComposer(true)} accessibilityLabel="Insérer une mention, un émoji ou un horodatage" hitSlop={8} style={{ padding: 6 }}>
-              <Ionicons name="at" size={t.z(18)} color={t.textFaint} />
-            </Pressable>
-            <Pressable onPress={() => setShowBar((v) => !v)} accessibilityLabel="Outils de mise en forme" hitSlop={8} style={{ padding: 6 }}>
-              <Ionicons name="text" size={t.z(18)} color={showBar ? t.accent : t.textFaint} />
-            </Pressable>
-          </View>
+          <FieldButtons>
+            <FieldButton mci="at" label="Insérer une mention, un émoji ou un horodatage" onPress={() => setComposer(true)} />
+            <FieldButton mci="format-text" label="Outils de mise en forme" active={showBar} onPress={() => setShowBar((v) => !v)} />
+          </FieldButtons>
         }
       />
       {showBar && (
@@ -143,9 +139,9 @@ export function RichInput({
           keyboardShouldPersistTaps="always"
           contentContainerStyle={[{ gap: 6 }, t.css.toolbar]}
         >
-          {tool('mention', 'Mentions et émojis', () => setComposer(true), <Ionicons name="at" size={t.z(16)} color={t.accent} />, true)}
+          {tool('mention', 'Mentions et émojis', () => setComposer(true), <MaterialCommunityIcons name="at" size={t.z(17)} color={t.accent} />, true)}
           {onImportImages &&
-            tool('img', 'Importer des images', onImportImages, <Ionicons name="images-outline" size={t.z(16)} color={t.accent} />, true)}
+            tool('img', 'Importer des images', onImportImages, <MaterialCommunityIcons name="image-plus-outline" size={t.z(18)} color={t.accent} />, true)}
           {actions.map((a) =>
             tool(
               a.key,
