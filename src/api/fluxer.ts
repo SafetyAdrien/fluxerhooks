@@ -85,6 +85,9 @@ const ERROR_FR: Record<string, string> = {
   CONTENT_BLOCKED: 'Contenu bloqué par les filtres de l’instance.',
   MISSING_PERMISSIONS: 'Permissions insuffisantes.',
   UNAUTHORIZED: 'Token invalide ou expiré.',
+  ACCOUNT_SUSPENDED_TEMPORARILY: 'Ce compte est temporairement suspendu.',
+  ACCOUNT_SUSPENDED_PERMANENTLY: 'Ce compte est suspendu.',
+  INVALID_CAPTCHA: 'La vérification anti-robot a été refusée, réessaie.',
   INVALID_API_ORIGIN: 'Origine refusée par Fluxer.',
   MAX_WEBHOOKS_PER_CHANNEL: 'Ce salon a atteint son nombre maximum de webhooks.',
   TOO_MANY_EMBEDS: 'Trop d’embeds dans ce message.',
@@ -94,6 +97,11 @@ const ERROR_FR: Record<string, string> = {
 function describe(json: any, status: number): string {
   const code: string | undefined = json?.code;
   if (code && ERROR_FR[code]) return ERROR_FR[code];
+  // Codes de validation imbriqués (INVALID_FORM_BODY) les plus courants à la connexion.
+  const raw = JSON.stringify(json?.errors ?? '');
+  if (raw.includes('INVALID_EMAIL_OR_PASSWORD')) return 'E-mail ou mot de passe incorrect.';
+  if (raw.includes('INVALID_CODE')) return 'Code de double authentification incorrect.';
+  if (raw.includes('SESSION_TIMEOUT')) return 'La session de connexion a expiré, recommence.';
   let msg = json?.message || `Erreur HTTP ${status}`;
   // Détails de validation éventuels (INVALID_FORM_BODY)
   const errs = json?.errors;
