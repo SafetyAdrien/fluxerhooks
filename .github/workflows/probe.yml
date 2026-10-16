@@ -1,0 +1,25 @@
+name: Sonde API Fluxer
+on:
+  workflow_dispatch:
+  push:
+    paths: ['.github/workflows/probe.yml']
+permissions:
+  contents: write
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Défi CAPTCHA de connexion (identifiants factices)
+        run: |
+          mkdir -p out
+          curl -sS -m 30 -X POST https://api.fluxer.app/v1/auth/login \
+            -H 'Content-Type: application/json' \
+            -d '{"email":"probe-fluxerhooks@example.com","password":"invalid-password-123"}' \
+            -D out/headers.txt -o out/login.json -w "HTTP %{http_code} en %{time_total}s\n" > out/status.txt || true
+          cat out/status.txt; head -c 2000 out/login.json
+      - name: Publier
+        run: |
+          cd out && git init -q && git checkout -q -b ci-logs
+          git config user.name github-actions && git config user.email actions@github.com
+          git add . && git commit -q -m probe
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${GITHUB_REPOSITORY}.git" ci-logs
