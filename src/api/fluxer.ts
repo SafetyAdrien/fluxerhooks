@@ -22,12 +22,15 @@ export interface Endpoints {
   api: string; // sans /v1
   media: string;
   webapp: string;
+  /** WebSocket du gateway principal (bots en ligne). */
+  gateway: string;
 }
 
 const DEFAULT_ENDPOINTS: Endpoints = {
   api: 'https://api.fluxer.app',
   media: 'https://fluxerusercontent.com',
   webapp: 'https://web.fluxer.app',
+  gateway: 'wss://gateway.fluxer.app',
 };
 
 const cache = new Map<string, Endpoints>();
@@ -61,6 +64,7 @@ export async function resolveEndpoints(instance: string): Promise<Endpoints> {
       api: trimSlash(json?.endpoints?.api_public || DEFAULT_ENDPOINTS.api),
       media: trimSlash(json?.endpoints?.media || DEFAULT_ENDPOINTS.media),
       webapp: trimSlash(json?.endpoints?.webapp || DEFAULT_ENDPOINTS.webapp),
+      gateway: trimSlash(json?.endpoints?.gateway || DEFAULT_ENDPOINTS.gateway),
     };
     cache.set(origin, ep);
     return ep;
@@ -399,6 +403,10 @@ export function apiFor(ep: Endpoints, c: Credential) {
   const a = auth(c);
   return {
     me: () => request<FluxerUser>(ep, '/users/@me', a),
+    /** URL du gateway pour un bot (GET /gateway/bot). */
+    gatewayBot: () => request<{ url: string; shards?: number }>(ep, '/gateway/bot', a),
+    /** Tous les webhooks du serveur (permission « Gérer les webhooks »). */
+    guildWebhooks: (guildId: string) => request<ApiWebhook[]>(ep, `/guilds/${guildId}/webhooks`, a),
     /** Profil complet (bio, pronoms, bannière, connexions…) : GET /users/{id}/profile. */
     profile: (userId: string) => request<FluxerProfile>(ep, `/users/${userId}/profile`, a),
     guilds: () => request<ApiGuild[]>(ep, '/users/@me/guilds', { ...a, query: { limit: '200', with_counts: 'true' } }),

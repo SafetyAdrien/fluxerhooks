@@ -1,5 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Alert, Switch, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, Switch, Text, View } from 'react-native';
+import { withAlpha } from '../utils/parse';
+import { useBotGateway } from '../state/botGateway';
+import type { BotStatus } from '../types';
 import * as Clipboard from 'expo-clipboard';
 import { useEditor } from '../state/editor';
 import { useSettings } from '../state/settings';
@@ -90,6 +93,7 @@ export function BotCard({ onBrowse }: { onBrowse: () => void }) {
   const toast = useToast();
   const { botUser } = useSession();
   const { list } = useBotDestinations();
+  const gw = useBotGateway();
   const [draft, setDraft] = useState('');
   const [show, setShow] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -105,7 +109,7 @@ export function BotCard({ onBrowse }: { onBrowse: () => void }) {
       await setBotToken(tok);
       setDraft('');
       haptic('success');
-      toast(`Bot « ${me.username} » connecté.`, 'success');
+      toast(`Bot « ${me.username} » connecté : démarrage…`, 'success');
     } catch (e) {
       haptic('error');
       setError(e instanceof Error ? e.message : 'Token invalide.');
@@ -120,7 +124,7 @@ export function BotCard({ onBrowse }: { onBrowse: () => void }) {
       icon="hardware-chip-outline"
       subtitle={
         botToken
-          ? `${botUser ? botUser.username : 'Bot connecté'} · ${list.length ? `${list.length} salon(s)` : 'choisis où publier'}`
+          ? `${botUser ? botUser.username : 'Bot'} · ${gw.state.state === 'online' ? 'en ligne' : gw.state.state === 'error' ? 'erreur' : gw.state.state === 'offline' ? 'arrêté' : 'connexion…'} · ${list.length ? `${list.length} salon(s)` : 'choisis où publier'}`
           : 'Publier directement avec un bot, sans webhook'
       }
       badge={list.filter((x) => x.enabled).length ? String(list.filter((x) => x.enabled).length) : undefined}
@@ -148,6 +152,7 @@ export function BotCard({ onBrowse }: { onBrowse: () => void }) {
             />
           </FieldButtons>
         </View>
+        <BotRuntime />
         <BotDestinations />
         </>
       ) : (
@@ -176,6 +181,100 @@ export function BotCard({ onBrowse }: { onBrowse: () => void }) {
         </>
       )}
     </Box>
+  );
+}
+
+const STATUS_COLORS: Record<string, string> = { online: '#23A55A', idle: '#F0B232', dnd: '#F23F43', invisible: '#80848E' };
+
+/** Bot démarré : connexion au gateway, statut publié et statut personnalisé. */
+function BotRuntime() {
+  const { theme: t, settings } = useSettings();
+  const gw = useBotGateway();
+  const p = settings.botPresence;
+  const [text, setText] = useState(p.text);
+  useEffect(() => setText(p.text), [p.text]);
+  const st = gw.state.state;
+  const live = st === 'online';
+  const busy = st === 'connecting' || st === 'reconnecting';
+  const dot = live ? STATUS_COLORS[p.status] : st === 'error' ? t.danger : busy ? t.warning : t.textFaint;
+  const since = gw.state.since ? new Date(gw.state.since).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : null;
+  const label = live
+    ? `En ligne${gw.state.guilds ? ` · ${gw.state.guilds} serveur${gw.state.guilds > 1 ? 's' : ''}` : ''}${since ? ` · depuis ${since}` : ''}`
+    : st === 'connecting'
+      ? 'Démarrage du bot…'
+      : st === 'reconnecting'
+        ? 'Reconnexion au gateway…'
+        : st === 'error'
+          ? gw.state.error ?? 'Erreur de connexion'
+          : 'Bot arrêté (hors ligne)';
+
+  return (
+    <View style={{ gap: 10, padding: 10, borderRadius: t.radiusSm, backgroundColor: t.surface2 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+        <View style={{ width: t.z(12), height: t.z(12), borderRadius: 99, backgroundColor: dot }} />
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={{ color: t.text, fontWeight: '700', fontSize: t.font(14) }}>{live ? 'Bot démarré' : busy ? 'Connexion…' : st === 'error' ? 'Le bot n’a pas pu démarrer' : 'Bot arrêté'}</Text>
+          <Text numberOfLines={2} style={{ color: st === 'error' ? t.danger : t.textMuted, fontSize: t.font(12) }}>
+            {label}
+          </Text>
+        </View>
+        {busy ? (
+          <ActivityIndicator color={t.accent} />
+        ) : live ? (
+          <Button small icon="stop-circle-outline" label="Arrêter" onPress={gw.stop} />
+        ) : (
+          <Button small variant="primary" icon="play" label="Démarrer" onPress={() => gw.start()} />
+        )}
+      </View>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+        {(
+          [
+            ['online', 'En ligne'],
+            ['idle', 'Absent'],
+            ['dnd', 'Ne pas déranger'],
+            ['invisible', 'Invisible'],
+          ] as [BotStatus, string][]
+        ).map(([v, l]) => (
+          <Pressable
+            key={v}
+            onPress={() => gw.setPresence(v, text)}
+            accessibilityRole="radio"
+            accessibilityState={{ selected: p.status === v }}
+            style={({ pressed }) => ({
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 6,
+              paddingHorizontal: 12,
+              paddingVertical: 7,
+              borderRadius: 999,
+              borderWidth: 1.5,
+              borderColor: p.status === v ? STATUS_COLORS[v] : t.border,
+              backgroundColor: pressed ? t.surface : p.status === v ? withAlpha(STATUS_COLORS[v], 0.16) : 'transparent',
+            })}
+          >
+            <View style={{ width: t.z(9), height: t.z(9), borderRadius: 99, backgroundColor: STATUS_COLORS[v] }} />
+            <Text style={{ color: t.text, fontSize: t.font(13), fontWeight: p.status === v ? '700' : '500' }}>{l}</Text>
+          </Pressable>
+        ))}
+      </View>
+      <Input
+        value={text}
+        onChangeText={setText}
+        onBlur={() => text !== p.text && gw.setPresence(p.status, text)}
+        onSubmitEditing={() => gw.setPresence(p.status, text)}
+        placeholder="Statut personnalisé (facultatif)"
+        maxLength={128}
+        returnKeyType="done"
+        right={
+          text !== p.text ? <FieldButton icon="checkmark" label="Appliquer le statut" active onPress={() => gw.setPresence(p.status, text)} /> : undefined
+        }
+      />
+      <Text style={{ color: t.textFaint, fontSize: t.font(11), lineHeight: t.font(15) }}>
+        {gw.background
+          ? 'Le bot reste en ligne même app fermée : une notification « Bot en ligne » l’indique et permet de l’arrêter.'
+          : 'Le bot reste en ligne tant que cette page est ouverte.'}
+      </Text>
+    </View>
   );
 }
 

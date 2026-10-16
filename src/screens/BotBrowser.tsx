@@ -1,17 +1,35 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { apiFor, avatarUrl, guildIconUrl, isForumType, isThreadType, webhookUrlOf } from '../api/fluxer';
 import { useSettings } from '../state/settings';
 import { useEditor } from '../state/editor';
 import { useSession, type Source } from '../state/session';
 import { useEndpoints } from '../state/useEndpoints';
-import { Avatar, Box, Button, EmptyState, Input, ListRow, Segmented, Sheet, Stack, useToast } from '../components/ui';
+import { Avatar, Box, Button, Chip, EmptyState, Input, ListRow, Segmented, Sheet, Stack, useToast } from '../components/ui';
 import { ChannelIcon, Dropdown, channelTypeLabel } from '../components/Dropdown';
 import { findChannel, orderChannels } from '../utils/channels';
 import { newTarget } from '../utils/factory';
 import { useBotDestinations } from '../state/useBotDestinations';
-import type { ApiChannel, ApiWebhook } from '../types';
+import type { ApiChannel, ApiGuild, ApiWebhook } from '../types';
+
+const ADMINISTRATOR = BigInt(1) << BigInt(3);
+const MANAGE_WEBHOOKS = BigInt(1) << BigInt(29);
+
+/** Rôle de l'utilisateur dans le serveur, d'après owner_id et permissions (null : inconnu). */
+function guildRole(g: ApiGuild, meId?: string): 'owner' | 'admin' | 'webhooks' | 'member' | null {
+  if (meId && g.owner_id === meId) return 'owner';
+  if (!g.permissions) return null;
+  try {
+    const p = BigInt(g.permissions);
+    if ((p & ADMINISTRATOR) !== BigInt(0)) return 'admin';
+    if ((p & MANAGE_WEBHOOKS) !== BigInt(0)) return 'webhooks';
+    return 'member';
+  } catch {
+    return null;
+  }
+}
+const ROLE_LABEL = { owner: 'Propriétaire', admin: 'Administrateur', webhooks: 'Gère les webhooks', member: 'Membre' } as const;
 
 /**
  * Navigateur de serveurs : via le compte Fluxer ou le bot.
@@ -30,6 +48,10 @@ export function BotBrowser({ visible, onClose, onOpenAccount }: { visible: boole
   const [channelId, setChannelId] = useState<string | null>(null);
   const [webhooks, setWebhooks] = useState<ApiWebhook[]>([]);
   const [archived, setArchived] = useState<ApiChannel[]>([]);
+  /** Tous les webhooks du serveur sélectionné (null : pas encore chargés ou inaccessibles). */
+  const [guildHooks, setGuildHooks] = useState<ApiWebhook[] | null>(null);
+  const [hooksError, setHooksError] = useState<string | null>(null);
+  const [allGuilds, setAllGuilds] = useState(false);
   const [newName, setNewName] = useState('FluxerHooks');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -49,6 +71,9 @@ export function BotBrowser({ visible, onClose, onOpenAccount }: { visible: boole
       setLoading(false);
     }
   }, []);
+
+  // Compte : seulement les serveurs administrés par défaut. Bot : tous ses serveurs.
+  useEffect(() => setAllGuilds(source === 'bot'), [source]);
 
   useEffect(() => {
     if (!visible || !source) return;
@@ -72,7 +97,21 @@ export function BotBrowser({ visible, onClose, onOpenAccount }: { visible: boole
     setChannelId(null);
     setWebhooks([]);
     setArchived([]);
-    if (source) run(async () => void (await session.loadGuild(source, id)));
+    setGuildHooks(null);
+    setHooksError(null);
+    if (!source) return;
+    run(async () => {
+      const api = apiFor(ep, session.credential(source)!);
+      // Salons + webhooks du serveur en parallèle : les webhooks s'affichent dès le choix du serveur.
+      const [, hooks] = await Promise.all([
+        session.loadGuild(source, id),
+        api.guildWebhooks(id).catch((e) => {
+          setHooksError(e instanceof Error ? e.message : String(e));
+          return null;
+        }),
+      ]);
+      setGuildHooks(hooks ? hooks.filter((x) => x.type === 1 && x.token) : null);
+    });
   };
 
   const pickChannel = (id: string) => {
@@ -83,7 +122,8 @@ export function BotBrowser({ visible, onClose, onOpenAccount }: { visible: boole
     run(async () => {
       const api = apiFor(ep, session.credential(source)!);
       const [w, full] = await Promise.all([
-        api.webhooks(hookChannel!).catch((e) => {
+        // Webhooks déjà chargés pour tout le serveur : simple filtre par salon.
+        guildHooks ? Promise.resolve(guildHooks.filter((x) => x.channel_id === hookChannel)) : api.webhooks(hookChannel!).catch((e) => {
           // Avec un bot, les webhooks sont facultatifs : il peut publier lui-même.
           if (source === 'bot') return [] as ApiWebhook[];
           throw new Error(`Webhooks inaccessibles : ${e instanceof Error ? e.message : e}. Il faut la permission « Gérer les webhooks ».`);
@@ -113,11 +153,36 @@ export function BotBrowser({ visible, onClose, onOpenAccount }: { visible: boole
   };
 
   /* ----- Options des menus ----- */
-  const guildOptions = guilds.map((g) => ({
-    value: g.id,
-    label: g.name,
-    left: <Avatar uri={guildIconUrl(ep, g.id, g.icon)} name={g.name} size={t.z(32)} shape="rounded" />,
-  }));
+  const meId = source === 'user' ? session.user?.id : session.botUser?.id;
+  const roles = new Map(guilds.map((g) => [g.id, guildRole(g, meId)]));
+  const managed = guilds.filter((g) => roles.get(g.id) !== 'member');
+  const shownGuilds = allGuilds ? guilds : managed;
+  const guildOptions = shownGuilds.map((g) => {
+    const r = roles.get(g.id);
+    return {
+      value: g.id,
+      label: g.name,
+      subtitle: r ? ROLE_LABEL[r] : undefined,
+      left: <Avatar uri={guildIconUrl(ep, g.id, g.icon)} name={g.name} size={t.z(32)} shape="rounded" />,
+    };
+  });
+  const hookCount = (id: string) => guildHooks?.filter((x) => x.channel_id === id).length ?? 0;
+  const ordered = data ? orderChannels(data.channels, allThreads, { withThreads: true }) : [];
+  // Webhooks du serveur rangés dans l'ordre des salons.
+  const hookGroups = guildHooks
+    ? ordered
+        .filter((e) => !isThreadType(e.channel.type) && hookCount(e.channel.id) > 0)
+        .map((e) => ({ channel: e.channel, hooks: guildHooks.filter((x) => x.channel_id === e.channel.id) }))
+    : [];
+
+  const hookRow = (w: ApiWebhook) => (
+    <View key={w.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+      <Avatar uri={avatarUrl(ep, w.id, w.avatar)} name={w.name} size={t.z(34)} />
+      <Text numberOfLines={1} style={{ flex: 1, color: t.text, fontWeight: '600', fontSize: t.font(14) }}>{w.name}</Text>
+      <Button small variant="primary" label="Utiliser" onPress={() => pickWebhook(w, 'replace')} />
+      <Button small icon="add" onPress={() => pickWebhook(w, 'add')} />
+    </View>
+  );
   const channelOptions = data
     ? orderChannels(data.channels, allThreads, { withThreads: true }).map((e) => ({
         value: e.channel.id,
@@ -128,7 +193,7 @@ export function BotBrowser({ visible, onClose, onOpenAccount }: { visible: boole
             : e.channel.thread_metadata?.locked
               ? 'Verrouillé'
               : channelTypeLabel(e.channel.type)
-          : channelTypeLabel(e.channel.type),
+          : channelTypeLabel(e.channel.type) + (hookCount(e.channel.id) ? ` · ${hookCount(e.channel.id)} webhook${hookCount(e.channel.id) > 1 ? 's' : ''}` : ''),
         group: e.group,
         indent: e.indent,
         left: <ChannelIcon type={e.channel.type} />,
@@ -187,7 +252,26 @@ export function BotBrowser({ visible, onClose, onOpenAccount }: { visible: boole
             left={<Avatar uri={avatarUrl(ep, session.botUser.id, session.botUser.avatar)} name={session.botUser.username} size={t.z(36)} />}
           />
         )}
-        <Dropdown label="Serveur" title="Choisir un serveur" placeholder="Choisir un serveur" value={guildId} options={guildOptions} onChange={pickGuild} loading={loading && !guilds.length} emptyText="Aucun serveur" />
+        <Dropdown
+          label={allGuilds ? 'Serveur' : 'Serveur que tu administres'}
+          title="Choisir un serveur"
+          placeholder="Choisir un serveur"
+          value={guildId}
+          options={guildOptions}
+          onChange={pickGuild}
+          loading={loading && !guilds.length}
+          emptyText={allGuilds ? 'Aucun serveur' : 'Aucun serveur administré : affiche tous tes serveurs.'}
+        />
+        {guilds.length > managed.length && (
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+            <Chip
+              icon={allGuilds ? 'shield-outline' : 'albums-outline'}
+              label={allGuilds ? `Seulement ceux que j’administre (${managed.length})` : `Tous mes serveurs (${guilds.length})`}
+              selected={allGuilds}
+              onPress={() => setAllGuilds((v) => !v)}
+            />
+          </View>
+        )}
         {guildId && (
           <Dropdown
             label="Salon, thread ou post"
@@ -199,6 +283,32 @@ export function BotBrowser({ visible, onClose, onOpenAccount }: { visible: boole
             loading={loading && !data}
             emptyText="Aucun salon accessible (permissions « Voir le salon » et « Gérer les webhooks » requises)."
           />
+        )}
+        {guildId && !selected && (
+          <Box
+            title="Webhooks du serveur"
+            icon="link"
+            collapsible={false}
+            badge={guildHooks ? String(guildHooks.length) : undefined}
+            subtitle={guildHooks?.length ? 'Utilise-en un, ou choisis un salon ci-dessous' : undefined}
+          >
+            {hooksError && (
+              <Text style={{ color: t.textMuted, fontSize: t.font(13) }}>
+                Liste inaccessible ({hooksError}). Il faut la permission « Gérer les webhooks » sur ce serveur ; choisis un salon pour voir les siens.
+              </Text>
+            )}
+            {guildHooks && !guildHooks.length && <Text style={{ color: t.textMuted, fontSize: t.font(13) }}>Aucun webhook sur ce serveur : choisis un salon pour en créer un.</Text>}
+            {hookGroups.map((g) => (
+              <View key={g.channel.id} style={{ gap: 8 }}>
+                <Pressable onPress={() => pickChannel(g.channel.id)} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }} accessibilityRole="button" accessibilityLabel={`Ouvrir ${g.channel.name}`}>
+                  <ChannelIcon type={g.channel.type} size={t.z(16)} />
+                  <Text style={{ flex: 1, color: t.textMuted, fontWeight: '800', fontSize: t.font(12), letterSpacing: 0.5 }}>{(g.channel.name ?? '').toUpperCase()}</Text>
+                  <Ionicons name="chevron-forward" size={t.z(16)} color={t.textFaint} />
+                </Pressable>
+                {g.hooks.map(hookRow)}
+              </View>
+            ))}
+          </Box>
         )}
 
         {selected && source === 'bot' && (
@@ -228,15 +338,8 @@ export function BotBrowser({ visible, onClose, onOpenAccount }: { visible: boole
             defaultCollapsed={source === 'bot'}
             badge={String(webhooks.length)}
           >
-            {webhooks.map((w) => (
-              <View key={w.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                <Avatar uri={avatarUrl(ep, w.id, w.avatar)} name={w.name} size={t.z(34)} />
-                <Text numberOfLines={1} style={{ flex: 1, color: t.text, fontWeight: '600', fontSize: t.font(14) }}>{w.name}</Text>
-                <Button small variant="primary" label="Utiliser" onPress={() => pickWebhook(w, 'replace')} />
-                <Button small icon="add" onPress={() => pickWebhook(w, 'add')} />
-              </View>
-            ))}
-            {!webhooks.length && !loading && <Text style={{ color: t.textMuted, fontSize: t.font(13) }}>Aucun webhook pour l’instant.</Text>}
+            {webhooks.map(hookRow)}
+            {!webhooks.length && !loading && <Text style={{ color: t.textMuted, fontSize: t.font(13) }}>Aucun webhook utilisable dans ce salon : crée-en un ci-dessous.</Text>}
             <Input value={newName} onChangeText={setNewName} label="Créer un webhook" max={80} placeholder="Nom du webhook" />
             <Button
               icon="add-circle-outline"
@@ -246,6 +349,7 @@ export function BotBrowser({ visible, onClose, onOpenAccount }: { visible: boole
                 run(async () => {
                   const w = await apiFor(ep, session.credential(source)!).createWebhook(parent!.id, newName.trim());
                   setWebhooks((prev) => [...prev, w]);
+                  setGuildHooks((h) => (h ? [...h, w] : h));
                   pickWebhook(w, 'replace');
                 })
               }

@@ -1,0 +1,7 @@
+{
+  "name": "bot-gateway",
+  "version": "1.0.0",
+  "description": "Service Android au premier plan qui garde un bot Fluxer connecté au gateway",
+  "main": "src/index.ts",
+  "private": true
+}

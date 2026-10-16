@@ -6,6 +6,7 @@ const FALLBACK: Endpoints = {
   api: 'https://api.fluxer.app',
   media: 'https://fluxerusercontent.com',
   webapp: 'https://web.fluxer.app',
+  gateway: 'wss://gateway.fluxer.app',
 };
 
 /** Points d'accès de l'instance configurée (découverts via .well-known/fluxer). */

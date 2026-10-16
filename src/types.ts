@@ -124,6 +124,17 @@ export interface AppSettings {
   themeVars: Record<string, string | number>;
   customCssEnabled: boolean;
   recentColors: number[];
+  /** Démarrage du bot (connexion au gateway) et statut publié. */
+  botPresence: BotPresence;
+}
+
+export type BotStatus = 'online' | 'idle' | 'dnd' | 'invisible';
+
+export interface BotPresence {
+  /** Démarre le bot dès qu'un token est ajouté et le garde en ligne (service Android). */
+  autoStart: boolean;
+  status: BotStatus;
+  text: string;
 }
 
 export interface WallpaperSettings {
@@ -236,6 +247,9 @@ export interface ApiGuild {
   id: string;
   name: string;
   icon: string | null;
+  owner_id?: string;
+  /** Permissions de l'utilisateur dans ce serveur (chaîne décimale). */
+  permissions?: string;
 }
 
 export interface ApiForumTag {

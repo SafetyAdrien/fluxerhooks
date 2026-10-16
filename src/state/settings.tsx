@@ -45,6 +45,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   messageStyle: DEFAULT_MESSAGE_STYLE,
   customCss: {},
   themeVars: {},
+  botPresence: { autoStart: true, status: 'online', text: '' },
   customCssEnabled: true,
   recentColors: [],
 };
@@ -157,6 +158,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
             ...saved,
             wallpaper: { ...DEFAULT_WALLPAPER, ...(saved.wallpaper ?? {}) },
             messageStyle: { ...DEFAULT_MESSAGE_STYLE, ...(saved.messageStyle ?? {}) },
+            botPresence: { ...DEFAULT_SETTINGS.botPresence, ...(saved.botPresence ?? {}) },
           });
         }
         const t = await SecureStore.getItemAsync(BOT_KEY);

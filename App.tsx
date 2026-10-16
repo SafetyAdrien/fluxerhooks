@@ -7,6 +7,7 @@ import { SettingsProvider, useSettings } from './src/state/settings';
 import { EditorProvider, useEditor } from './src/state/editor';
 import { ToastProvider, useToast } from './src/components/ui';
 import { SessionProvider } from './src/state/session';
+import { BotGatewayProvider } from './src/state/botGateway';
 import { LibraryProvider } from './src/state/library';
 import { HomeScreen } from './src/screens/HomeScreen';
 
@@ -34,10 +35,12 @@ function Root({ onRestored }: { onRestored: () => void }) {
   return (
     <ToastProvider>
       <SessionProvider>
-        <AutoRunToast>
-          <StatusBar style={theme.dark ? 'light' : 'dark'} />
-          <HomeScreen onRestored={onRestored} />
-        </AutoRunToast>
+        <BotGatewayProvider>
+          <AutoRunToast>
+            <StatusBar style={theme.dark ? 'light' : 'dark'} />
+            <HomeScreen onRestored={onRestored} />
+          </AutoRunToast>
+        </BotGatewayProvider>
       </SessionProvider>
     </ToastProvider>
   );
