@@ -80,7 +80,7 @@ export function SettingsSheet({
   onOpenData: () => void;
   onOpenCss: () => void;
 }) {
-  const { theme: t, settings, update, reset, botToken, setBotToken } = useSettings();
+  const { theme: t, settings, update, reset } = useSettings();
   const { clearAll } = useEditor();
   const session = useSession();
   const toast = useToast();
@@ -295,27 +295,13 @@ export function SettingsSheet({
       </Box>
 
       {/* ---------- Comptes ---------- */}
-      <Box title="Comptes" icon="people-outline" collapsible={false}>
+      <Box title="Compte Fluxer" icon="person-circle-outline" collapsible={false}>
         <ListRow
           icon={session.hasUser ? 'person-circle' : 'person-circle-outline'}
           title={session.hasUser ? (session.user?.global_name || session.user?.username || 'Compte connecté') : 'Compte Fluxer'}
           subtitle={session.hasUser ? 'Voir mon profil' : 'Se connecter pour accéder à ses serveurs'}
           onPress={go(onOpenAccount)}
         />
-        <ListRow
-          icon={botToken ? 'hardware-chip' : 'hardware-chip-outline'}
-          title={botToken ? (session.botUser?.username ?? 'Bot connecté') : 'Bot'}
-          subtitle={botToken ? 'Parcourir les serveurs du bot' : 'Optionnel : token d’un bot'}
-          onPress={go(onOpenBot)}
-        />
-        {!!botToken && (
-          <Button
-            variant="ghost"
-            icon="log-out-outline"
-            label="Supprimer le token du bot"
-            onPress={() => Alert.alert('Supprimer le token du bot ?', undefined, [{ text: 'Annuler', style: 'cancel' }, { text: 'Supprimer', style: 'destructive', onPress: () => setBotToken('') }])}
-          />
-        )}
       </Box>
 
       <Box title="Instance Fluxer" icon="globe-outline" defaultCollapsed>

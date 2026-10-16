@@ -9,6 +9,8 @@ interface NativeSolver {
     keyLength: number;
     keyPrefix: string;
     timeoutMs: number;
+    hintLo?: number;
+    hintHi?: number;
   }): Promise<{ counter: number; derivedKey: string; tries: number }>;
   cancel(): Promise<void>;
   addListener(event: 'onProgress', cb: (e: { tries: number }) => void): { remove(): void };

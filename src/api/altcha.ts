@@ -50,6 +50,19 @@ const tokenOf = (challenge: AltchaChallenge, counter: number, derivedKey: string
     }),
   );
 
+/**
+ * Fluxer tire le compteur dans [maxCounter/2, maxCounter] (max_counter = 1000 par défaut) :
+ * on commence par cette plage, puis le début, puis la suite (toujours exhaustif).
+ */
+export const HINT_LO = 500;
+export const HINT_HI = 1000;
+export function counterAt(i: number): number {
+  const span = HINT_HI - HINT_LO + 1;
+  if (i < span) return HINT_LO + i;
+  if (i < span + HINT_LO) return i - span;
+  return i;
+}
+
 export const hasNativeSolver = !!AltchaSolver;
 
 export function cancelAltcha() {
@@ -79,6 +92,8 @@ export async function solveAltcha(
         keyLength: p.keyLength ?? 32,
         keyPrefix: String(p.keyPrefix),
         timeoutMs,
+        hintLo: HINT_LO,
+        hintHi: HINT_HI,
       });
       return tokenOf(challenge, r.counter, r.derivedKey, Date.now() - t0);
     } finally {
@@ -104,19 +119,20 @@ export async function solveAltchaJs(
   const pwd = new Uint8Array(nonce.length + 4);
   pwd.set(nonce, 0);
   const t0 = Date.now();
-  for (let counter = 0; counter <= 0xffffffff; counter++) {
+  for (let i = 0; i <= 0xffffffff; i++) {
+    const counter = counterAt(i);
     pwd[nonce.length] = (counter >>> 24) & 255;
     pwd[nonce.length + 1] = (counter >>> 16) & 255;
     pwd[nonce.length + 2] = (counter >>> 8) & 255;
     pwd[nonce.length + 3] = counter & 255;
     // Calcul synchrone (plus rapide) ; on rend la main à l'interface toutes les 3 tentatives.
     const key: Uint8Array = pbkdf2(hash, pwd, salt, { c: p.cost, dkLen: keyLength });
-    if (counter % 3 === 2) await new Promise((r) => setTimeout(r, 0));
+    if (i % 3 === 2) await new Promise((r) => setTimeout(r, 0));
     const hex = bytesToHex(key);
     if (hex.startsWith(prefix)) {
       return tokenOf(challenge, counter, hex, Date.now() - t0);
     }
-    if (counter % 4 === 0) onProgress?.(counter + 1);
+    if (i % 4 === 0) onProgress?.(i + 1);
     if (Date.now() - t0 > timeoutMs) throw new Error('Le CAPTCHA a pris trop de temps, réessaie.');
   }
   throw new Error('CAPTCHA insoluble.');

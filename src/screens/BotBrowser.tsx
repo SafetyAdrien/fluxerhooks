@@ -17,14 +17,13 @@ import type { ApiChannel, ApiWebhook } from '../types';
  * Menus déroulants Serveur → Salon (rangés par catégorie, avec icônes), puis webhooks / threads / posts.
  */
 export function BotBrowser({ visible, onClose, onOpenAccount }: { visible: boolean; onClose: () => void; onOpenAccount: () => void }) {
-  const { theme: t, setBotToken } = useSettings();
+  const { theme: t } = useSettings();
   const ep = useEndpoints();
   const toast = useToast();
   const { state, replace } = useEditor();
   const session = useSession();
 
   const [source, setSource] = useState<Source | null>(session.defaultSource);
-  const [tokenDraft, setTokenDraft] = useState('');
   const [guildId, setGuildId] = useState<string | null>(null);
   const [channelId, setChannelId] = useState<string | null>(null);
   const [webhooks, setWebhooks] = useState<ApiWebhook[]>([]);
@@ -145,10 +144,9 @@ export function BotBrowser({ visible, onClose, onOpenAccount }: { visible: boole
             onOpenAccount();
           }}
         />
-        <Box title="Ou utiliser un bot" icon="hardware-chip-outline" defaultCollapsed>
-          <Input label="Token du bot" value={tokenDraft} onChangeText={setTokenDraft} placeholder="ID_application.secret" secureTextEntry autoCapitalize="none" autoCorrect={false} mono />
-          <Button icon="log-in-outline" label="Connecter le bot" disabled={!tokenDraft.trim()} onPress={() => setBotToken(tokenDraft)} />
-        </Box>
+        <Text style={{ color: t.textMuted, fontSize: t.font(13), textAlign: 'center' }}>
+          Pour utiliser un bot, colle son token dans la carte « Bot Fluxer » de l’éditeur.
+        </Text>
       </Stack>
     );
   } else {
@@ -182,7 +180,6 @@ export function BotBrowser({ visible, onClose, onOpenAccount }: { visible: boole
             title={session.botUser.username}
             subtitle="Bot connecté"
             left={<Avatar uri={avatarUrl(ep, session.botUser.id, session.botUser.avatar)} name={session.botUser.username} size={t.z(36)} />}
-            right={<Button small variant="ghost" label="Déconnecter" onPress={() => setBotToken('')} />}
           />
         )}
         <Dropdown label="Serveur" title="Choisir un serveur" placeholder="Choisir un serveur" value={guildId} options={guildOptions} onChange={pickGuild} loading={loading && !guilds.length} emptyText="Aucun serveur" />

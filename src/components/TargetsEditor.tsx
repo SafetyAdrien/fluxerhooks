@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Switch, Text, View } from 'react-native';
+import { Alert, Switch, Text, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { useEditor } from '../state/editor';
 import { useSettings } from '../state/settings';
@@ -76,8 +76,11 @@ function TargetRow({ tg, canRemove }: { tg: WebhookTarget; canRemove: boolean })
   );
 }
 
-/** Token du bot Fluxer, juste sous les webhooks : vérifié avant d'être enregistré (chiffré). */
-function BotTokenRow({ onBrowse }: { onBrowse: () => void }) {
+/**
+ * Conteneur « Bot Fluxer » : le SEUL endroit où l'on saisit / retire le token du bot.
+ * Vérifié auprès de l'API avant d'être enregistré (chiffré, Android Keystore).
+ */
+export function BotCard({ onBrowse }: { onBrowse: () => void }) {
   const { theme: t, botToken, setBotToken, haptic } = useSettings();
   const ep = useEndpoints();
   const toast = useToast();
@@ -108,7 +111,6 @@ function BotTokenRow({ onBrowse }: { onBrowse: () => void }) {
 
   return (
     <Box
-      nested
       title="Bot Fluxer"
       icon="hardware-chip-outline"
       subtitle={botToken ? (botUser ? `Connecté : ${botUser.username}` : 'Token enregistré') : 'Optionnel : salons, threads et tags'}
@@ -123,7 +125,17 @@ function BotTokenRow({ onBrowse }: { onBrowse: () => void }) {
           </View>
           <FieldButtons>
             <FieldButton icon="albums-outline" label="Parcourir les serveurs du bot" onPress={onBrowse} />
-            <FieldButton icon="log-out-outline" label="Retirer le token" color={t.danger} onPress={() => setBotToken('')} />
+            <FieldButton
+              icon="log-out-outline"
+              label="Retirer le token"
+              color={t.danger}
+              onPress={() =>
+                Alert.alert('Retirer le token du bot ?', 'Il sera effacé de ce téléphone.', [
+                  { text: 'Annuler', style: 'cancel' },
+                  { text: 'Retirer', style: 'destructive', onPress: () => setBotToken('') },
+                ])
+              }
+            />
           </FieldButtons>
         </View>
       ) : (
@@ -173,7 +185,6 @@ export function TargetsEditor({ onBrowse }: { onBrowse: () => void }) {
         <Button small icon="add" label="Autre webhook" onPress={() => addTarget()} />
         <Button small icon="server-outline" label={botToken || userToken ? 'Parcourir mes serveurs' : 'Choisir sur mon serveur'} onPress={onBrowse} />
       </Stack>
-      <BotTokenRow onBrowse={onBrowse} />
     </Box>
   );
 }

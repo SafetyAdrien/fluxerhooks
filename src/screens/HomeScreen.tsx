@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSettings } from '../state/settings';
 import { useEditor } from '../state/editor';
 import { useSender } from '../state/useSender';
-import { TargetsEditor } from '../components/TargetsEditor';
+import { BotCard, TargetsEditor } from '../components/TargetsEditor';
 import { MessageEditor } from '../components/MessageEditor';
 import { PreviewList } from '../components/Preview';
 import { Button, IconBtn, Segmented, Stack } from '../components/ui';
@@ -47,6 +47,7 @@ export function HomeScreen({ onRestored }: { onRestored: () => void }) {
       contentContainerStyle={{ padding: t.gap, gap: t.gap, paddingBottom: 120 }}
     >
       <TargetsEditor onBrowse={() => setSheet('bot')} />
+      <BotCard onBrowse={() => setSheet('bot')} />
       <Stack row gap={4}>
         <Text style={{ flex: 1, color: t.textMuted, fontWeight: '800', fontSize: t.font(12), letterSpacing: 0.6 }}>
           MESSAGES · {state.messages.length}

@@ -341,8 +341,9 @@ export async function loginWithPassword(
   login: string,
   password: string,
   solve: (challenge: any) => Promise<string>,
+  presolved?: string,
 ): Promise<LoginResult> {
-  let captcha: string | undefined;
+  let captcha: string | undefined = presolved;
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
       const r = await request<any>(ep, '/auth/login', {
@@ -369,6 +370,23 @@ export async function loginWithPassword(
     }
   }
   throw new FluxerError('Échec du CAPTCHA, réessaie.', 400, 'INVALID_CAPTCHA');
+}
+
+/**
+ * Récupère un défi ALTCHA de connexion sans envoyer d'identifiants : le middleware CAPTCHA
+ * de Fluxer passe avant la validation du corps, il répond donc CAPTCHA_REQUIRED + défi.
+ * Renvoie null si l'instance n'exige pas de CAPTCHA.
+ */
+export async function fetchLoginChallenge(ep: Endpoints): Promise<any | null> {
+  try {
+    await request<any>(ep, '/auth/login', { method: 'POST', json: {} });
+    return null;
+  } catch (e) {
+    const fe = e as FluxerError;
+    if (fe.body?.altcha_challenge) return fe.body.altcha_challenge;
+    if (fe.status === 400 && fe.code !== 'CAPTCHA_REQUIRED' && fe.code !== 'INVALID_CAPTCHA') return null;
+    throw e;
+  }
 }
 
 export async function loginMfaTotp(ep: Endpoints, ticket: string, code: string): Promise<LoginResult> {

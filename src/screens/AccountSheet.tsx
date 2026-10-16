@@ -4,7 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import { avatarUrl, bannerUrl, guildIconUrl, loginMfaTotp, loginWithPassword } from '../api/fluxer';
-import { cancelAltcha, hasNativeSolver, solveAltcha } from '../api/altcha';
+import { CaptchaBox, useCaptcha } from '../components/CaptchaBox';
 import { useSettings } from '../state/settings';
 import { useSession } from '../state/session';
 import { useEndpoints } from '../state/useEndpoints';
@@ -23,16 +23,14 @@ function LoginForm({ onDone }: { onDone: () => void }) {
   const [ticket, setTicket] = useState<string | null>(null);
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
-  const [captcha, setCaptcha] = useState<number | null>(null);
-  const [step, setStep] = useState<string | null>(null);
-  const [elapsed, setElapsed] = useState(0);
-  React.useEffect(() => {
-    if (!busy) return;
-    const t0 = Date.now();
-    setElapsed(0);
-    const id = setInterval(() => setElapsed(Math.floor((Date.now() - t0) / 1000)), 1000);
-    return () => clearInterval(id);
-  }, [busy]);
+  const captcha = useCaptcha();
+  const ready = mode === 'password' && !ticket && login.trim().length > 2 && password.length >= 8;
+  // Vérification anti-robot lancée en arrière-plan dès que le formulaire est rempli.
+  useEffect(() => {
+    if (!ready || captcha.status !== 'idle') return;
+    const h = setTimeout(captcha.start, 500);
+    return () => clearTimeout(h);
+  }, [ready, captcha.status, captcha.start]);
   const [error, setError] = useState<string | null>(null);
 
   const finish = async (tok?: string) => {
@@ -52,17 +50,9 @@ function LoginForm({ onDone }: { onDone: () => void }) {
         const r = await loginMfaTotp(ep, ticket, code);
         return await finish(r.token);
       }
-      setStep('Connexion au serveur Fluxer…');
-      const r = await loginWithPassword(ep, login, password, async (ch) => {
-        setCaptcha(0);
-        setStep(hasNativeSolver ? 'Vérification anti-robot (calcul sur ton téléphone)…' : 'Vérification anti-robot (mode lent)…');
-        try {
-          return await solveAltcha(ch, (n) => setCaptcha(n));
-        } finally {
-          setCaptcha(null);
-          setStep('Envoi de la vérification…');
-        }
-      });
+      const pre = await captcha.obtain();
+      const r = await loginWithPassword(ep, login, password, captcha.solveChallenge, pre ?? undefined);
+      captcha.consume();
       if (r.mfa) {
         if (!r.mfa.methods.includes('totp') && !r.mfa.methods.includes('backup_codes')) {
           throw new Error('Ton compte utilise uniquement une clé de sécurité (WebAuthn), non prise en charge ici. Utilise la connexion par token.');
@@ -72,12 +62,11 @@ function LoginForm({ onDone }: { onDone: () => void }) {
       }
       await finish(r.token);
     } catch (e) {
+      captcha.consume();
       haptic('error');
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
-      setStep(null);
-      setCaptcha(null);
     }
   };
 
@@ -127,21 +116,7 @@ function LoginForm({ onDone }: { onDone: () => void }) {
             mono
           />
         )}
-        {busy && step && (
-          <View style={{ gap: 6, backgroundColor: t.accentSoft, padding: 10, borderRadius: t.radiusSm }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <Ionicons name="shield-checkmark-outline" size={t.z(18)} color={t.accent} />
-              <Text style={{ color: t.text, flex: 1, fontSize: t.font(13) }}>{step}</Text>
-              <Text style={{ color: t.textMuted, fontSize: t.font(12) }}>{elapsed} s</Text>
-            </View>
-            {captcha !== null && (
-              <Text style={{ color: t.textMuted, fontSize: t.font(12) }}>
-                {captcha} essais calculés · cela prend en général 10 à 60 secondes, garde l’app ouverte.
-              </Text>
-            )}
-            {captcha !== null && <Button small variant="ghost" icon="close" label="Annuler" onPress={cancelAltcha} />}
-          </View>
-        )}
+        {mode === 'password' && !ticket && <CaptchaBox captcha={captcha} />}
         {error && (
           <View style={{ flexDirection: 'row', gap: 8, padding: 10, borderRadius: t.radiusSm, borderLeftWidth: 4, borderLeftColor: t.danger, backgroundColor: t.surface2 }}>
             <Ionicons name="alert-circle" size={t.z(18)} color={t.danger} />
@@ -151,7 +126,7 @@ function LoginForm({ onDone }: { onDone: () => void }) {
         <Button
           variant="primary"
           icon="log-in-outline"
-          label={ticket ? 'Valider le code' : 'Se connecter'}
+          label={ticket ? 'Valider le code' : busy && captcha.status === 'verifying' ? 'Vérification…' : 'Se connecter'}
           loading={busy}
           disabled={ticket ? code.trim().length < 6 : mode === 'token' ? !token.trim() : !login.trim() || password.length < 8}
           onPress={submit}
