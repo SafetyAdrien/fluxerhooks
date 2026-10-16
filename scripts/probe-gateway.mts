@@ -13,7 +13,7 @@ await new Promise<void>((resolve) => {
   const done = setTimeout(() => { log('délai dépassé'); ws.close(); resolve(); }, 20000);
   ws.onmessage = (ev) => {
     const p = JSON.parse(String(ev.data));
-    log(`reçu op ${p.op} t=${p.t ?? ''} ${JSON.stringify(p.d).slice(0, 160)} (+${Date.now() - t0} ms)`);
+    log(`reçu op ${p.op} t=${p.t ?? ''} ${String(JSON.stringify(p.d)).slice(0, 160)} (+${Date.now() - t0} ms)`);
     if (p.op === 10) {
       ws.send(JSON.stringify({ op: 1, d: null }));
       ws.send(JSON.stringify({ op: 2, d: { token: '123456789012345678.fakefakefake', properties: { os: 'Android', browser: 'FluxerHooks', device: 'FluxerHooks' }, presence: { status: 'online', afk: false, mobile: true }, ignored_events: ['TYPING_START'] } }));
