@@ -267,7 +267,7 @@ export function LandingPage({ onOpenEditor, onAction }: { onOpenEditor: () => vo
         <Shortcut icon="code-json" title="Importer / exporter JSON" subtitle="Compatible Discohook" onPress={() => onAction('json')} />
         <Shortcut icon="palette-outline" title="Couleurs et styles" subtitle="Thème, variables et CSS" onPress={() => onAction('css')} />
       </Grid>
-      <Text style={{ color: t.textFaint, fontSize: t.font(12), textAlign: 'center', marginTop: 8 }}>FluxerHooks {version} · non affilié à Fluxer</Text>
+      <Text style={{ color: t.textFaint, fontSize: t.font(12), textAlign: 'center', marginTop: 8 }}>FluxerHooks-{version} · non affilié à Fluxer</Text>
     </ScrollView>
   );
 }
