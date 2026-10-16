@@ -178,6 +178,14 @@ export function SettingsSheet({
         />
       </Box>
 
+      {/* ---------- CSS ---------- */}
+      <Box title="Styles personnalisés (CSS)" icon="code-slash-outline" collapsible={false}>
+        <Text style={{ color: t.textMuted, fontSize: t.font(13) }}>
+          Personnalise chaque partie de l’interface par catégorie : structure, composants, texte, champs et aperçu.
+        </Text>
+        <Button icon="color-wand-outline" label="Couleurs et styles" onPress={go(onOpenCss)} />
+      </Box>
+
       {/* ---------- Zoom & interface ---------- */}
       <Box title="Zoom et interface" icon="phone-portrait-outline" subtitle={`Zoom ${pct(settings.zoom)}`}>
         <Slider icon="search-outline" label="Zoom de l’interface" value={settings.zoom} min={0.8} max={1.4} step={0.05} format={pct} onChange={(v) => update({ zoom: v })} />
@@ -277,14 +285,6 @@ export function SettingsSheet({
         <ToggleRow icon="time-outline" label="Afficher l’heure" value={ms.showTimestamps} onChange={(v) => setMs({ showTimestamps: v })} />
         <ToggleRow icon="pricetag-outline" label="Afficher le badge BOT" value={ms.showBotTag} onChange={(v) => setMs({ showBotTag: v })} />
         <Button variant="ghost" icon="refresh-outline" label="Valeurs par défaut" onPress={() => update({ messageStyle: DEFAULT_MESSAGE_STYLE, previewDisplay: 'cozy' })} />
-      </Box>
-
-      {/* ---------- CSS ---------- */}
-      <Box title="Styles personnalisés (CSS)" icon="code-slash-outline" collapsible={false}>
-        <Text style={{ color: t.textMuted, fontSize: t.font(13) }}>
-          Personnalise chaque partie de l’interface par catégorie : structure, composants, texte, champs et aperçu.
-        </Text>
-        <Button icon="color-wand-outline" label="Couleurs et styles" onPress={go(onOpenCss)} />
       </Box>
 
       {/* ---------- Envoi ---------- */}
