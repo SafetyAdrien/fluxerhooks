@@ -2,7 +2,7 @@ name: Sonde API Fluxer
 on:
   workflow_dispatch:
   push:
-    paths: ['.github/workflows/probe.yml', 'scripts/probe-login.mts']
+    paths: ['.github/workflows/probe.yml', 'scripts/probe-login.mts', 'scripts/probe-gateway.mts']
 permissions:
   contents: write
 jobs:
@@ -17,6 +17,8 @@ jobs:
       - run: npm ci
       - name: Connexion complète avec CAPTCHA (identifiants factices)
         run: mkdir -p out && (npx --yes tsx scripts/probe-login.mts > out/run.txt 2>&1 || true); cat out/run.txt
+      - name: Gateway (faux token)
+        run: (npx --yes tsx scripts/probe-gateway.mts >> out/run.txt 2>&1 || true); cat out/run.txt
       - name: Publier
         run: |
           cd out && git init -q && git checkout -q -b ci-logs
