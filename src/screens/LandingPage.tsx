@@ -285,7 +285,7 @@ export function LandingPage({ onOpenEditor, onAction }: { onOpenEditor: () => vo
         </View>
       </View>
 
-      <Text style={{ color: t.textFaint, fontSize: t.font(12), textAlign: 'center' }}>FluxerHooks {version} · {tr('non affilié à Fluxer')}</Text>
+      <Text style={{ color: t.textFaint, fontSize: t.font(12), textAlign: 'center' }}>FluxerHooks-{version} · {tr('non affilié à Fluxer')}</Text>
     </ScrollView>
   );
 }
