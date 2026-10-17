@@ -90,7 +90,7 @@ jobs:
           for f in dist/*.apk; do $BT/apksigner verify "$f"; done
           (cd dist && sha256sum *.apk > SHA256SUMS.txt && cat SHA256SUMS.txt)
           gh release delete "beta$N" -R "$GITHUB_REPOSITORY" --yes --cleanup-tag 2>/dev/null || true
-          gh release create "beta$N" dist/* -R "$GITHUB_REPOSITORY" --prerelease --target "${{ inputs.ref }}" \
+          gh release create "beta$N" dist/* -R "$GITHUB_REPOSITORY" --prerelease --target "$GITHUB_SHA" \
             --title "FluxerHooks-beta$N" --notes "Reconstruction de l'ancienne version (commit ${{ inputs.ref }}) sous le nom FluxerHooks-beta$N."
 
       - name: Journal d'échec
