@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { tr } from '../i18n';
 import { Image, Pressable, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSettings } from '../state/settings';
@@ -147,7 +148,7 @@ export function MentionComposer({ visible, onClose, onInsert }: { visible: boole
               onPress={() => insert(`<@&${r.id}>`)}
             />
           ))}
-        {!data.roles.length && <Text style={{ color: t.textMuted }}>Aucun rôle visible.</Text>}
+        {!data.roles.length && <Text style={{ color: t.textMuted }}>{tr("Aucun rôle visible.")}</Text>}
       </>
     );
   } else if (tab === 'emojis') {
@@ -190,7 +191,7 @@ export function MentionComposer({ visible, onClose, onInsert }: { visible: boole
         )}
         {session.botUser && <ListRow icon="hardware-chip-outline" title={`Le bot (${session.botUser.username})`} onPress={() => insert(`<@${session.botUser!.id}>`)} />}
         <Text style={{ color: t.textMuted, fontSize: t.font(12) }}>
-          Pour mentionner un membre, colle son ID (clic droit / appui long sur son profil dans Fluxer → Copier l’ID).
+          {tr("Pour mentionner un membre, colle son ID (clic droit / appui long sur son profil dans Fluxer → Copier l’ID).")}
         </Text>
       </>
     );
@@ -217,9 +218,9 @@ export function MentionComposer({ visible, onClose, onInsert }: { visible: boole
       </>
     );
   } else if (needGuild && !guildId) {
-    body = <Text style={{ color: t.textMuted, textAlign: 'center', padding: 12 }}>Choisis un serveur.</Text>;
+    body = <Text style={{ color: t.textMuted, textAlign: 'center', padding: 12 }}>{tr("Choisis un serveur.")}</Text>;
   } else if (needGuild && loading) {
-    body = <Text style={{ color: t.textMuted, textAlign: 'center', padding: 12 }}>Chargement…</Text>;
+    body = <Text style={{ color: t.textMuted, textAlign: 'center', padding: 12 }}>{tr("Chargement…")}</Text>;
   }
 
   const prefix = tab === 'channels' ? '#' : tab === 'roles' ? '@&' : tab === 'users' ? '@' : null;

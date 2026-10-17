@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { tr } from '../i18n';
 import { Image, Pressable, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { ColorPickerModal } from './ColorPicker';
@@ -146,7 +147,7 @@ export function EmbedEditor({ mid, e, index, count }: { mid: string; e: Embed; i
         {e.fields.map((f, i) => (
           <View key={f.id} style={{ backgroundColor: t.surface, borderRadius: t.radiusSm, padding: 10, gap: 8, borderWidth: 1, borderColor: t.border }}>
             <Stack row gap={2}>
-              <Text style={{ flex: 1, color: t.textMuted, fontWeight: '700', fontSize: t.font(12) }}>Champ {i + 1}</Text>
+              <Text style={{ flex: 1, color: t.textMuted, fontWeight: '700', fontSize: t.font(12) }}>{tr("Champ")} {i + 1}</Text>
               <IconBtn icon="arrow-up" label="Monter le champ" size={17} onPress={() => moveField(mid, e.id, f.id, -1)} disabled={i === 0} />
               <IconBtn icon="arrow-down" label="Descendre le champ" size={17} onPress={() => moveField(mid, e.id, f.id, 1)} disabled={i === e.fields.length - 1} />
               <IconBtn icon="close-circle-outline" label="Supprimer le champ" size={18} color={t.danger} onPress={() => removeField(mid, e.id, f.id)} />
@@ -170,7 +171,7 @@ export function EmbedEditor({ mid, e, index, count }: { mid: string; e: Embed; i
                   <Image source={{ uri: file.uri }} style={{ width: t.z(slot === 'image' ? 72 : 48), height: t.z(48), borderRadius: 6 }} resizeMode="cover" />
                   <View style={{ flex: 1, minWidth: 0 }}>
                     <Text style={{ color: t.text, fontWeight: '700', fontSize: t.font(13) }}>{slot === 'image' ? 'Image de l’embed' : 'Miniature'}</Text>
-                    <Text numberOfLines={1} style={{ color: t.textFaint, fontSize: t.font(11) }}>Importée depuis le téléphone</Text>
+                    <Text numberOfLines={1} style={{ color: t.textFaint, fontSize: t.font(11) }}>{tr("Importée depuis le téléphone")}</Text>
                   </View>
                   <FieldButtons>
                     <FieldButton mci="image-edit-outline" label="Remplacer" onPress={() => setImportFor(slot)} />
@@ -214,7 +215,7 @@ export function EmbedEditor({ mid, e, index, count }: { mid: string; e: Embed; i
       </Box>
       {total > LIMITS.embedTotal && (
         <Text style={{ color: t.warning, fontSize: t.font(12) }}>
-          Attention : {total} caractères au total, au-delà de {LIMITS.embedTotal} l'embed devient difficile à lire.
+          {tr("Attention :")} {total} caractères au total, au-delà de {LIMITS.embedTotal} l'embed devient difficile à lire.
         </Text>
       )}
       {importFor && (

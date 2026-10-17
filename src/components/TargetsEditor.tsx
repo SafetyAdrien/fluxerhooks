@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { tr } from '../i18n';
 import { ActivityIndicator, Alert, Pressable, Switch, Text, View } from 'react-native';
 import { withAlpha } from '../utils/parse';
 import { useBotGateway } from '../state/botGateway';
@@ -136,7 +137,7 @@ export function BotCard({ onBrowse }: { onBrowse: () => void }) {
           <Avatar uri={botUser ? avatarUrl(ep, botUser.id, botUser.avatar) : null} name={botUser?.username ?? 'Bot'} size={t.z(36)} />
           <View style={{ flex: 1, minWidth: 0 }}>
             <Text numberOfLines={1} style={{ color: t.text, fontWeight: '700', fontSize: t.font(14) }}>{botUser?.username ?? 'Bot connecté'}</Text>
-            <Text numberOfLines={1} style={{ color: t.textMuted, fontSize: t.font(12) }}>Token chiffré sur ce téléphone</Text>
+            <Text numberOfLines={1} style={{ color: t.textMuted, fontSize: t.font(12) }}>{tr("Token chiffré sur ce téléphone")}</Text>
           </View>
           <FieldButtons>
             <FieldButton icon="albums-outline" label="Parcourir les serveurs du bot" onPress={onBrowse} />
@@ -214,7 +215,7 @@ function BotRuntime() {
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
         <View style={{ width: t.z(12), height: t.z(12), borderRadius: 99, backgroundColor: dot }} />
         <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={{ color: t.text, fontWeight: '700', fontSize: t.font(14) }}>{live ? 'Bot démarré' : busy ? 'Connexion…' : st === 'error' ? 'Le bot n’a pas pu démarrer' : 'Bot arrêté'}</Text>
+          <Text style={{ color: t.text, fontWeight: '700', fontSize: t.font(14) }}>{tr(live ? 'Bot démarré' : busy ? 'Connexion…' : st === 'error' ? 'Le bot n’a pas pu démarrer' : 'Bot arrêté')}</Text>
           <Text numberOfLines={2} style={{ color: st === 'error' ? t.danger : t.textMuted, fontSize: t.font(12) }}>
             {label}
           </Text>
@@ -230,10 +231,10 @@ function BotRuntime() {
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
         {(
           [
-            ['online', 'En ligne'],
-            ['idle', 'Absent'],
-            ['dnd', 'Ne pas déranger'],
-            ['invisible', 'Invisible'],
+            ['online', tr('En ligne')],
+            ['idle', tr('Absent')],
+            ['dnd', tr('Ne pas déranger')],
+            ['invisible', tr('Invisible')],
           ] as [BotStatus, string][]
         ).map(([v, l]) => (
           <Pressable
@@ -340,7 +341,7 @@ function BotDestinations() {
       <View style={{ flexDirection: 'row', gap: 8, padding: 10, borderRadius: t.radiusSm, backgroundColor: t.accentSoft }}>
         <Ionicons name="flash-outline" size={t.z(16)} color={t.accent} />
         <Text style={{ flex: 1, color: t.text, fontSize: t.font(12), lineHeight: t.font(17) }}>
-          Le bot publie lui-même : aucun webhook à créer. Messages, embeds, fichiers, threads et nouveaux posts de forum (avec tags) sont pris en charge.
+          {tr("Le bot publie lui-même : aucun webhook à créer. Messages, embeds, fichiers, threads et nouveaux posts de forum (avec tags) sont pris en charge.")}
         </Text>
       </View>
       {list.map((tg) => (

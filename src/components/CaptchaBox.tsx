@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { tr } from '../i18n';
 import { ActivityIndicator, Animated, Easing, Pressable, Text, View } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSettings } from '../state/settings';
@@ -211,14 +212,14 @@ export function CaptchaBox({ captcha }: { captcha: CaptchaHandle }) {
           ) : null}
         </View>
         <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={{ color: t.text, fontWeight: '700', fontSize: t.font(15) }}>{label}</Text>
+          <Text style={{ color: t.text, fontWeight: '700', fontSize: t.font(15) }}>{tr(label)}</Text>
           <Text numberOfLines={2} style={{ color: status === 'error' ? t.danger : t.textMuted, fontSize: t.font(12) }}>
             {sub}
           </Text>
         </View>
         <View style={{ alignItems: 'center', gap: 2, flexShrink: 0 }}>
           <MaterialCommunityIcons name={done ? 'shield-check' : 'shield-outline'} size={t.z(24)} color={done ? t.success : t.textMuted} />
-          <Text style={{ color: t.textFaint, fontSize: t.font(9), fontWeight: '800', letterSpacing: 0.6 }}>ALTCHA</Text>
+          <Text style={{ color: t.textFaint, fontSize: t.font(9), fontWeight: '800', letterSpacing: 0.6 }}>{tr("ALTCHA")}</Text>
         </View>
       </View>
       <View style={{ height: 3, backgroundColor: 'transparent' }}>

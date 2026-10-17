@@ -58,6 +58,8 @@ export interface DraftMessage {
   reference: string;
   /** Réponse à un message existant (ID). */
   reply_to: string;
+  /** Indicateur éphémère (5 s) après un envoi, une modification ou une suppression. */
+  flash?: { kind: 'sent' | 'edited' | 'deleted'; at: number };
   /** Résultat du dernier envoi. */
   lastSent?: { messageId: string; channelId: string; at: string };
 }
@@ -124,6 +126,8 @@ export interface AppSettings {
   themeVars: Record<string, string | number>;
   customCssEnabled: boolean;
   recentColors: number[];
+  /** Langue de l'interface (« system » : celle du téléphone). */
+  language: string;
   /** Démarrage du bot (connexion au gateway) et statut publié. */
   botPresence: BotPresence;
 }

@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { tr } from '../i18n';
 import { Image, Linking, Pressable, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -8,8 +9,9 @@ import { CaptchaBox, useCaptcha } from '../components/CaptchaBox';
 import { useSettings } from '../state/settings';
 import { useSession } from '../state/session';
 import { useEndpoints } from '../state/useEndpoints';
-import { Avatar, Badge, Box, Button, FieldButton, Grid, Input, Segmented, Sheet, Stack, useToast } from '../components/ui';
+import { Avatar, Badge, Box, Button, FieldButton, Grid, Input, Segmented, Sheet, Stack, Tip, useToast } from '../components/ui';
 import { Markdown, MentionContext } from '../components/Markdown';
+import { QuickTiles, type LandingAction } from './LandingPage';
 import type { FluxerProfile } from '../types';
 import { intToHex } from '../utils/parse';
 
@@ -75,7 +77,7 @@ function LoginForm({ onDone }: { onDone: () => void }) {
     <Stack>
       <Box title="Se connecter à Fluxer" icon="person-circle-outline" collapsible={false}>
         <Text style={{ color: t.textMuted, fontSize: t.font(13), lineHeight: t.font(19) }}>
-          Ton compte donne accès à tes serveurs, salons, threads et tags de forum, et à ton profil complet. Le token de session est stocké chiffré sur ce téléphone et n’est envoyé qu’à ton instance Fluxer.
+          {tr("Ton compte donne accès à tes serveurs, salons, threads et tags de forum, et à ton profil complet. Le token de session est stocké chiffré sur ce téléphone et n’est envoyé qu’à ton instance Fluxer.")}
         </Text>
         {!ticket && (
           <Segmented
@@ -89,7 +91,7 @@ function LoginForm({ onDone }: { onDone: () => void }) {
         )}
         {ticket ? (
           <>
-            <Text style={{ color: t.text, fontWeight: '700' }}>Double authentification</Text>
+            <Text style={{ color: t.text, fontWeight: '700' }}>{tr("Double authentification")}</Text>
             <Input
               label="Code de ton application d’authentification (ou code de secours)"
               value={code}
@@ -139,15 +141,17 @@ function LoginForm({ onDone }: { onDone: () => void }) {
 }
 
 /** Ligne d'information flexible : libellé au-dessus, valeur qui passe à la ligne, bouton d'action dans le thème. */
-function InfoRow({ icon, label, value, onCopy, action }: { icon: React.ComponentProps<typeof Ionicons>['name']; label: string; value: string; onCopy?: () => void; action?: React.ReactNode }) {
+function InfoRow({ icon, label, value, onCopy, action, tip }: { icon: React.ComponentProps<typeof Ionicons>['name']; label: string; value: string; onCopy?: () => void; action?: React.ReactNode; tip?: string }) {
   const { theme: t } = useSettings();
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, minWidth: 0 }}>
-      <View style={{ width: t.z(34), height: t.z(34), borderRadius: t.radiusSm, backgroundColor: t.accentSoft, alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-        <Ionicons name={icon} size={t.z(17)} color={t.accent} />
-      </View>
+      <Tip title={label} text={tip} align="left" style={{ flexShrink: 0 }}>
+        <View style={{ width: t.z(34), height: t.z(34), borderRadius: t.radiusSm, backgroundColor: t.accentSoft, alignItems: 'center', justifyContent: 'center' }}>
+          <Ionicons name={icon} size={t.z(17)} color={t.accent} />
+        </View>
+      </Tip>
       <View style={{ flex: 1, minWidth: 0 }}>
-        <Text style={{ color: t.textMuted, fontSize: t.font(11), fontWeight: '800', letterSpacing: 0.6 }}>{label.toUpperCase()}</Text>
+        <Text style={{ color: t.textMuted, fontSize: t.font(11), fontWeight: '800', letterSpacing: 0.6 }}>{tr(label).toUpperCase()}</Text>
         <Text selectable style={{ color: t.text, fontSize: t.font(14), flexShrink: 1 }}>
           {value}
         </Text>
@@ -160,37 +164,31 @@ function InfoRow({ icon, label, value, onCopy, action }: { icon: React.Component
 
 /** Badge du profil Fluxer, en icône seule (libellé au toucher et pour les lecteurs d'écran). */
 const PLUTONIUM = require('../../assets/badges/plutonium.png');
-function IconBadge({ label, mci, color, image }: { label: string; mci?: React.ComponentProps<typeof MaterialCommunityIcons>['name']; color?: string; image?: number }) {
-  const { theme: t, haptic } = useSettings();
-  const toast = useToast();
+function IconBadge({ label, text, mci, color, image }: { label: string; text?: string; mci?: React.ComponentProps<typeof MaterialCommunityIcons>['name']; color?: string; image?: number }) {
+  const { theme: t } = useSettings();
   const size = t.z(34);
   return (
-    <Pressable
-      onPress={() => {
-        haptic('light');
-        toast(label, 'info');
-      }}
-      accessibilityRole="image"
-      accessibilityLabel={label}
-      hitSlop={4}
-      style={({ pressed }) => ({
-        width: size,
-        height: size,
-        borderRadius: size / 2,
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: t.surface2,
-        borderWidth: 1,
-        borderColor: t.border,
-        transform: [{ scale: pressed ? 0.9 : 1 }],
-      })}
-    >
-      {image ? (
-        <Image source={image} style={{ width: size * 0.72, height: size * 0.72 }} resizeMode="contain" />
-      ) : (
-        <MaterialCommunityIcons name={mci!} size={size * 0.56} color={color ?? t.text} />
-      )}
-    </Pressable>
+    <Tip title={label} text={text} align="right">
+      <View
+        accessibilityRole="image"
+        style={{
+          width: size,
+          height: size,
+          borderRadius: size / 2,
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: t.surface2,
+          borderWidth: 1,
+          borderColor: t.border,
+        }}
+      >
+        {image ? (
+          <Image source={image} style={{ width: size * 0.72, height: size * 0.72 }} resizeMode="contain" />
+        ) : (
+          <MaterialCommunityIcons name={mci!} size={size * 0.56} color={color ?? t.text} />
+        )}
+      </View>
+    </Tip>
   );
 }
 
@@ -200,7 +198,7 @@ const CONNECTION_ICONS: Record<string, React.ComponentProps<typeof Ionicons>['na
   domain: 'globe-outline',
 };
 
-function Profile({ onBrowse }: { onBrowse: () => void }) {
+function Profile({ onBrowse, tiles }: { onBrowse: () => void; tiles?: React.ReactNode }) {
   const { theme: t } = useSettings();
   const ep = useEndpoints();
   const toast = useToast();
@@ -228,7 +226,7 @@ function Profile({ onBrowse }: { onBrowse: () => void }) {
   if (!user) {
     return (
       <Stack>
-        <Text style={{ color: t.textMuted, textAlign: 'center' }}>Chargement du profil…</Text>
+        <Text style={{ color: t.textMuted, textAlign: 'center' }}>{tr("Chargement du profil…")}</Text>
         <Button icon="refresh" label="Réessayer" onPress={refreshMe} />
         <Button variant="danger" icon="log-out-outline" label="Se déconnecter" onPress={signOut} />
       </Stack>
@@ -274,10 +272,16 @@ function Profile({ onBrowse }: { onBrowse: () => void }) {
               <Avatar uri={avatarUrl(ep, user.id, user.avatar, 256)} name={name} size={avatar} />
             </View>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, flex: 1, minWidth: t.z(140), justifyContent: 'flex-end', paddingBottom: 6 }}>
-              {!!user.premium_type && <IconBadge label="Plutonium" image={PLUTONIUM} />}
-              {user.verified && <IconBadge label="E-mail vérifié" mci="email-check-outline" color={t.success} />}
-              {user.mfa_enabled && <IconBadge label="Double authentification (2FA) activée" mci="shield-key-outline" color={t.accent} />}
-              {user.bot && <IconBadge label="Compte bot" mci="robot-outline" color={t.textMuted} />}
+              {!!user.premium_type && (
+                <IconBadge
+                  label="Plutonium"
+                  text={`Abonnement premium de Fluxer${premiumSince ? `, actif depuis le ${new Date(premiumSince).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}` : ''}.`}
+                  image={PLUTONIUM}
+                />
+              )}
+              {user.verified && <IconBadge label="E-mail vérifié" text="L’adresse e-mail du compte a été confirmée." mci="email-check-outline" color={t.success} />}
+              {user.mfa_enabled && <IconBadge label="Double authentification" text="La connexion demande aussi un code (2FA) : le compte est mieux protégé." mci="shield-key-outline" color={t.accent} />}
+              {user.bot && <IconBadge label="Compte bot" text="Compte automatisé, piloté par une application." mci="robot-outline" color={t.textMuted} />}
             </View>
           </View>
           <View style={{ padding: t.pad, paddingTop: 8, gap: 4 }}>
@@ -297,39 +301,49 @@ function Profile({ onBrowse }: { onBrowse: () => void }) {
         </View>
 
         {/* ----- Sections : grille fluide, chaque section est repliable ----- */}
-        <Grid min={300}>
-          {!!bio.trim() && (
-            <Box title="À propos de moi" icon="reader-outline">
-              <Markdown text={bio} size={14} bio />
-            </Box>
-          )}
+        {!!bio.trim() && (
+          <Box title="À propos de moi" icon="reader-outline">
+            <Markdown text={bio} size={14} bio />
+          </Box>
+        )}
 
+        {/* Raccourcis de l'app, en mini-cartes */}
+        {tiles}
+
+        <Grid min={300}>
           <Box title="Informations" icon="information-circle-outline" defaultCollapsed>
-            <InfoRow icon="finger-print-outline" label="Identifiant" value={user.id} onCopy={copy('ID', user.id)} />
+            <InfoRow icon="finger-print-outline" label="Identifiant" tip="Numéro unique de ton compte Fluxer, utile pour les mentions <@id> et le support." value={user.id} onCopy={copy('ID', user.id)} />
             {!!user.email && (
               <InfoRow
                 icon="mail-outline"
                 label="E-mail"
+                tip="Visible uniquement par toi. Touche l’œil pour l’afficher en entier."
                 value={showEmail ? user.email : user.email.replace(/^(.).*(@.*)$/, '$1•••••$2')}
                 action={<FieldButton mci={showEmail ? 'eye-off-outline' : 'eye-outline'} label={showEmail ? 'Masquer l’e-mail' : 'Afficher l’e-mail'} onPress={() => setShowEmail((v) => !v)} />}
               />
             )}
-            {!!premiumSince && <InfoRow icon="diamond-outline" label="Plutonium depuis" value={new Date(premiumSince).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })} />}
+            {!!premiumSince && <InfoRow icon="diamond-outline" label="Plutonium depuis" tip="Date d’activation de ton abonnement premium." value={new Date(premiumSince).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })} />}
             {extra.slice(0, 8).map(([k, v]) => (
-              <InfoRow key={k} icon="ellipse-outline" label={k.replace(/_/g, ' ')} value={String(v)} />
+              <InfoRow key={k} icon="ellipse-outline" label={k.replace(/_/g, ' ')} tip={`Champ « ${k} » renvoyé par l’API Fluxer.`} value={String(v)} />
             ))}
           </Box>
 
           {connections.length > 0 && (
             <Box title="Connexions" icon="link-outline" badge={String(connections.length)} defaultCollapsed>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                {connections.map((c) => (
-                  <View key={c.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 6, borderRadius: t.radiusSm, backgroundColor: t.surface2, maxWidth: '100%' }}>
-                    <Ionicons name={CONNECTION_ICONS[String(c.type).toLowerCase()] ?? 'link-outline'} size={t.z(16)} color={t.textMuted} />
-                    <Text style={{ color: t.text, fontSize: t.font(13), flexShrink: 1 }}>{c.name}</Text>
-                    {c.verified && <Ionicons name="checkmark-circle" size={t.z(14)} color={t.success} />}
-                  </View>
-                ))}
+                {connections.map((c) => {
+                  const kind = String(c.type).toLowerCase();
+                  const kindLabel = kind === 'domain' ? 'Domaine' : kind === 'bsky' || kind === 'bluesky' ? 'Bluesky' : String(c.type);
+                  return (
+                    <Tip key={c.id} title={`${kindLabel} · ${c.name}`} text={c.verified ? 'Connexion vérifiée par Fluxer.' : 'Connexion non vérifiée.'} align="left" style={{ maxWidth: '100%' }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 6, borderRadius: t.radiusSm, backgroundColor: t.surface2 }}>
+                        <Ionicons name={CONNECTION_ICONS[kind] ?? 'link-outline'} size={t.z(16)} color={t.textMuted} />
+                        <Text style={{ color: t.text, fontSize: t.font(13), flexShrink: 1 }}>{c.name}</Text>
+                        {c.verified && <Ionicons name="checkmark-circle" size={t.z(14)} color={t.success} />}
+                      </View>
+                    </Tip>
+                  );
+                })}
               </View>
             </Box>
           )}
@@ -359,16 +373,29 @@ function Profile({ onBrowse }: { onBrowse: () => void }) {
   );
 }
 
-export function AccountSheet({ visible, onClose, onBrowse }: { visible: boolean; onClose: () => void; onBrowse: () => void }) {
+export function AccountSheet({
+  visible,
+  onClose,
+  onBrowse,
+  onAction,
+  onOpenEditor,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  onBrowse: () => void;
+  onAction: (a: LandingAction) => void;
+  onOpenEditor: () => void;
+}) {
   const { hasUser } = useSession();
   return (
-    <Sheet visible={visible} onClose={onClose} title={hasUser ? 'Mon profil Fluxer' : 'Compte Fluxer'} full>
+    <Sheet visible={visible} onClose={onClose} title={hasUser ? 'Mon profil Fluxer' : 'Compte Fluxer'} fullscreen>
       {hasUser ? (
         <Profile
           onBrowse={() => {
             onClose();
             onBrowse();
           }}
+          tiles={<QuickTiles onOpenEditor={onOpenEditor} onAction={onAction} />}
         />
       ) : (
         <LoginForm onDone={() => {}} />

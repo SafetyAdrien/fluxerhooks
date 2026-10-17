@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { Alert, Image, Linking, Pressable, Text, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { LANGUAGES, resolveLanguage, tr } from '../i18n';
+import { LanguagePicker } from '../components/LanguagePicker';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import * as FS from 'expo-file-system/legacy';
@@ -131,17 +133,48 @@ export function SettingsSheet({
   };
 
   const pct = (v: number) => `${Math.round(v * 100)} %`;
+  const [langOpen, setLangOpen] = useState(false);
+  const langInfo = LANGUAGES.find((l) => l.code === resolveLanguage(settings.language))!;
 
   return (
-    <Sheet visible={visible} onClose={onClose} title="Paramètres" full>
+    <Sheet visible={visible} onClose={onClose} title="Paramètres" fullscreen>
+      {/* ---------- Langue ---------- */}
+      <Pressable
+        onPress={() => setLangOpen(true)}
+        accessibilityRole="button"
+        accessibilityLabel={tr('Langue')}
+        style={({ pressed }) => ({
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 12,
+          padding: t.pad,
+          borderRadius: t.radius,
+          backgroundColor: pressed ? t.surface2 : t.surface,
+          borderWidth: 1,
+          borderColor: t.border,
+        })}
+      >
+        <View style={{ width: t.z(40), height: t.z(40), borderRadius: t.radiusSm, backgroundColor: t.accentSoft, alignItems: 'center', justifyContent: 'center' }}>
+          <MaterialCommunityIcons name="translate" size={t.z(22)} color={t.accent} />
+        </View>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={{ color: t.text, fontWeight: '800', fontSize: t.font(15) }}>{tr('Langue')}</Text>
+          <Text numberOfLines={1} style={{ color: t.textMuted, fontSize: t.font(12) }}>
+            {settings.language === 'system' ? `${tr('Langue du système')} · ${langInfo.flag} ${langInfo.native}` : `${langInfo.flag} ${langInfo.native}`}
+          </Text>
+        </View>
+        <Ionicons name="chevron-forward" size={t.z(18)} color={t.textFaint} />
+      </Pressable>
+      {langOpen && <LanguagePicker onClose={() => setLangOpen(false)} />}
+
       {/* ---------- Thème ---------- */}
       <Box title="Thème et couleur" icon="color-palette-outline">
         <Grid min={100} gap={8}>
           {themes.map((x) => (
-            <ThemeCard key={x.name} name={x.name} label={x.label} selected={settings.theme === x.name} onPress={() => update({ theme: x.name })} />
+            <ThemeCard key={x.name} name={x.name} label={tr(x.label)} selected={settings.theme === x.name} onPress={() => update({ theme: x.name })} />
           ))}
         </Grid>
-        <Text style={{ color: t.textMuted, fontWeight: '700', fontSize: t.font(12) }}>Couleur d’accent</Text>
+        <Text style={{ color: t.textMuted, fontWeight: '700', fontSize: t.font(12) }}>{tr("Couleur d’accent")}</Text>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
           <Pressable
             onPress={() => setAccentOpen(true)}
@@ -181,7 +214,7 @@ export function SettingsSheet({
       {/* ---------- CSS ---------- */}
       <Box title="Styles personnalisés (CSS)" icon="code-slash-outline" collapsible={false}>
         <Text style={{ color: t.textMuted, fontSize: t.font(13) }}>
-          Personnalise chaque partie de l’interface par catégorie : structure, composants, texte, champs et aperçu.
+          {tr("Personnalise chaque partie de l’interface par catégorie : structure, composants, texte, champs et aperçu.")}
         </Text>
         <Button icon="color-wand-outline" label="Couleurs et styles" onPress={go(onOpenCss)} />
       </Box>
@@ -211,13 +244,13 @@ export function SettingsSheet({
               <Image source={{ uri: wp.uri }} blurRadius={wp.blur} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} resizeMode="cover" />
               <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: wp.tint === 'accent' ? t.accent : '#000', opacity: wp.dim }} />
               <View style={{ margin: 12, padding: 10, borderRadius: t.radiusSm, backgroundColor: t.surface, alignSelf: 'flex-start' }}>
-                <Text style={{ color: t.text, fontWeight: '700' }}>Aperçu d’un conteneur</Text>
+                <Text style={{ color: t.text, fontWeight: '700' }}>{tr("Aperçu d’un conteneur")}</Text>
               </View>
             </>
           ) : (
             <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 6 }}>
               <Ionicons name="images-outline" size={t.z(32)} color={t.textFaint} />
-              <Text style={{ color: t.textMuted }}>Choisis une image de ta galerie</Text>
+              <Text style={{ color: t.textMuted }}>{tr("Choisis une image de ta galerie")}</Text>
             </View>
           )}
         </View>
@@ -256,7 +289,7 @@ export function SettingsSheet({
             { value: 'compact', label: 'Compact', icon: 'list-outline' },
           ]}
         />
-        <Text style={{ color: t.textMuted, fontWeight: '700', fontSize: t.font(12) }}>Forme des avatars</Text>
+        <Text style={{ color: t.textMuted, fontWeight: '700', fontSize: t.font(12) }}>{tr("Forme des avatars")}</Text>
         <Segmented
           value={ms.avatarShape}
           onChange={(v) => setMs({ avatarShape: v })}
@@ -268,7 +301,7 @@ export function SettingsSheet({
         />
         <Slider label="Taille des avatars" value={ms.avatarSize} min={28} max={56} step={2} format={(v) => `${v} px`} onChange={(v) => setMs({ avatarSize: v })} />
         <Slider label="Taille du texte des messages" value={ms.fontSize} min={12} max={20} step={1} format={(v) => `${v} px`} onChange={(v) => setMs({ fontSize: v })} />
-        <Text style={{ color: t.textMuted, fontWeight: '700', fontSize: t.font(12) }}>Espacement</Text>
+        <Text style={{ color: t.textMuted, fontWeight: '700', fontSize: t.font(12) }}>{tr("Espacement")}</Text>
         <Segmented
           value={ms.spacing}
           onChange={(v) => setMs({ spacing: v })}
@@ -339,7 +372,7 @@ export function SettingsSheet({
 
       <Box title="À propos" icon="information-circle-outline" defaultCollapsed>
         <Text style={{ color: t.textMuted, fontSize: t.font(13) }}>
-          FluxerHooks {Constants.expoConfig?.version ?? ''} — éditeur de messages webhook pour Fluxer. Projet indépendant, non affilié à Fluxer.
+          {tr("FluxerHooks")} {Constants.expoConfig?.version ?? ''} — éditeur de messages webhook pour Fluxer. Projet indépendant, non affilié à Fluxer.
         </Text>
         <ListRow icon="book-outline" title="Documentation API Fluxer" onPress={() => Linking.openURL('https://docs.fluxer.app')} />
         <ListRow icon="logo-github" title="Fluxer sur GitHub" onPress={() => Linking.openURL('https://github.com/fluxerapp/fluxer')} />

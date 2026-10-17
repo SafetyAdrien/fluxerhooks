@@ -1,5 +1,7 @@
 import React from 'react';
-import { Alert, Text, View } from 'react-native';
+import { tr } from '../i18n';
+import { Alert, Animated, Easing, Text, View } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Clipboard from 'expo-clipboard';
 import type { DraftMessage, ThreadMode, WebhookInfo } from '../types';
@@ -9,13 +11,61 @@ import { useSender } from '../state/useSender';
 import { useEndpoints } from '../state/useEndpoints';
 import { messageLink, isForumType } from '../api/fluxer';
 import { LIMITS } from '../utils/limits';
-import { formatBytes, isHttpUrl, isSnowflake, parseMessageRef } from '../utils/parse';
+import { formatBytes, isHttpUrl, isSnowflake, parseMessageRef, withAlpha } from '../utils/parse';
 import { uid } from '../utils/factory';
 import { Box, Button, Chip, IconBtn, Input, SectionLabel, Segmented, Stack, ToggleRow, useToast } from './ui';
 import { RichInput } from './RichInput';
 import { EmbedEditor } from './EmbedEditor';
 import { standaloneAttachments } from '../utils/payload';
 import { ImageImportSheet } from './ImageImportSheet';
+
+const FLASH = {
+  sent: { label: 'Envoyé', icon: 'check-circle-outline', color: '#23A55A' },
+  edited: { label: 'Modifié', icon: 'pencil-circle-outline', color: '#4C8DFF' },
+  deleted: { label: 'Supprimé', icon: 'delete-circle-outline', color: '#F23F43' },
+} as const;
+const FLASH_MS = 5000;
+
+/** Indicateur visible 5 secondes après l'action, puis disparition en fondu. */
+function FlashBadge({ flash }: { flash: NonNullable<DraftMessage['flash']> }) {
+  const { theme: t } = useSettings();
+  const left = FLASH_MS - (Date.now() - flash.at);
+  const [gone, setGone] = React.useState(left <= 0);
+  const anim = React.useRef(new Animated.Value(0)).current;
+  React.useEffect(() => {
+    if (left <= 0) return;
+    Animated.spring(anim, { toValue: 1, friction: 6, tension: 120, useNativeDriver: true }).start();
+    const h = setTimeout(() => {
+      Animated.timing(anim, { toValue: 0, duration: 600, easing: Easing.out(Easing.quad), useNativeDriver: true }).start(() => setGone(true));
+    }, Math.max(0, left - 600));
+    return () => clearTimeout(h);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  if (gone) return null;
+  const f = FLASH[flash.kind];
+  return (
+    <Animated.View
+      accessibilityLiveRegion="polite"
+      accessibilityLabel={`Message ${f.label.toLowerCase()}`}
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        paddingHorizontal: 8,
+        paddingVertical: 3,
+        borderRadius: 999,
+        backgroundColor: withAlpha(f.color, 0.16),
+        borderWidth: 1,
+        borderColor: withAlpha(f.color, 0.45),
+        opacity: anim,
+        transform: [{ scale: anim.interpolate({ inputRange: [0, 1], outputRange: [0.85, 1] }) }],
+      }}
+    >
+      <MaterialCommunityIcons name={f.icon} size={t.z(14)} color={f.color} />
+      <Text style={{ color: f.color, fontSize: t.font(11), fontWeight: '800' }}>{tr(f.label)}</Text>
+    </Animated.View>
+  );
+}
 
 export function MessageEditor({
   m,
@@ -78,7 +128,7 @@ export function MessageEditor({
       icon={isEdit ? 'create' : 'chatbubble-ellipses'}
       collapsed={m.collapsed}
       onToggle={() => set({ collapsed: !m.collapsed })}
-      badge={m.lastSent ? 'Envoyé' : undefined}
+      badgeNode={m.flash ? <FlashBadge key={m.flash.at} flash={m.flash} /> : null}
       actions={
         <>
           <IconBtn icon="arrow-up" label="Monter le message" onPress={() => moveMessage(m.id, -1)} disabled={index === 0} size={18} />
@@ -112,7 +162,7 @@ export function MessageEditor({
       <Box nested title={hasBot && !hasHook ? 'Profil (webhooks)' : 'Profil du webhook'} icon="person-outline" subtitle={m.username.trim() || info?.name || 'Nom et avatar par défaut'} defaultCollapsed>
         {hasBot && (
           <Text style={{ color: t.textMuted, fontSize: t.font(12) }}>
-            Les salons du bot utilisent toujours le nom et l’avatar du bot ; ces réglages s’appliquent aux webhooks.
+            {tr("Les salons du bot utilisent toujours le nom et l’avatar du bot ; ces réglages s’appliquent aux webhooks.")}
           </Text>
         )}
         <Input label="Nom affiché" value={m.username} max={LIMITS.username} onChangeText={(v) => set({ username: v })} placeholder={info?.name ?? 'Nom du webhook'} />
@@ -210,7 +260,7 @@ export function MessageEditor({
       <Button icon="add-circle-outline" label="Ajouter un embed" onPress={() => addEmbed(m.id)} disabled={m.embeds.length >= LIMITS.embeds} />
 
       <Box nested title="Fichiers du message" icon="attach" badge={files.length ? String(files.length) : undefined} defaultCollapsed>
-        {isEdit && <Text style={{ color: t.textFaint, fontSize: t.font(12) }}>Les fichiers ne sont envoyés qu’avec un nouveau message.</Text>}
+        {isEdit && <Text style={{ color: t.textFaint, fontSize: t.font(12) }}>{tr("Les fichiers ne sont envoyés qu’avec un nouveau message.")}</Text>}
         {files.map((a) => (
           <View key={a.id} style={{ backgroundColor: t.surface, borderRadius: t.radiusSm, padding: 10, gap: 6, borderWidth: 1, borderColor: t.border }}>
             <Stack row gap={6}>
@@ -289,7 +339,7 @@ export function MessageEditor({
       {m.lastSent && (
         <View style={{ backgroundColor: t.accentSoft, borderRadius: t.radiusSm, padding: 10, gap: 8 }}>
           <Text style={{ color: t.text, fontSize: t.font(13) }}>
-            Envoyé · ID <Text style={{ fontWeight: '700' }}>{m.lastSent.messageId}</Text>
+            {tr("Envoyé · ID")} <Text style={{ fontWeight: '700' }}>{m.lastSent.messageId}</Text>
           </Text>
           <Stack row wrap gap={8}>
             <Button small icon="create-outline" label="Éditer ce message" onPress={() => up(m.id, { reference: m.lastSent!.messageId })} />

@@ -98,6 +98,7 @@ export function useSender() {
             ok++;
             updateMessage(m.id, {
               lastSent: { messageId: res.id, channelId: res.channel_id, at: new Date().toISOString() },
+              flash: { kind: res.edited ? 'edited' : 'sent', at: Date.now() },
               ...(settings.autoCollapseSent ? { collapsed: true } : {}),
             });
           } catch (e) {
@@ -192,7 +193,7 @@ export function useSender() {
             try {
               const ep = await getEndpoints(settings.instance);
               await deleteTargetMessage(ep, tg.url, m, ref, botToken);
-              updateMessage(m.id, { lastSent: undefined, reference: m.reference === ref ? '' : m.reference });
+              updateMessage(m.id, { lastSent: undefined, reference: m.reference === ref ? '' : m.reference, flash: { kind: 'deleted', at: Date.now() } });
               toast('Message supprimé.', 'success');
             } catch (e) {
               toast(errText(e), 'error');

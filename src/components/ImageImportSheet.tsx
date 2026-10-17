@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { tr } from '../i18n';
 import { Image, Pressable, ScrollView, Text, View, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';

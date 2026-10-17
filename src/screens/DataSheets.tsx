@@ -1,3 +1,4 @@
+import { tr } from '../i18n';
 import React, { useState } from 'react';
 import { Alert, Text, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
@@ -77,7 +78,7 @@ export function JsonSheet({ visible, onClose }: { visible: boolean; onClose: () 
       ) : (
         <>
           <Text style={{ color: t.textMuted, fontSize: t.font(13) }}>
-            Formats acceptés : export FluxerHooks, export Discohook, payload webhook brut ({'{'} content, embeds {'}'}) ou tableau de payloads. L’import remplace le brouillon actuel.
+            {tr("Formats acceptés : export FluxerHooks, export Discohook, payload webhook brut (")}{'{'} content, embeds {'}'}) ou tableau de payloads. L’import remplace le brouillon actuel.
           </Text>
           <Input value={text} onChangeText={setText} multiline mono placeholder='{ "content": "Bonjour", "embeds": [ … ] }' style={{ minHeight: 220, fontSize: 12 }} />
           <Button variant="primary" icon="checkmark" label="Importer" disabled={!text.trim()} onPress={() => doImport(text)} />

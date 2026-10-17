@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { tr } from '../i18n';
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
@@ -107,7 +108,7 @@ function ColorVarRow({ v }: { v: ThemeVar }) {
         <Text style={{ color: t.textMuted, fontSize: t.font(13), flexShrink: 1, ...mono }}>--{v.name}</Text>
         {custom && (
           <Pressable onPress={() => set(undefined)} hitSlop={6} accessibilityRole="button" accessibilityLabel={`Réinitialiser ${v.label}`}>
-            <Text style={{ color: t.accent, fontSize: t.font(12), fontWeight: '700' }}>Réinitialiser</Text>
+            <Text style={{ color: t.accent, fontSize: t.font(12), fontWeight: '700' }}>{tr("Réinitialiser")}</Text>
           </Pressable>
         )}
       </View>
@@ -153,7 +154,7 @@ function SizeVarRow({ v }: { v: ThemeVar }) {
           selectionColor={t.accent}
           style={{ flex: 1, minWidth: 0, color: t.text, fontSize: t.font(16), paddingHorizontal: 14, ...mono }}
         />
-        <Text style={{ color: t.textMuted, fontSize: t.font(13), ...mono }}>px</Text>
+        <Text style={{ color: t.textMuted, fontSize: t.font(13), ...mono }}>{tr("px")}</Text>
         <FieldButtons>
           <FieldButton icon="remove" label={`Diminuer : ${v.label}`} onPress={() => set(clamp(n - step))} />
           <FieldButton icon="add" label={`Augmenter : ${v.label}`} onPress={() => set(clamp(n + step))} />
@@ -166,7 +167,7 @@ function SizeVarRow({ v }: { v: ThemeVar }) {
         </Text>
         {custom && (
           <Pressable onPress={() => set(undefined)} hitSlop={6} accessibilityRole="button" accessibilityLabel={`Réinitialiser ${v.label}`}>
-            <Text style={{ color: t.accent, fontSize: t.font(12), fontWeight: '700' }}>Réinitialiser</Text>
+            <Text style={{ color: t.accent, fontSize: t.font(12), fontWeight: '700' }}>{tr("Réinitialiser")}</Text>
           </Pressable>
         )}
       </View>
@@ -194,7 +195,7 @@ function AdvancedCss({ category }: { category: CssCategory }) {
             title={s.name}
             subtitle={s.description}
             onPress={() => setSrc((x) => `${x.trimEnd()}${x.trim() ? '\n\n' : ''}${s.name} {\n  \n}`)}
-            right={<Text style={{ color: t.accent, fontWeight: '700' }}>Insérer</Text>}
+            right={<Text style={{ color: t.accent, fontWeight: '700' }}>{tr("Insérer")}</Text>}
           />
         ))}
       </View>

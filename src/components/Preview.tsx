@@ -1,4 +1,5 @@
 import React from 'react';
+import { tr } from '../i18n';
 import { Image, Linking, Pressable, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { DraftMessage, Embed, LocalAttachment, WebhookInfo } from '../types';
@@ -128,7 +129,7 @@ function AttachmentView({ a }: { a: LocalAttachment }) {
         {a.spoiler && (
           <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' }}>
             <Text style={{ color: '#fff', fontWeight: '800', backgroundColor: 'rgba(0,0,0,0.6)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999 }}>
-              SPOILER
+              {tr("SPOILER")}
             </Text>
           </View>
         )}
@@ -188,11 +189,11 @@ export function MessagePreview({
       {ms.showBotTag && (
         <View style={{ backgroundColor: t.accent, borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1, flexDirection: 'row', alignItems: 'center', gap: 2 }}>
           <Ionicons name="checkmark" size={t.z(10)} color={t.onAccent} />
-          <Text style={{ color: t.onAccent, fontSize: t.font(10), fontWeight: '800' }}>BOT</Text>
+          <Text style={{ color: t.onAccent, fontSize: t.font(10), fontWeight: '800' }}>{tr("BOT")}</Text>
         </View>
       )}
       {ms.showTimestamps && <Text style={{ color: t.textFaint, fontSize: t.font(12) }}>{formatTime(m.lastSent?.at)}</Text>}
-      {!!m.reference.trim() && <Text style={{ color: t.textFaint, fontSize: t.font(11) }}>(modifié)</Text>}
+      {!!m.reference.trim() && <Text style={{ color: t.textFaint, fontSize: t.font(11) }}>{tr("(modifié)")}</Text>}
     </View>
   );
 
@@ -205,7 +206,7 @@ export function MessagePreview({
     >
       {!grouped && !compact && header}
       {empty ? (
-        <Text style={{ color: t.textFaint, fontStyle: 'italic' }}>Message vide</Text>
+        <Text style={{ color: t.textFaint, fontStyle: 'italic' }}>{tr("Message vide")}</Text>
       ) : (
         !!m.content.trim() && (
           <View style={t.css['message-text']}>
@@ -227,7 +228,7 @@ export function MessagePreview({
       {!!m.reply_to.trim() && (
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginLeft: compact ? 0 : av / 2, marginBottom: 4 }}>
           <Ionicons name="return-up-forward" size={t.z(14)} color={t.textFaint} />
-          <Text style={{ color: t.textFaint, fontSize: t.font(12) }}>Réponse au message {m.reply_to.trim()}</Text>
+          <Text style={{ color: t.textFaint, fontSize: t.font(12) }}>{tr("Réponse au message")} {m.reply_to.trim()}</Text>
         </View>
       )}
       {m.threadMode === 'forum_post' && !!m.thread_name.trim() && !grouped && (

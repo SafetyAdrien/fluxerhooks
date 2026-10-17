@@ -6,6 +6,7 @@ import * as Haptics from 'expo-haptics';
 import type { AppSettings, MessageStyle, WallpaperSettings } from '../types';
 import { PALETTES, type Palette } from '../theme/themes';
 import { compileSheets, paletteOverrides, varsToRules } from '../theme/css';
+import { resolveLanguage, setLanguage } from '../i18n';
 import { readableOn, shade, withAlpha } from '../utils/parse';
 
 const KEY = 'fluxerhooks:settings:v1';
@@ -45,6 +46,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   messageStyle: DEFAULT_MESSAGE_STYLE,
   customCss: {},
   themeVars: {},
+  language: 'system',
   botPresence: { autoStart: true, status: 'online', text: '' },
   customCssEnabled: true,
   recentColors: [],
@@ -231,6 +233,8 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     // Palette opaque (fenêtres, barre système) avec les couleurs essentielles personnalisées.
     return settings.customCssEnabled ? { ...PALETTES[name], ...paletteOverrides(settings.themeVars) } : PALETTES[name];
   }, [settings.theme, scheme, settings.customCssEnabled, settings.themeVars]);
+  // Langue appliquée avant le rendu des écrans (les composants traduisent via tr()).
+  setLanguage(resolveLanguage(settings.language));
   const theme = useMemo(() => buildTheme(base, settings), [base, settings]);
 
   const value = useMemo(

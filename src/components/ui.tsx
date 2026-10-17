@@ -19,6 +19,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { tr } from '../i18n';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
 import { useSettings, useTheme } from '../state/settings';
@@ -102,6 +103,7 @@ export function Box({
   onToggle,
   actions,
   badge,
+  badgeNode,
   children,
   style,
   nested,
@@ -117,10 +119,14 @@ export function Box({
   onToggle?: () => void;
   actions?: React.ReactNode;
   badge?: string;
+  /** Élément libre affiché à la place du badge (ex. indicateur animé). */
+  badgeNode?: React.ReactNode;
   children?: React.ReactNode;
   style?: StyleProp<ViewStyle>;
   nested?: boolean;
 }) {
+  title = tr(title);
+  subtitle = tr(subtitle);
   const t = useTheme();
   const [inner, setInner] = useState(!!defaultCollapsed);
   const isCollapsed = collapsed ?? inner;
@@ -165,6 +171,7 @@ export function Box({
               </Text>
             )}
           </View>
+          {badgeNode}
           {!!badge && <Badge text={badge} />}
           {actions && <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>{actions}</View>}
         </Pressable>
@@ -181,6 +188,7 @@ export function Box({
 }
 
 export function Badge({ text, color }: { text: string; color?: string }) {
+  text = tr(text);
   const t = useTheme();
   return (
     <View style={{ backgroundColor: color ?? t.accentSoft, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 }}>
@@ -190,6 +198,7 @@ export function Badge({ text, color }: { text: string; color?: string }) {
 }
 
 export function SectionLabel({ children, right }: { children: React.ReactNode; right?: React.ReactNode }) {
+  if (typeof children === 'string') children = tr(children);
   const t = useTheme();
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
@@ -227,6 +236,9 @@ export function Input({
   mono?: boolean;
   right?: React.ReactNode;
 }) {
+  label = tr(label);
+  hint = tr(hint);
+  if (typeof rest.placeholder === 'string') rest = { ...rest, placeholder: tr(rest.placeholder) };
   const { theme: t, settings } = useSettings();
   const [focus, setFocus] = useState(false);
   const surface = useContext(SurfaceContext);
@@ -329,6 +341,7 @@ export function Button({
   flex?: boolean;
   style?: StyleProp<ViewStyle>;
 }) {
+  label = tr(label);
   const { theme: t, haptic } = useSettings();
   const bg =
     variant === 'primary'
@@ -401,26 +414,36 @@ export function IconBtn({
   size?: number;
   disabled?: boolean;
 }) {
+  label = tr(label);
   const { theme: t, haptic } = useSettings();
+  const tip = useTip();
   return (
-    <Pressable
-      onPress={() => {
-        haptic('light');
-        onPress?.();
-      }}
-      disabled={disabled}
-      hitSlop={6}
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      android_ripple={{ color: t.accentSoft, borderless: true, radius: 20 }}
-      style={({ pressed }) => ({ padding: 7, borderRadius: 999, opacity: disabled ? 0.35 : pressed ? 0.6 : 1 })}
-    >
-      {mci ? (
-        <MaterialCommunityIcons name={mci} size={t.z(size)} color={color ?? t.textMuted} />
-      ) : (
-        <Ionicons name={icon} size={t.z(size)} color={color ?? t.textMuted} />
-      )}
-    </Pressable>
+    <View style={{ position: 'relative', zIndex: tip.open ? 100 : 0, elevation: tip.open ? 16 : 0 }}>
+      <Pressable
+        onPress={() => {
+          haptic('light');
+          onPress?.();
+        }}
+        onLongPress={() => {
+          haptic('light');
+          tip.show();
+        }}
+        delayLongPress={350}
+        disabled={disabled}
+        hitSlop={6}
+        accessibilityRole="button"
+        accessibilityLabel={label}
+        android_ripple={{ color: t.accentSoft, borderless: true, radius: 20 }}
+        style={({ pressed }) => ({ padding: 7, borderRadius: 999, opacity: disabled ? 0.35 : pressed ? 0.6 : 1 })}
+      >
+        {mci ? (
+          <MaterialCommunityIcons name={mci} size={t.z(size)} color={color ?? t.textMuted} />
+        ) : (
+          <Ionicons name={icon} size={t.z(size)} color={color ?? t.textMuted} />
+        )}
+      </Pressable>
+      {tip.open && <TipBubble title={label} align="right" anim={tip.anim} />}
+    </View>
   );
 }
 
@@ -439,6 +462,8 @@ export function ToggleRow({
   onChange: (v: boolean) => void;
   icon?: IconName;
 }) {
+  label = tr(label);
+  description = tr(description);
   const t = useTheme();
   return (
     <Pressable
@@ -471,6 +496,7 @@ export function Segmented<T extends string>({
   options: { value: T; label: string; icon?: IconName }[];
   onChange: (v: T) => void;
 }) {
+  options = options.map((o) => ({ ...o, label: tr(o.label) }));
   const { theme: t, haptic } = useSettings();
   const surface = useContext(SurfaceContext);
   return (
@@ -525,6 +551,7 @@ export function Chip({
   icon?: IconName;
   color?: string;
 }) {
+  label = tr(label);
   const t = useTheme();
   return (
     <Pressable
@@ -597,6 +624,8 @@ export function Sheet({
   children,
   footer,
   full,
+  fullscreen,
+  headerRight,
 }: {
   visible: boolean;
   onClose: () => void;
@@ -604,9 +633,66 @@ export function Sheet({
   children: React.ReactNode;
   footer?: React.ReactNode;
   full?: boolean;
+  /** Page plein écran (sous la barre d'état), avec flèche de retour. */
+  fullscreen?: boolean;
+  headerRight?: React.ReactNode;
 }) {
+  title = tr(title);
   const { theme: t, base } = useSettings();
   const insets = useSafeAreaInsets();
+  if (fullscreen) {
+    return (
+      <Modal visible={visible} animationType="slide" onRequestClose={onClose} statusBarTranslucent>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={[{ flex: 1, backgroundColor: base.bg }, t.css.sheet]}>
+          <View
+            style={[
+              {
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 10,
+                paddingTop: insets.top + 6,
+                paddingBottom: 8,
+                paddingHorizontal: 10,
+                backgroundColor: base.bgAlt,
+                borderBottomWidth: 1,
+                borderBottomColor: t.border,
+              },
+              t.css.header,
+            ]}
+          >
+            <Pressable
+              onPress={onClose}
+              accessibilityRole="button"
+              accessibilityLabel={tr("Retour")}
+              hitSlop={6}
+              style={({ pressed }) => ({
+                width: t.z(40),
+                height: t.z(40),
+                borderRadius: t.z(14),
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: pressed ? t.accentSoft : t.surface2,
+                transform: [{ scale: pressed ? 0.94 : 1 }],
+              })}
+            >
+              <MaterialCommunityIcons name="arrow-left" size={t.z(22)} color={t.text} />
+            </Pressable>
+            <Text numberOfLines={1} style={{ flex: 1, color: t.text, fontSize: t.font(18), fontWeight: '900' }}>
+              {title}
+            </Text>
+            {headerRight}
+          </View>
+          <ScrollView
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={{ padding: 16, paddingBottom: (footer ? 16 : insets.bottom + 24), gap: t.gap, width: '100%', maxWidth: 900, alignSelf: 'center' }}
+          >
+            {children}
+          </ScrollView>
+          {footer && <View style={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: insets.bottom + 8 }}>{footer}</View>}
+        </KeyboardAvoidingView>
+      </Modal>
+    );
+  }
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose} statusBarTranslucent>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
@@ -659,7 +745,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
 
   const show = useCallback(
     (msg: string, kind: ToastKind = 'info') => {
-      setToast({ msg, kind });
+      setToast({ msg: tr(msg), kind });
       if (timer.current) clearTimeout(timer.current);
       Animated.timing(anim, { toValue: 1, duration: 180, useNativeDriver: true }).start();
       timer.current = setTimeout(
@@ -735,6 +821,8 @@ export function ListRow({
   onPress?: () => void;
   selected?: boolean;
 }) {
+  title = tr(title);
+  subtitle = tr(subtitle);
   const t = useTheme();
   return (
     <Pressable
@@ -774,6 +862,8 @@ export function Divider() {
 }
 
 export function EmptyState({ icon, title, text, action }: { icon: IconName; title: string; text?: string; action?: React.ReactNode }) {
+  title = tr(title);
+  text = tr(text);
   const t = useTheme();
   return (
     <View style={{ alignItems: 'center', padding: 28, gap: 8 }}>
@@ -806,6 +896,7 @@ export function Slider({
   format?: (v: number) => string;
   icon?: IconName;
 }) {
+  label = tr(label);
   const { theme: t, haptic } = useSettings();
   const [w, setW] = useState(0);
   const [drag, setDrag] = useState<number | null>(null);
@@ -896,6 +987,7 @@ export function Dialog({
   footer?: React.ReactNode;
   maxWidth?: number;
 }) {
+  title = tr(title);
   const { theme: t, base } = useSettings();
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
@@ -984,17 +1076,25 @@ export function FieldButton({
   color?: string;
   bg?: string;
 }) {
+  label = tr(label);
   const { theme: t, haptic } = useSettings();
   const size = t.z(34);
   const normal = active ? t.accentSoft : t.dark ? 'rgba(0,0,0,0.22)' : 'rgba(0,0,0,0.07)';
   const pressedBg = active ? withAlpha(t.accent, 0.38) : t.dark ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.75)';
   const fg = color ?? (active ? t.accent : t.textMuted);
+  const tip = useTip();
   return (
+    <View style={{ position: 'relative', zIndex: tip.open ? 100 : 0, elevation: tip.open ? 16 : 0 }}>
     <Pressable
       onPress={() => {
         haptic('light');
         onPress?.();
       }}
+      onLongPress={() => {
+        haptic('light');
+        tip.show();
+      }}
+      delayLongPress={350}
       hitSlop={4}
       accessibilityRole="button"
       accessibilityLabel={label}
@@ -1012,6 +1112,133 @@ export function FieldButton({
     >
       {mci ? <MaterialCommunityIcons name={mci} size={t.z(19)} color={fg} /> : icon ? <Ionicons name={icon} size={t.z(18)} color={fg} /> : null}
     </Pressable>
+    {tip.open && <TipBubble title={label} align="right" anim={tip.anim} />}
+    </View>
+  );
+}
+
+/* ---------- Infobulles ---------- */
+
+export type TipAlign = 'center' | 'left' | 'right';
+
+/** Bulle d'infobulle (à placer dans un parent en position relative). */
+function TipBubble({ title, text, align, anim }: { title: string; text?: string; align: TipAlign; anim: Animated.Value }) {
+  const { theme: t } = useSettings();
+  const width = Math.min(250, Math.max(title.length * t.font(7.4), text ? 210 : 0) + 24);
+  const pos = align === 'left' ? { left: 0 } : align === 'right' ? { right: 0 } : { left: '50%' as const, marginLeft: -width / 2 };
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={{
+        position: 'absolute',
+        bottom: '100%',
+        marginBottom: 8,
+        width,
+        ...pos,
+        opacity: anim,
+        transform: [{ translateY: anim.interpolate({ inputRange: [0, 1], outputRange: [6, 0] }) }, { scale: anim.interpolate({ inputRange: [0, 1], outputRange: [0.96, 1] }) }],
+        zIndex: 100,
+        elevation: 16,
+      }}
+    >
+      <View
+        style={{
+          backgroundColor: 'rgba(17,18,22,0.97)',
+          borderRadius: 10,
+          paddingHorizontal: 11,
+          paddingVertical: 8,
+          borderWidth: 1,
+          borderColor: 'rgba(255,255,255,0.09)',
+          shadowColor: '#000',
+          shadowOpacity: 0.35,
+          shadowRadius: 10,
+          shadowOffset: { width: 0, height: 4 },
+        }}
+      >
+        <Text style={{ color: '#fff', fontWeight: '800', fontSize: t.font(13) }}>{title}</Text>
+        {!!text && <Text style={{ color: '#C4C7D0', fontSize: t.font(12), lineHeight: t.font(16), marginTop: 2 }}>{text}</Text>}
+      </View>
+      <View
+        style={{
+          position: 'absolute',
+          bottom: -5,
+          width: 10,
+          height: 10,
+          backgroundColor: 'rgba(17,18,22,0.97)',
+          transform: [{ rotate: '45deg' }],
+          ...(align === 'left' ? { left: 12 } : align === 'right' ? { right: 12 } : { left: width / 2 - 5 }),
+        }}
+      />
+    </Animated.View>
+  );
+}
+
+/** Gestion d'une infobulle : apparition douce, disparition automatique. */
+function useTip() {
+  const [open, setOpen] = useState(false);
+  const anim = useRef(new Animated.Value(0)).current;
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hide = useCallback(() => {
+    Animated.timing(anim, { toValue: 0, duration: 160, useNativeDriver: true }).start(() => setOpen(false));
+  }, [anim]);
+  const show = useCallback(() => {
+    if (timer.current) clearTimeout(timer.current);
+    setOpen(true);
+    Animated.spring(anim, { toValue: 1, friction: 7, tension: 140, useNativeDriver: true }).start();
+    timer.current = setTimeout(hide, 2800);
+  }, [anim, hide]);
+  useEffect(() => () => void (timer.current && clearTimeout(timer.current)), []);
+  return { open, anim, show };
+}
+
+/**
+ * Infobulle autour d'un élément : au toucher (`press`) ou à l'appui long (`longPress`).
+ * Le libellé reste aussi lu par les lecteurs d'écran.
+ */
+export function Tip({
+  title,
+  text,
+  children,
+  align = 'center',
+  trigger = 'press',
+  onPress,
+  style,
+}: {
+  title: string;
+  text?: string;
+  children: React.ReactNode;
+  align?: TipAlign;
+  trigger?: 'press' | 'longPress';
+  onPress?: () => void;
+  style?: StyleProp<ViewStyle>;
+}) {
+  title = tr(title);
+  text = tr(text);
+  const { haptic } = useSettings();
+  const tip = useTip();
+  return (
+    <View style={[{ position: 'relative', zIndex: tip.open ? 100 : 0, elevation: tip.open ? 16 : 0 }, style]}>
+      <Pressable
+        onPress={() => {
+          if (trigger === 'press') {
+            haptic('light');
+            tip.show();
+          }
+          onPress?.();
+        }}
+        onLongPress={() => {
+          haptic('light');
+          tip.show();
+        }}
+        delayLongPress={320}
+        accessibilityLabel={text ? `${title}. ${text}` : title}
+        accessibilityHint={trigger === 'longPress' ? 'Appui long pour afficher l’infobulle' : undefined}
+        hitSlop={4}
+      >
+        {children}
+      </Pressable>
+      {tip.open && <TipBubble title={title} text={text} align={align} anim={tip.anim} />}
+    </View>
   );
 }
 

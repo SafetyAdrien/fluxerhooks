@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { tr } from '../i18n';
 import { ActivityIndicator, Animated, BackHandler, Easing, Image, ScrollView, Text, View, useWindowDimensions } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LandingPage, type LandingAction } from './LandingPage';
@@ -77,7 +78,7 @@ export function HomeScreen({ onRestored }: { onRestored: () => void }) {
       <BotCard onBrowse={() => setSheet('bot')} />
       <Stack row gap={4}>
         <Text style={{ flex: 1, color: t.textMuted, fontWeight: '800', fontSize: t.font(12), letterSpacing: 0.6 }}>
-          MESSAGES · {state.messages.length}
+          {tr("MESSAGES ·")} {state.messages.length}
         </Text>
         <IconBtn
           icon={allCollapsed ? 'chevron-expand-outline' : 'chevron-collapse-outline'}
@@ -104,7 +105,7 @@ export function HomeScreen({ onRestored }: { onRestored: () => void }) {
       )}
       <PreviewList messages={state.messages} info={info} />
       <Text style={{ color: t.textFaint, fontSize: t.font(12), textAlign: 'center' }}>
-        Aperçu indicatif : le rendu final dépend du client Fluxer.
+        {tr("Aperçu indicatif : le rendu final dépend du client Fluxer.")}
       </Text>
     </ScrollView>
   );
@@ -142,7 +143,7 @@ export function HomeScreen({ onRestored }: { onRestored: () => void }) {
               <Pressable
                 onPress={() => go('home')}
                 accessibilityRole="button"
-                accessibilityLabel="Retour à l’accueil"
+                accessibilityLabel={tr("Retour à l’accueil")}
                 hitSlop={6}
                 style={({ pressed }) => ({
                   width: t.z(40),
@@ -158,10 +159,10 @@ export function HomeScreen({ onRestored }: { onRestored: () => void }) {
               </Pressable>
               <View style={{ flex: 1, minWidth: 0, marginLeft: 4 }}>
                 <Text numberOfLines={1} style={{ color: t.text, fontWeight: '900', fontSize: t.font(17) }}>
-                  {tab === 'preview' && !split ? 'Aperçu' : 'Éditeur'}
+                  {tab === 'preview' && !split ? tr('Aperçu') : tr('Éditeur')}
                 </Text>
                 <Text numberOfLines={1} style={{ color: t.textMuted, fontSize: t.font(11) }}>
-                  {targets ? `${targets} destination${targets > 1 ? 's prêtes' : ' prête'}` : 'Aucune destination'}
+                  {targets ? tr(targets > 1 ? '{n} destinations prêtes' : '{n} destination prête', { n: targets }) : tr('Aucune destination')}
                 </Text>
               </View>
               <IconBtn icon="archive-outline" label="Sauvegardes, modèles et automatisations" onPress={() => setSheet('data')} />
@@ -179,7 +180,7 @@ export function HomeScreen({ onRestored }: { onRestored: () => void }) {
                 onPress={sendAll}
                 disabled={!targets || busy === 'all'}
                 accessibilityRole="button"
-                accessibilityLabel={hasEdits ? 'Envoyer et mettre à jour' : state.messages.length > 1 ? 'Tout envoyer' : 'Envoyer'}
+                accessibilityLabel={tr(hasEdits ? 'Envoyer et mettre à jour' : state.messages.length > 1 ? 'Tout envoyer' : 'Envoyer')}
                 style={({ pressed }) => ({
                   height: t.z(40),
                   minWidth: t.z(40),
@@ -221,7 +222,7 @@ export function HomeScreen({ onRestored }: { onRestored: () => void }) {
             <Pressable
               onPress={() => setTab(tab === 'editor' ? 'preview' : 'editor')}
               accessibilityRole="button"
-              accessibilityLabel={tab === 'editor' ? 'Afficher l’aperçu' : 'Revenir à l’éditeur'}
+              accessibilityLabel={tab === 'editor' ? tr('Afficher l’aperçu') : tr('Revenir à l’éditeur')}
               style={({ pressed }) => [
                 {
                   position: 'absolute',
@@ -260,7 +261,18 @@ export function HomeScreen({ onRestored }: { onRestored: () => void }) {
       {sheet === 'bot' && <BotBrowser visible onClose={() => setSheet(null)} onOpenAccount={() => setSheet('account')} />}
       {sheet === 'json' && <JsonSheet visible onClose={() => setSheet(null)} />}
       {sheet === 'data' && <DataHubSheet visible onClose={() => setSheet(null)} onRestored={onRestored} />}
-      {sheet === 'account' && <AccountSheet visible onClose={() => setSheet(null)} onBrowse={() => setSheet('bot')} />}
+      {sheet === 'account' && (
+        <AccountSheet
+          visible
+          onClose={() => setSheet(null)}
+          onBrowse={() => setSheet('bot')}
+          onAction={(a: LandingAction) => setSheet(a)}
+          onOpenEditor={() => {
+            setSheet(null);
+            if (page !== 'editor') go('editor');
+          }}
+        />
+      )}
       {sheet === 'css' && <CssEditorSheet visible onClose={() => setSheet(null)} />}
     </View>
   );

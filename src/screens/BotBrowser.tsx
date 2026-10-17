@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { tr } from '../i18n';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { apiFor, avatarUrl, guildIconUrl, isForumType, isThreadType, webhookUrlOf } from '../api/fluxer';
@@ -215,7 +216,7 @@ export function BotBrowser({ visible, onClose, onOpenAccount }: { visible: boole
           }}
         />
         <Text style={{ color: t.textMuted, fontSize: t.font(13), textAlign: 'center' }}>
-          Pour utiliser un bot, colle son token dans la carte « Bot Fluxer » de l’éditeur.
+          {tr("Pour utiliser un bot, colle son token dans la carte « Bot Fluxer » de l’éditeur.")}
         </Text>
       </Stack>
     );
@@ -294,10 +295,10 @@ export function BotBrowser({ visible, onClose, onOpenAccount }: { visible: boole
           >
             {hooksError && (
               <Text style={{ color: t.textMuted, fontSize: t.font(13) }}>
-                Liste inaccessible ({hooksError}). Il faut la permission « Gérer les webhooks » sur ce serveur ; choisis un salon pour voir les siens.
+                {tr("Liste inaccessible (")}{hooksError}). Il faut la permission « Gérer les webhooks » sur ce serveur ; choisis un salon pour voir les siens.
               </Text>
             )}
-            {guildHooks && !guildHooks.length && <Text style={{ color: t.textMuted, fontSize: t.font(13) }}>Aucun webhook sur ce serveur : choisis un salon pour en créer un.</Text>}
+            {guildHooks && !guildHooks.length && <Text style={{ color: t.textMuted, fontSize: t.font(13) }}>{tr("Aucun webhook sur ce serveur : choisis un salon pour en créer un.")}</Text>}
             {hookGroups.map((g) => (
               <View key={g.channel.id} style={{ gap: 8 }}>
                 <Pressable onPress={() => pickChannel(g.channel.id)} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }} accessibilityRole="button" accessibilityLabel={`Ouvrir ${g.channel.name}`}>
@@ -314,7 +315,7 @@ export function BotBrowser({ visible, onClose, onOpenAccount }: { visible: boole
         {selected && source === 'bot' && (
           <Box title="Publier avec le bot" icon="flash-outline" collapsible={false}>
             <Text style={{ color: t.textMuted, fontSize: t.font(13) }}>
-              Le bot écrit directement dans {isThreadType(selected.type) ? 'ce thread' : isForumType(selected.type) ? 'ce forum (nouveau post)' : 'ce salon'} : pas besoin de webhook.
+              {tr("Le bot écrit directement dans")} {isThreadType(selected.type) ? 'ce thread' : isForumType(selected.type) ? 'ce forum (nouveau post)' : 'ce salon'} : pas besoin de webhook.
             </Text>
             <Button
               variant="primary"
@@ -339,7 +340,7 @@ export function BotBrowser({ visible, onClose, onOpenAccount }: { visible: boole
             badge={String(webhooks.length)}
           >
             {webhooks.map(hookRow)}
-            {!webhooks.length && !loading && <Text style={{ color: t.textMuted, fontSize: t.font(13) }}>Aucun webhook utilisable dans ce salon : crée-en un ci-dessous.</Text>}
+            {!webhooks.length && !loading && <Text style={{ color: t.textMuted, fontSize: t.font(13) }}>{tr("Aucun webhook utilisable dans ce salon : crée-en un ci-dessous.")}</Text>}
             <Input value={newName} onChangeText={setNewName} label="Créer un webhook" max={80} placeholder="Nom du webhook" />
             <Button
               icon="add-circle-outline"
@@ -373,7 +374,7 @@ export function BotBrowser({ visible, onClose, onOpenAccount }: { visible: boole
               </View>
             )}
             <Text style={{ color: t.textMuted, fontSize: t.font(12) }}>
-              Choisis un post dans le menu « Salon » pour y répondre, ou garde le forum et utilise « Forum » dans un message pour créer un nouveau post avec ses tags.
+              {tr("Choisis un post dans le menu « Salon » pour y répondre, ou garde le forum et utilise « Forum » dans un message pour créer un nouveau post avec ses tags.")}
             </Text>
           </Box>
         )}

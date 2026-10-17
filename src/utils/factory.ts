@@ -64,6 +64,7 @@ export function cloneMessage(m: DraftMessage): DraftMessage {
   const c: DraftMessage = JSON.parse(JSON.stringify(m));
   c.id = uid();
   c.lastSent = undefined;
+  c.flash = undefined;
   c.reference = '';
   c.embeds = c.embeds.map((e) => ({ ...e, id: uid(), fields: e.fields.map((f) => ({ ...f, id: uid() })) }));
   c.attachments = c.attachments.map((a) => ({ ...a, id: uid() }));

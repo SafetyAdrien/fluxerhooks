@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { tr } from '../i18n';
 import { Alert, Switch, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
@@ -225,7 +226,7 @@ function AutomationEditor({ initial, onDone }: { initial?: Automation; onDone: (
         </View>
       )}
       <Text style={{ color: t.textFaint, fontSize: t.font(12) }}>
-        Variables : {VARIABLES.map((v) => `${v.key} (${v.label.toLowerCase()})`).join(' · ')}
+        {tr("Variables :")} {VARIABLES.map((v) => `${v.key} (${v.label.toLowerCase()})`).join(' · ')}
       </Text>
       <Stack row gap={8}>
         <Button flex label="Annuler" onPress={onDone} />
@@ -248,7 +249,7 @@ function Automations() {
       <View style={{ flexDirection: 'row', gap: 8, padding: 10, borderRadius: t.radiusSm, backgroundColor: t.accentSoft }}>
         <Ionicons name="information-circle-outline" size={t.z(18)} color={t.accent} />
         <Text style={{ color: t.text, flex: 1, fontSize: t.font(12), lineHeight: t.font(17) }}>
-          Les envois partent depuis ton téléphone. Android lance la vérification en arrière-plan environ toutes les 15 minutes (parfois moins souvent en économie d’énergie) ; les envois en retard partent dès que tu ouvres l’app.
+          {tr("Les envois partent depuis ton téléphone. Android lance la vérification en arrière-plan environ toutes les 15 minutes (parfois moins souvent en économie d’énergie) ; les envois en retard partent dès que tu ouvres l’app.")}
         </Text>
       </View>
       <Button variant="primary" icon="add" label="Nouvelle automatisation" onPress={() => setEditing('new')} />
@@ -264,7 +265,7 @@ function Automations() {
           <Text style={{ color: t.textFaint, fontSize: t.font(12) }}>
             {a.enabled && a.nextRun ? `Prochain envoi : ${new Date(a.nextRun).toLocaleString('fr-FR')}` : 'En pause'} · {a.runs} exécution(s)
           </Text>
-          {!!a.lastResult && <Text style={{ color: t.textFaint, fontSize: t.font(12) }}>Dernier : {a.lastResult}</Text>}
+          {!!a.lastResult && <Text style={{ color: t.textFaint, fontSize: t.font(12) }}>{tr("Dernier :")} {a.lastResult}</Text>}
           <Stack row gap={6}>
             <Button small icon="play" label="Lancer" loading={busy === a.id} onPress={async () => { setBusy(a.id); const r = await runNow(a.id); setBusy(null); toast(r, r.includes('échec') || r.startsWith('Aucun') ? 'error' : 'success'); }} />
             <Button small icon="create-outline" label="Modifier" onPress={() => setEditing(a)} />
@@ -296,7 +297,7 @@ function FullBackup({ onRestored }: { onRestored: () => void }) {
     <>
       <Box title="Backup complet" icon="cloud-download-outline" collapsible={false}>
         <Text style={{ color: t.textMuted, fontSize: t.font(13), lineHeight: t.font(19) }}>
-          Un seul fichier contenant le brouillon, toutes les sauvegardes, modèles, automatisations et paramètres (thème, zoom, styles…). Les tokens de compte et de bot ne sont jamais inclus.
+          {tr("Un seul fichier contenant le brouillon, toutes les sauvegardes, modèles, automatisations et paramètres (thème, zoom, styles…). Les tokens de compte et de bot ne sont jamais inclus.")}
         </Text>
         <Button
           variant="primary"

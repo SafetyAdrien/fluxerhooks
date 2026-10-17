@@ -1,4 +1,5 @@
 import React, { useRef, useState } from 'react';
+import { tr } from '../i18n';
 import { ScrollView, Text, View, Pressable } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { FieldButton, FieldButtons, Input, type IconName } from './ui';

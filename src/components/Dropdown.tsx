@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSettings } from '../state/settings';
 import { Input, Sheet } from './ui';
 import { isForumType } from '../api/fluxer';
+import { tr } from '../i18n';
 
 /** Icône d'un salon selon son type Fluxer (façon client officiel). */
 export function ChannelIcon({ type, size = 18, color }: { type: number; size?: number; color?: string }) {
@@ -72,6 +73,10 @@ export function Dropdown({
   loading?: boolean;
   searchable?: boolean;
 }) {
+  label = tr(label);
+  placeholder = tr(placeholder);
+  title = tr(title);
+  emptyText = tr(emptyText);
   const { theme: t, haptic } = useSettings();
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
