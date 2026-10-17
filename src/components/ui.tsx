@@ -1,4 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { getUi, setUi } from '../state/uiMemory';
 import {
   ActivityIndicator,
   Animated,
@@ -108,7 +109,10 @@ export function Box({
   style,
   nested,
   defaultCollapsed,
+  memoryKey,
 }: {
+  /** Mémorise l'état plié/déplié (persistant) sous cette clé. */
+  memoryKey?: string;
   defaultCollapsed?: boolean;
   title?: string;
   subtitle?: string;
@@ -128,7 +132,13 @@ export function Box({
   title = tr(title);
   subtitle = tr(subtitle);
   const t = useTheme();
-  const [inner, setInner] = useState(!!defaultCollapsed);
+  const [inner, setInnerState] = useState<boolean>(() => (memoryKey ? getUi(memoryKey, !!defaultCollapsed) : !!defaultCollapsed));
+  const setInner = (fn: (v: boolean) => boolean) =>
+    setInnerState((v) => {
+      const n = fn(v);
+      if (memoryKey) setUi(memoryKey, n);
+      return n;
+    });
   const isCollapsed = collapsed ?? inner;
   const parent = useContext(SurfaceContext);
   const level: 'surface' | 'surface2' = nested ? (parent === 'surface2' ? 'surface' : 'surface2') : 'surface';

@@ -1,4 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { loadUiMemory } from './uiMemory';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Backup, DraftMessage, EditorState, Embed, EmbedField, WebhookTarget } from '../types';
 import { cloneEmbed, cloneMessage, moveItem, newEmbed, newField, newMessage, newTarget, uid, welcomeState } from '../utils/factory';
@@ -57,9 +58,10 @@ export function EditorProvider({ children }: { children: React.ReactNode }) {
         const raw = await AsyncStorage.getItem(KEY);
         if (raw) {
           const parsed = JSON.parse(raw) as EditorState;
-          // Au lancement, tous les messages sont repliés.
-          if (parsed?.messages?.length) setState({ ...parsed, messages: parsed.messages.map((m) => ({ ...m, collapsed: true })) });
+          // L'état replié/déplié de chaque message est conservé tel que l'utilisateur l'a laissé.
+          if (parsed?.messages?.length) setState(parsed);
         }
+        await loadUiMemory();
         const b = await AsyncStorage.getItem(BACKUPS_KEY);
         if (b) setBackups(JSON.parse(b));
       } catch {

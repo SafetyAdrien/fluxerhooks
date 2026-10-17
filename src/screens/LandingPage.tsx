@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { tr } from '../i18n';
 import { Animated, Easing, Platform, Pressable, ScrollView, Text, View, useWindowDimensions } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -83,13 +83,17 @@ function Sparkle({ x, y, size, delay }: { x: number; y: number; size: number; de
 function Hero() {
   const { theme: t } = useSettings();
   const { width } = useWindowDimensions();
-  const w = Math.min(width - 2 * t.gap, 900);
+  // Largeur réelle de la bannière (mesurée), pour placer les formes animées au bon endroit.
+  const [w, setW] = useState(Math.min(width - 2 * t.gap, 900));
   const h = t.z(340);
   const pulse = useLoop(1600);
   const float = useLoop(2600, 300);
   const accent = t.accent;
   return (
-    <View style={{ height: h, borderRadius: t.radius + 10, overflow: 'hidden', backgroundColor: shade(accent, -0.55) }}>
+    <View
+      onLayout={(e) => setW(e.nativeEvent.layout.width)}
+      style={{ width: '100%', alignSelf: 'center', height: h, borderRadius: t.radius + 10, overflow: 'hidden', backgroundColor: shade(accent, -0.55) }}
+    >
       <LinearGradient colors={[shade(accent, -0.35), shade(accent, -0.65)]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} />
       <Blob color={accent} size={w * 0.7} x={-w * 0.2} y={-h * 0.35} dx={w * 0.18} dy={h * 0.15} duration={5200} />
       <Blob color="#7E7AFF" size={w * 0.55} x={w * 0.55} y={h * 0.25} dx={-w * 0.2} dy={-h * 0.2} duration={6400} delay={400} />
@@ -129,7 +133,11 @@ function Hero() {
         </Animated.View>
         <Text
           accessibilityRole="header"
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.6}
           style={{
+            alignSelf: 'stretch',
             color: '#fff',
             fontSize: t.font(44),
             lineHeight: t.font(50),
@@ -223,18 +231,9 @@ export function LandingPage({ onOpenEditor, onAction }: { onOpenEditor: () => vo
   const version = Constants.expoConfig?.version ?? '';
 
   return (
-    <ScrollView
-      contentContainerStyle={{
-        flexGrow: 1,
-        paddingTop: insets.top + 8,
-        paddingBottom: insets.bottom + 24,
-        paddingHorizontal: t.gap,
-        gap: t.gap + 8,
-        alignSelf: 'center',
-        width: '100%',
-        maxWidth: 900,
-      }}
-    >
+    <ScrollView contentContainerStyle={{ flexGrow: 1, paddingTop: insets.top + 8, paddingBottom: insets.bottom + 24 }}>
+      {/* Colonne centrée horizontalement (largeur max. sur tablette) */}
+      <View style={{ flex: 1, width: '100%', maxWidth: 900, alignSelf: 'center', paddingHorizontal: t.gap, gap: t.gap + 8 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
         <Text style={{ flex: 1, color: t.textMuted, fontWeight: '800', fontSize: t.font(12), letterSpacing: 1 }}>{tr("BIENVENUE")}{session.user ? `, ${(session.user.global_name || session.user.username).toUpperCase()}` : ''}</Text>
         <Pressable onPress={() => onAction('account')} accessibilityLabel="Mon profil Fluxer" hitSlop={6} style={{ padding: 4 }}>
@@ -286,6 +285,7 @@ export function LandingPage({ onOpenEditor, onAction }: { onOpenEditor: () => vo
       </View>
 
       <Text style={{ color: t.textFaint, fontSize: t.font(12), textAlign: 'center' }}>FluxerHooks {version} · {tr('non affilié à Fluxer')}</Text>
+      </View>
     </ScrollView>
   );
 }

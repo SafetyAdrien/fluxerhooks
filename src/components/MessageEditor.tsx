@@ -153,7 +153,7 @@ export function MessageEditor({
     >
       <Box
         nested
-        title="Contenu"
+        title="Contenu" memoryKey={`msg:${m.id}:content`}
         icon="chatbox-ellipses-outline"
         subtitle={m.content.trim() ? `${m.content.trim().split('\n')[0].slice(0, 60)}` : undefined}
         badge={m.content.length ? `${m.content.length}/${LIMITS.content}` : undefined}
@@ -168,7 +168,7 @@ export function MessageEditor({
         />
       </Box>
 
-      <Box nested title="Profil" icon="person-outline" subtitle={m.username.trim() || info?.name || 'Nom et avatar par défaut'} defaultCollapsed>
+      <Box nested title="Profil" memoryKey={`msg:${m.id}:profile`} icon="person-outline" subtitle={m.username.trim() || info?.name || 'Nom et avatar par défaut'} defaultCollapsed>
         {hasBot && (
           <Text style={{ color: t.textMuted, fontSize: t.font(12) }}>
             {tr("Les salons du bot utilisent toujours le nom et l’avatar du bot ; ces réglages s’appliquent aux webhooks.")}
@@ -188,7 +188,7 @@ export function MessageEditor({
 
       <Box
         nested
-        title="Destination"
+        title="Destination" memoryKey={`msg:${m.id}:dest`}
         icon="git-branch-outline"
         subtitle={m.threadMode === 'channel' ? (botForum ? `Nouveau post : ${m.thread_name || '—'}` : 'Salon de la destination') : m.threadMode === 'thread' ? `Thread ${m.thread_id || '—'}` : `Nouveau post : ${m.thread_name || '—'}`}
         defaultCollapsed
@@ -262,14 +262,14 @@ export function MessageEditor({
         )}
       </Box>
 
-      <Box nested title="Embeds" icon="albums-outline" badge={`${m.embeds.length}/${LIMITS.embeds}`} defaultCollapsed>
+      <Box nested title="Embeds" memoryKey={`msg:${m.id}:embeds`} icon="albums-outline" badge={`${m.embeds.length}/${LIMITS.embeds}`} defaultCollapsed>
         {m.embeds.map((e, i) => (
           <EmbedEditor key={e.id} mid={m.id} e={e} index={i} count={m.embeds.length} />
         ))}
         <Button icon="add-circle-outline" label="Ajouter un embed" onPress={() => addEmbed(m.id)} disabled={m.embeds.length >= LIMITS.embeds} />
       </Box>
 
-      <Box nested title="Fichiers du message" icon="attach" badge={files.length ? String(files.length) : undefined} defaultCollapsed>
+      <Box nested title="Fichiers du message" memoryKey={`msg:${m.id}:files`} icon="attach" badge={files.length ? String(files.length) : undefined} defaultCollapsed>
         {isEdit && <Text style={{ color: t.textFaint, fontSize: t.font(12) }}>{tr("Les fichiers ne sont envoyés qu’avec un nouveau message.")}</Text>}
         {files.map((a) => (
           <View key={a.id} style={{ backgroundColor: t.surface, borderRadius: t.radiusSm, padding: 10, gap: 6, borderWidth: 1, borderColor: t.border }}>
@@ -304,7 +304,7 @@ export function MessageEditor({
         </Stack>
       </Box>
 
-      <Box nested title="Options" icon="options-outline" defaultCollapsed>
+      <Box nested title="Options" memoryKey={`msg:${m.id}:options`} icon="options-outline" defaultCollapsed>
         <ToggleRow icon="eye-off-outline" label="Masquer les embeds" description="Drapeau SUPPRESS_EMBEDS" value={m.suppressEmbeds} onChange={(v) => set({ suppressEmbeds: v })} />
         <ToggleRow icon="notifications-off-outline" label="Message silencieux" description="Aucune notification de mention" value={m.suppressNotifications} onChange={(v) => set({ suppressNotifications: v })} />
         <SectionLabel>Mentions autorisées</SectionLabel>
@@ -328,7 +328,7 @@ export function MessageEditor({
         />
       </Box>
 
-      <Box nested title="Modifier un message envoyé" icon="create-outline" subtitle={isEdit ? 'Mode édition actif' : 'Lien ou ID du message'} defaultCollapsed>
+      <Box nested title="Modifier un message envoyé" memoryKey={`msg:${m.id}:edit`} icon="create-outline" subtitle={isEdit ? 'Mode édition actif' : 'Lien ou ID du message'} defaultCollapsed>
         <Input
           value={m.reference}
           onChangeText={(v) => set({ reference: v })}

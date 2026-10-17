@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { getUi, setUi } from '../state/uiMemory';
 import { tr } from '../i18n';
 import { Image, Pressable, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -78,7 +79,14 @@ function ColorField({ value, onChange }: { value: number | null; onChange: (v: n
 export function EmbedEditor({ mid, e, index, count }: { mid: string; e: Embed; index: number; count: number }) {
   const { theme: t } = useSettings();
   const { updateEmbed, removeEmbed, duplicateEmbed, moveEmbed, addField, updateField, removeField, moveField } = useEditor();
-  const [collapsed, setCollapsed] = useState(true);
+  // État plié/déplié de l'embed mémorisé (on retrouve l'éditeur tel qu'on l'a laissé).
+  const [collapsed, setCollapsedState] = useState<boolean>(() => getUi(`embed:${e.id}`, true));
+  const setCollapsed = (fn: (v: boolean) => boolean) =>
+    setCollapsedState((v) => {
+      const n = fn(v);
+      setUi(`embed:${e.id}`, n);
+      return n;
+    });
   const { state, updateMessage } = useEditor();
   const [importFor, setImportFor] = useState<'image' | 'thumbnail' | null>(null);
   // Les images importées deviennent des pièces jointes du message, référencées en attachment://.
@@ -128,7 +136,7 @@ export function EmbedEditor({ mid, e, index, count }: { mid: string; e: Embed; i
         </>
       }
     >
-      <Box title="Auteur" icon="person-circle-outline" defaultCollapsed>
+      <Box title="Auteur" memoryKey={`embed:${e.id}:author`} icon="person-circle-outline" defaultCollapsed>
         <RichInput singleLine label="Nom" value={e.author.name} max={LIMITS.authorName} onChange={(v) => up({ author: { ...e.author, name: v } })} placeholder="Nom de l'auteur" />
         <Grid min={220}>
           <Input label="Lien" value={e.author.url} error={urlError(e.author.url)} onChangeText={(v) => up({ author: { ...e.author, url: v } })} placeholder="https://" autoCapitalize="none" keyboardType="url" />
@@ -136,14 +144,14 @@ export function EmbedEditor({ mid, e, index, count }: { mid: string; e: Embed; i
         </Grid>
       </Box>
 
-      <Box title="Corps" icon="document-text-outline" defaultCollapsed>
+      <Box title="Corps" memoryKey={`embed:${e.id}:body`} icon="document-text-outline" defaultCollapsed>
         <RichInput singleLine label="Titre" value={e.title} max={LIMITS.embedTitle} onChange={(v) => up({ title: v })} placeholder="Titre de l'embed (markdown)" />
         <Input label="Lien du titre" value={e.url} error={urlError(e.url)} onChangeText={(v) => up({ url: v })} placeholder="https://" autoCapitalize="none" keyboardType="url" />
         <RichInput label="Description" value={e.description} max={LIMITS.embedDescription} onChange={(v) => up({ description: v })} placeholder="Texte de l'embed (markdown, mentions…)" onImportImages={() => setImportFor('image')} />
         <ColorField value={e.color} onChange={(c) => up({ color: c })} />
       </Box>
 
-      <Box title="Champs" icon="grid-outline" defaultCollapsed badge={e.fields.length ? `${e.fields.length}/${LIMITS.fields}` : undefined}>
+      <Box title="Champs" memoryKey={`embed:${e.id}:fields`} icon="grid-outline" defaultCollapsed badge={e.fields.length ? `${e.fields.length}/${LIMITS.fields}` : undefined}>
         {e.fields.map((f, i) => (
           <View key={f.id} style={{ backgroundColor: t.surface, borderRadius: t.radiusSm, padding: 10, gap: 8, borderWidth: 1, borderColor: t.border }}>
             <Stack row gap={2}>
@@ -160,7 +168,7 @@ export function EmbedEditor({ mid, e, index, count }: { mid: string; e: Embed; i
         <Button icon="add" label="Ajouter un champ" onPress={() => addField(mid, e.id)} disabled={e.fields.length >= LIMITS.fields} />
       </Box>
 
-      <Box title="Images" icon="image-outline" defaultCollapsed>
+      <Box title="Images" memoryKey={`embed:${e.id}:images`} icon="image-outline" defaultCollapsed>
         {(['image', 'thumbnail'] as const).map((slot) => {
           const url = slot === 'image' ? e.image.url : e.thumbnail.url;
           const file = slotFile(slot);
@@ -195,7 +203,7 @@ export function EmbedEditor({ mid, e, index, count }: { mid: string; e: Embed; i
         })}
       </Box>
 
-      <Box title="Pied de page" icon="reorder-two-outline" defaultCollapsed>
+      <Box title="Pied de page" memoryKey={`embed:${e.id}:footer`} icon="reorder-two-outline" defaultCollapsed>
         <RichInput singleLine label="Texte" value={e.footer.text} max={LIMITS.footer} onChange={(v) => up({ footer: { ...e.footer, text: v } })} placeholder="Texte du pied de page" />
         <Input label="Icône (URL)" value={e.footer.icon_url} error={urlError(e.footer.icon_url)} onChangeText={(v) => up({ footer: { ...e.footer, icon_url: v } })} placeholder="https://…/icon.png" autoCapitalize="none" keyboardType="url" />
         <SectionLabel>Horodatage</SectionLabel>

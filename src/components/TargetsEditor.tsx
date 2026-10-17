@@ -424,6 +424,7 @@ export function TargetsEditor({ onBrowse }: { onBrowse: () => void }) {
       title="Webhooks"
       icon="link"
       defaultCollapsed
+      memoryKey="editor:webhooks"
       subtitle={valid ? `${valid} webhook(s) vérifié(s)` : 'Colle l’URL d’un webhook Fluxer'}
       badge={hooks.length > 1 ? String(hooks.length) : undefined}
     >

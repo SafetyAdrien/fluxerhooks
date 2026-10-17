@@ -1,3 +1,4 @@
+import { getUi, setUi } from '../state/uiMemory';
 import React, { useEffect, useRef, useState } from 'react';
 import { tr } from '../i18n';
 import { ActivityIndicator, Animated, BackHandler, Easing, Image, ScrollView, Text, View, useWindowDimensions } from 'react-native';
@@ -39,12 +40,35 @@ export function HomeScreen({ onRestored }: { onRestored: () => void }) {
   const [page, setPage] = useState<'home' | 'editor'>('home');
   // Transition douce entre l'accueil et l'éditeur.
   const fade = useRef(new Animated.Value(1)).current;
+  // L'éditeur reste monté une fois ouvert : texte, curseur, sections et défilement sont conservés.
+  const [editorMounted, setEditorMounted] = useState(false);
+  const scrollRef = useRef<ScrollView>(null);
+  const restored = useRef(false);
+  const restoreScroll = () => {
+    const y = getUi<number>('editor:scrollY', 0);
+    if (y > 0) requestAnimationFrame(() => scrollRef.current?.scrollTo({ y, animated: false }));
+  };
   const go = (p: 'home' | 'editor') => {
     fade.setValue(0);
+    if (p === 'editor') setEditorMounted(true);
     setPage(p);
-    if (p === 'home') setTab('editor');
-    Animated.timing(fade, { toValue: 1, duration: 260, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
   };
+  // L'animation démarre une fois la page affichée (la vue animée doit déjà être montée).
+  const firstPage = useRef(true);
+  useEffect(() => {
+    if (firstPage.current) {
+      firstPage.current = false;
+      return;
+    }
+    const a = Animated.timing(fade, { toValue: 1, duration: 260, easing: Easing.out(Easing.cubic), useNativeDriver: true });
+    a.start();
+    return () => a.stop();
+  }, [page, fade]);
+  // Retour sur l'éditeur (depuis l'accueil ou l'aperçu) : même endroit de la page.
+  useEffect(() => {
+    if (page === 'editor' && (split || tab === 'editor') && restored.current) restoreScroll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, tab]);
   // Bouton retour Android : aperçu → éditeur → accueil.
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -71,8 +95,20 @@ export function HomeScreen({ onRestored }: { onRestored: () => void }) {
 
   const editor = (
     <ScrollView
+      ref={scrollRef}
       keyboardShouldPersistTaps="handled"
       contentContainerStyle={{ padding: t.gap, gap: t.gap, paddingBottom: 120 }}
+      scrollEventThrottle={120}
+      onScroll={(e) => setUi('editor:scrollY', Math.round(e.nativeEvent.contentOffset.y))}
+      onContentSizeChange={(_, h) => {
+        // Première mise en page : on revient à la position mémorisée (même après redémarrage).
+        if (restored.current) return;
+        const y = getUi<number>('editor:scrollY', 0);
+        if (!y || h > y) {
+          restored.current = true;
+          if (y) scrollRef.current?.scrollTo({ y, animated: false });
+        }
+      }}
     >
       <TargetsEditor onBrowse={() => setSheet('bot')} />
       <BotCard onBrowse={() => setSheet('bot')} />
@@ -119,12 +155,20 @@ export function HomeScreen({ onRestored }: { onRestored: () => void }) {
           <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: wp.tint === 'accent' ? t.accent : '#000', opacity: wp.dim }} />
         </View>
       )}
-      {page === 'home' ? (
+      {page === 'home' && (
         <Animated.View style={{ flex: 1, opacity: fade }}>
           <LandingPage onOpenEditor={() => go('editor')} onAction={(a: LandingAction) => setSheet(a)} />
         </Animated.View>
-      ) : (
-        <Animated.View style={{ flex: 1, opacity: fade, transform: [{ translateX: fade.interpolate({ inputRange: [0, 1], outputRange: [24, 0] }) }] }}>
+      )}
+      {editorMounted && (
+        <Animated.View
+          style={{
+            flex: 1,
+            display: page === 'editor' ? 'flex' : 'none',
+            opacity: fade,
+            transform: [{ translateX: fade.interpolate({ inputRange: [0, 1], outputRange: [24, 0] }) }],
+          }}
+        >
           {/* Barre supérieure de l'éditeur */}
           <View
             style={[
@@ -182,6 +226,7 @@ export function HomeScreen({ onRestored }: { onRestored: () => void }) {
                 )}
               </Pressable>
               <IconBtn icon="settings-sharp" label="Paramètres" color={t.text} size={21} onPress={() => setSheet('settings')} />
+              <View style={{ width: 6 }} />
               {/* Envoyer : déplacé dans la barre supérieure */}
               <Pressable
                 onPress={sendAll}
@@ -221,7 +266,10 @@ export function HomeScreen({ onRestored }: { onRestored: () => void }) {
               <View style={{ flex: 1 }}>{preview}</View>
             </View>
           ) : (
-            <View style={{ flex: 1 }}>{tab === 'editor' ? editor : preview}</View>
+            <>
+              <View style={{ flex: 1, display: tab === 'editor' ? 'flex' : 'none' }}>{editor}</View>
+              <View style={{ flex: 1, display: tab === 'preview' ? 'flex' : 'none' }}>{preview}</View>
+            </>
           )}
 
           {/* Aperçu : bouton flottant */}
