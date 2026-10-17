@@ -1,4 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { BOT_ENABLED } from '../config';
 import { BotGatewayNative, type GatewayState } from '../../modules/bot-gateway/src';
 import { apiFor } from '../api/fluxer';
 import { useSettings } from './settings';
@@ -171,6 +172,11 @@ export function BotGatewayProvider({ children }: { children: React.ReactNode }) 
       return;
     }
     const running = state.state === 'online' || state.state === 'connecting' || state.state === 'reconnecting';
+    if (!BOT_ENABLED) {
+      // Fonction bot désactivée : on s'assure que le service n'est pas lancé.
+      if (running) BotGatewayNative?.stop().catch(() => {});
+      return;
+    }
     if (presence.autoStart && (botToken !== prev || !running)) start().catch((e) => setState({ state: 'error', error: String(e?.message ?? e) }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, botToken]);

@@ -1,4 +1,5 @@
 import React from 'react';
+import { BOT_ENABLED } from '../config';
 import { tr } from '../i18n';
 import { Alert, Animated, Easing, Text, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -82,7 +83,7 @@ export function MessageEditor({
   const ep = useEndpoints();
   const toast = useToast();
   const { state, updateMessage, removeMessage, duplicateMessage, moveMessage, addEmbed, updateMessage: up } = useEditor();
-  const hasBot = state.targets.some((x) => x.enabled && x.url.startsWith('bot:'));
+  const hasBot = BOT_ENABLED && state.targets.some((x) => x.enabled && x.url.startsWith('bot:'));
   const hasHook = state.targets.some((x) => x.enabled && !x.url.startsWith('bot:') && x.url.trim());
   const { busy, sendOne, loadReference, deleteRemote } = useSender();
   const set = (u: Partial<DraftMessage>) => updateMessage(m.id, u);
@@ -150,16 +151,24 @@ export function MessageEditor({
         </>
       }
     >
-      <RichInput
-        label="Contenu"
-        value={m.content}
-        max={LIMITS.content}
-        onChange={(v) => set({ content: v })}
-        placeholder="Écris ton message… (markdown, @ pour les mentions)"
-        onImportImages={() => setImporting(true)}
-      />
+      <Box
+        nested
+        title="Contenu"
+        icon="chatbox-ellipses-outline"
+        subtitle={m.content.trim() ? `${m.content.trim().split('\n')[0].slice(0, 60)}` : undefined}
+        badge={m.content.length ? `${m.content.length}/${LIMITS.content}` : undefined}
+        defaultCollapsed
+      >
+        <RichInput
+          value={m.content}
+          max={LIMITS.content}
+          onChange={(v) => set({ content: v })}
+          placeholder="Écris ton message… (markdown, @ pour les mentions)"
+          onImportImages={() => setImporting(true)}
+        />
+      </Box>
 
-      <Box nested title={hasBot && !hasHook ? 'Profil (webhooks)' : 'Profil du webhook'} icon="person-outline" subtitle={m.username.trim() || info?.name || 'Nom et avatar par défaut'} defaultCollapsed>
+      <Box nested title="Profil" icon="person-outline" subtitle={m.username.trim() || info?.name || 'Nom et avatar par défaut'} defaultCollapsed>
         {hasBot && (
           <Text style={{ color: t.textMuted, fontSize: t.font(12) }}>
             {tr("Les salons du bot utilisent toujours le nom et l’avatar du bot ; ces réglages s’appliquent aux webhooks.")}
@@ -253,11 +262,12 @@ export function MessageEditor({
         )}
       </Box>
 
-      <SectionLabel right={<Text style={{ color: t.textFaint, fontSize: t.font(11) }}>{m.embeds.length}/{LIMITS.embeds}</Text>}>Embeds</SectionLabel>
-      {m.embeds.map((e, i) => (
-        <EmbedEditor key={e.id} mid={m.id} e={e} index={i} count={m.embeds.length} />
-      ))}
-      <Button icon="add-circle-outline" label="Ajouter un embed" onPress={() => addEmbed(m.id)} disabled={m.embeds.length >= LIMITS.embeds} />
+      <Box nested title="Embeds" icon="albums-outline" badge={`${m.embeds.length}/${LIMITS.embeds}`} defaultCollapsed>
+        {m.embeds.map((e, i) => (
+          <EmbedEditor key={e.id} mid={m.id} e={e} index={i} count={m.embeds.length} />
+        ))}
+        <Button icon="add-circle-outline" label="Ajouter un embed" onPress={() => addEmbed(m.id)} disabled={m.embeds.length >= LIMITS.embeds} />
+      </Box>
 
       <Box nested title="Fichiers du message" icon="attach" badge={files.length ? String(files.length) : undefined} defaultCollapsed>
         {isEdit && <Text style={{ color: t.textFaint, fontSize: t.font(12) }}>{tr("Les fichiers ne sont envoyés qu’avec un nouveau message.")}</Text>}

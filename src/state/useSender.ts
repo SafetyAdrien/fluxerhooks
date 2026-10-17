@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react';
+import { BOT_ENABLED } from '../config';
 import { Alert } from 'react-native';
 import { apiFor, deleteTargetMessage, fetchTargetMessage, getWebhook, sendToTarget, FluxerError } from '../api/fluxer';
 import { useEditor } from './editor';
@@ -18,7 +19,7 @@ export function useSender() {
   const [busy, setBusy] = useState<string | null>(null); // id du message en cours ou 'all'
 
   const activeTargets = useCallback(
-    () => state.targets.filter((t) => t.enabled && (parseWebhookUrl(t.url) || (botToken && parseBotTarget(t.url)))),
+    () => state.targets.filter((t) => t.enabled && (parseWebhookUrl(t.url) || (BOT_ENABLED && botToken && parseBotTarget(t.url)))),
     [state.targets, botToken],
   );
 

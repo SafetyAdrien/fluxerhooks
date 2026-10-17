@@ -157,15 +157,22 @@ export function HomeScreen({ onRestored }: { onRestored: () => void }) {
               >
                 <MaterialCommunityIcons name="arrow-left" size={t.z(22)} color={t.text} />
               </Pressable>
-              <View style={{ flex: 1, minWidth: 0, marginLeft: 4 }}>
-                <Text numberOfLines={1} style={{ color: t.text, fontWeight: '900', fontSize: t.font(17) }}>
-                  {tab === 'preview' && !split ? tr('Aperçu') : tr('Éditeur')}
-                </Text>
+              <Pressable
+                onPress={() => setSheet('data')}
+                accessibilityRole="button"
+                accessibilityLabel={tr('Sauvegardes, modèles et automatisations')}
+                style={({ pressed }) => ({ flex: 1, minWidth: 0, marginLeft: 4, paddingVertical: 2, paddingHorizontal: 6, borderRadius: t.radiusSm, backgroundColor: pressed ? t.surface2 : 'transparent' })}
+              >
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                  <Text numberOfLines={1} style={{ color: t.text, fontWeight: '900', fontSize: t.font(17), flexShrink: 1 }}>
+                    {tab === 'preview' && !split ? tr('Aperçu') : tr('Éditeur')}
+                  </Text>
+                  <MaterialCommunityIcons name="chevron-down" size={t.z(18)} color={t.textMuted} />
+                </View>
                 <Text numberOfLines={1} style={{ color: t.textMuted, fontSize: t.font(11) }}>
                   {targets ? tr(targets > 1 ? '{n} destinations prêtes' : '{n} destination prête', { n: targets }) : tr('Aucune destination')}
                 </Text>
-              </View>
-              <IconBtn icon="archive-outline" label="Sauvegardes, modèles et automatisations" onPress={() => setSheet('data')} />
+              </Pressable>
               <IconBtn icon="code-slash-outline" label="JSON" onPress={() => setSheet('json')} />
               <Pressable onPress={() => setSheet('account')} accessibilityLabel="Mon profil Fluxer" hitSlop={6} style={{ padding: 4 }}>
                 {session.user ? (

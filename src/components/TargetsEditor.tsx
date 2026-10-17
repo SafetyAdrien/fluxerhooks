@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { BOT_ENABLED } from '../config';
 import { tr } from '../i18n';
 import { ActivityIndicator, Alert, Pressable, Switch, Text, View } from 'react-native';
 import { withAlpha } from '../utils/parse';
@@ -88,7 +89,21 @@ function TargetRow({ tg, canRemove }: { tg: WebhookTarget; canRemove: boolean })
  * Conteneur « Bot Fluxer » : le SEUL endroit où l'on saisit / retire le token du bot.
  * Vérifié auprès de l'API avant d'être enregistré (chiffré, Android Keystore).
  */
+/** Carte « Bot Fluxer » grisée tant que la fonction est désactivée. */
+function BotCardDisabled() {
+  return (
+    <View style={{ opacity: 0.45 }} pointerEvents="none" accessibilityState={{ disabled: true }}>
+      <Box title="Bot Fluxer" icon="hardware-chip-outline" subtitle="Bientôt disponible" badge="Bientôt" collapsed onToggle={() => {}} />
+    </View>
+  );
+}
+
 export function BotCard({ onBrowse }: { onBrowse: () => void }) {
+  if (!BOT_ENABLED) return <BotCardDisabled />;
+  return <BotCardActive onBrowse={onBrowse} />;
+}
+
+function BotCardActive({ onBrowse }: { onBrowse: () => void }) {
   const { theme: t, botToken, setBotToken, haptic } = useSettings();
   const ep = useEndpoints();
   const toast = useToast();

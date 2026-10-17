@@ -148,7 +148,7 @@ function Hero() {
           {tr("Compose, prévisualise et publie tes messages sur Fluxer : webhooks, bots, embeds, threads et forums.")}
         </Text>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
-          {['Embeds', 'Threads & forums', 'Bot en ligne', 'Automatisations'].map((x) => tr(x)).map((x) => (
+          {['Embeds', 'Threads & forums', 'Automatisations'].map((x) => tr(x)).map((x) => (
             <View key={x} style={{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.14)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.22)' }}>
               <Text style={{ color: '#fff', fontSize: t.font(12), fontWeight: '600' }}>{x}</Text>
             </View>

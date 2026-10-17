@@ -421,6 +421,18 @@ const dict: Record<string, string> = {
  "Tous mes serveurs ({n})": "Все мои серверы ({n})",
  "Envoyer": "Отправить",
  "Tout envoyer": "Отправить всё",
- "Envoyer et mettre à jour": "Отправить и обновить"
+ "Envoyer et mettre à jour": "Отправить и обновить",
+ "Bientôt disponible": "Скоро",
+ "Bientôt": "Скоро",
+ "Ajouter un compte": "Добавить аккаунт",
+ "Revenir au compte actuel": "Вернуться к текущему аккаунту",
+ "Changer de compte": "Сменить аккаунт",
+ "Connecté en tant que {name}": "Вы вошли как {name}",
+ "Ce compte doit être reconnecté.": "Этому аккаунту нужно войти снова.",
+ "Retirer ce compte de la liste": "Убрать этот аккаунт из списка",
+ "Retirer ce compte ?": "Убрать этот аккаунт?",
+ "Il sera oublié sur ce téléphone (sans déconnexion côté Fluxer).": "Он будет забыт на этом телефоне (без выхода из Fluxer).",
+ "Les tokens restent chiffrés sur ce téléphone ; le changement est instantané.": "Токены остаются зашифрованными на этом телефоне; переключение мгновенное.",
+ "Profil": "Профиль"
 };
 export default dict;

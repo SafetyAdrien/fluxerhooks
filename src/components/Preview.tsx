@@ -67,7 +67,7 @@ function EmbedView({ e, attachments }: { e: Embed; attachments: LocalAttachment[
       ]}
     >
       <View style={{ width: t.msg.embedBarWidth, backgroundColor: e.color !== null ? intToHex(e.color) : t.border }} />
-      <View style={{ flex: 1, padding: 12, gap: 8, minWidth: 0 }}>
+      <View style={{ flex: 1, padding: 12, gap: 8, minWidth: 0, minHeight: t.z(44) }}>
         <View style={{ flexDirection: 'row', gap: 12 }}>
           <View style={{ flex: 1, gap: 6, minWidth: 0 }}>
             {!!e.author.name.trim() && (
@@ -176,7 +176,8 @@ export function MessagePreview({
   const name = (info?.bot ? info.name : m.username.trim() || info?.name) || 'Webhook';
   const avatar = (info?.bot ? null : m.avatar_url.trim()) || (info ? avatarUrl(ep, info.id, info.avatar) : null);
   const compact = settings.previewDisplay === 'compact';
-  const embeds = m.suppressEmbeds ? [] : m.embeds.filter((e) => !isEmbedEmpty(e));
+  // Les embeds vides restent visibles dans l'aperçu (carte vide), pour suivre l'édition.
+  const embeds = m.suppressEmbeds ? [] : m.embeds;
   // Les fichiers cités par un embed (attachment://) s'affichent dans l'embed, pas sous le message.
   const files = standaloneAttachments(m);
   const empty = !m.content.trim() && !embeds.length && !files.length;
@@ -188,7 +189,8 @@ export function MessagePreview({
       <Text style={[{ color: t.text, fontWeight: '700', fontSize: t.font(ms.fontSize) }, t.css['message-name']]}>{name}</Text>
       {ms.showBotTag && (
         <View style={{ backgroundColor: t.accent, borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1, flexDirection: 'row', alignItems: 'center', gap: 2 }}>
-          <Ionicons name="checkmark" size={t.z(10)} color={t.onAccent} />
+          {/* Bot : coche « vérifié » ; webhook : simple « BOT » */}
+          {info?.bot && <Ionicons name="checkmark" size={t.z(10)} color={t.onAccent} />}
           <Text style={{ color: t.onAccent, fontSize: t.font(10), fontWeight: '800' }}>{tr("BOT")}</Text>
         </View>
       )}
@@ -205,14 +207,10 @@ export function MessagePreview({
       ]}
     >
       {!grouped && !compact && header}
-      {empty ? (
-        <Text style={{ color: t.textFaint, fontStyle: 'italic' }}>{tr("Message vide")}</Text>
-      ) : (
-        !!m.content.trim() && (
-          <View style={t.css['message-text']}>
-            <Markdown text={m.content} size={ms.fontSize} color={t.css['message-text']?.color as string | undefined} />
-          </View>
-        )
+      {!empty && !!m.content.trim() && (
+        <View style={t.css['message-text']}>
+          <Markdown text={m.content} size={ms.fontSize} color={t.css['message-text']?.color as string | undefined} />
+        </View>
       )}
       {files.map((a) => (
         <AttachmentView key={a.id} a={a} />

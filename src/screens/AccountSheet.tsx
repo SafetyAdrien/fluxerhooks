@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { tr } from '../i18n';
-import { Image, Linking, Pressable, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Linking, Pressable, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
@@ -9,13 +9,14 @@ import { CaptchaBox, useCaptcha } from '../components/CaptchaBox';
 import { useSettings } from '../state/settings';
 import { useSession } from '../state/session';
 import { useEndpoints } from '../state/useEndpoints';
-import { Avatar, Badge, Box, Button, FieldButton, Grid, Input, Segmented, Sheet, Stack, Tip, useToast } from '../components/ui';
+import { Avatar, Badge, Box, Button, Dialog, FieldButton, Grid, Input, Segmented, Sheet, Stack, Tip, useToast } from '../components/ui';
 import { Markdown, MentionContext } from '../components/Markdown';
-import { QuickTiles, type LandingAction } from './LandingPage';
+import { type LandingAction } from './LandingPage';
+import { type SavedAccount } from '../state/session';
 import type { FluxerProfile } from '../types';
 import { intToHex } from '../utils/parse';
 
-function LoginForm({ onDone }: { onDone: () => void }) {
+function LoginForm({ onDone, onCancel, adding }: { onDone: () => void; onCancel?: () => void; adding?: boolean }) {
   const { theme: t, setUserToken, haptic } = useSettings();
   const ep = useEndpoints();
   const toast = useToast();
@@ -75,7 +76,7 @@ function LoginForm({ onDone }: { onDone: () => void }) {
 
   return (
     <Stack>
-      <Box title="Se connecter à Fluxer" icon="person-circle-outline" collapsible={false}>
+      <Box title={adding ? 'Ajouter un compte' : 'Se connecter à Fluxer'} icon={adding ? 'person-add-outline' : 'person-circle-outline'} collapsible={false}>
         <Text style={{ color: t.textMuted, fontSize: t.font(13), lineHeight: t.font(19) }}>
           {tr("Ton compte donne accès à tes serveurs, salons, threads et tags de forum, et à ton profil complet. Le token de session est stocké chiffré sur ce téléphone et n’est envoyé qu’à ton instance Fluxer.")}
         </Text>
@@ -135,6 +136,7 @@ function LoginForm({ onDone }: { onDone: () => void }) {
           onPress={submit}
         />
         {ticket && <Button variant="ghost" label="Annuler" onPress={() => { setTicket(null); setCode(''); }} />}
+        {!ticket && onCancel && <Button variant="ghost" icon="arrow-back" label="Revenir au compte actuel" onPress={onCancel} />}
       </Box>
     </Stack>
   );
@@ -192,10 +194,12 @@ function IconBadge({ label, text, mci, color, image }: { label: string; text?: s
   );
 }
 
-const CONNECTION_ICONS: Record<string, React.ComponentProps<typeof Ionicons>['name']> = {
-  bsky: 'at-circle-outline',
-  bluesky: 'at-circle-outline',
-  domain: 'globe-outline',
+/** Icônes modernes des connexions, dans un carré aux coins arrondis. */
+const CONNECTION_STYLE: Record<string, { icon: React.ComponentProps<typeof MaterialCommunityIcons>['name']; bg?: string }> = {
+  bsky: { icon: 'butterfly', bg: '#1185FE' },
+  bluesky: { icon: 'butterfly', bg: '#1185FE' },
+  domain: { icon: 'web', bg: '#0EA5E9' },
+  other: { icon: 'link-variant' },
 };
 
 function Profile({ onBrowse, tiles }: { onBrowse: () => void; tiles?: React.ReactNode }) {
@@ -307,26 +311,7 @@ function Profile({ onBrowse, tiles }: { onBrowse: () => void; tiles?: React.Reac
           </Box>
         )}
 
-        {/* Raccourcis de l'app, en mini-cartes */}
-        {tiles}
-
         <Grid min={300}>
-          <Box title="Informations" icon="information-circle-outline" defaultCollapsed>
-            <InfoRow icon="finger-print-outline" label="Identifiant" tip="Numéro unique de ton compte Fluxer, utile pour les mentions <@id> et le support." value={user.id} onCopy={copy('ID', user.id)} />
-            {!!user.email && (
-              <InfoRow
-                icon="mail-outline"
-                label="E-mail"
-                tip="Visible uniquement par toi. Touche l’œil pour l’afficher en entier."
-                value={showEmail ? user.email : user.email.replace(/^(.).*(@.*)$/, '$1•••••$2')}
-                action={<FieldButton mci={showEmail ? 'eye-off-outline' : 'eye-outline'} label={showEmail ? 'Masquer l’e-mail' : 'Afficher l’e-mail'} onPress={() => setShowEmail((v) => !v)} />}
-              />
-            )}
-            {!!premiumSince && <InfoRow icon="diamond-outline" label="Plutonium depuis" tip="Date d’activation de ton abonnement premium." value={new Date(premiumSince).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })} />}
-            {extra.slice(0, 8).map(([k, v]) => (
-              <InfoRow key={k} icon="ellipse-outline" label={k.replace(/_/g, ' ')} tip={`Champ « ${k} » renvoyé par l’API Fluxer.`} value={String(v)} />
-            ))}
-          </Box>
 
           {connections.length > 0 && (
             <Box title="Connexions" icon="link-outline" badge={String(connections.length)} defaultCollapsed>
@@ -336,8 +321,10 @@ function Profile({ onBrowse, tiles }: { onBrowse: () => void; tiles?: React.Reac
                   const kindLabel = kind === 'domain' ? 'Domaine' : kind === 'bsky' || kind === 'bluesky' ? 'Bluesky' : String(c.type);
                   return (
                     <Tip key={c.id} title={`${kindLabel} · ${c.name}`} text={c.verified ? 'Connexion vérifiée par Fluxer.' : 'Connexion non vérifiée.'} align="left" style={{ maxWidth: '100%' }}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 6, borderRadius: t.radiusSm, backgroundColor: t.surface2 }}>
-                        <Ionicons name={CONNECTION_ICONS[kind] ?? 'link-outline'} size={t.z(16)} color={t.textMuted} />
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 6, paddingRight: 10, paddingVertical: 6, borderRadius: t.radius, backgroundColor: t.surface2 }}>
+                        <View style={{ width: t.z(26), height: t.z(26), borderRadius: t.z(8), alignItems: 'center', justifyContent: 'center', backgroundColor: (CONNECTION_STYLE[kind] ?? CONNECTION_STYLE.other).bg ?? t.accent }}>
+                          <MaterialCommunityIcons name={(CONNECTION_STYLE[kind] ?? CONNECTION_STYLE.other).icon} size={t.z(16)} color="#fff" />
+                        </View>
                         <Text style={{ color: t.text, fontSize: t.font(13), flexShrink: 1 }}>{c.name}</Text>
                         {c.verified && <Ionicons name="checkmark-circle" size={t.z(14)} color={t.success} />}
                       </View>
@@ -362,6 +349,23 @@ function Profile({ onBrowse, tiles }: { onBrowse: () => void; tiles?: React.Reac
             {list.length > 12 && <Button small variant="ghost" icon={allGuilds ? 'chevron-up' : 'chevron-down'} label={allGuilds ? 'Afficher moins' : `Afficher les ${list.length}`} onPress={() => setAllGuilds((v) => !v)} />}
             <Button icon="albums-outline" label="Parcourir mes serveurs et salons" onPress={onBrowse} />
           </Box>
+
+          <Box title="Informations" icon="information-circle-outline" defaultCollapsed>
+            <InfoRow icon="finger-print-outline" label="Identifiant" tip="Numéro unique de ton compte Fluxer, utile pour les mentions <@id> et le support." value={user.id} onCopy={copy('ID', user.id)} />
+            {!!user.email && (
+              <InfoRow
+                icon="mail-outline"
+                label="E-mail"
+                tip="Visible uniquement par toi. Touche l’œil pour l’afficher en entier."
+                value={showEmail ? user.email : user.email.replace(/^(.).*(@.*)$/, '$1•••••$2')}
+                action={<FieldButton mci={showEmail ? 'eye-off-outline' : 'eye-outline'} label={showEmail ? 'Masquer l’e-mail' : 'Afficher l’e-mail'} onPress={() => setShowEmail((v) => !v)} />}
+              />
+            )}
+            {!!premiumSince && <InfoRow icon="diamond-outline" label="Plutonium depuis" tip="Date d’activation de ton abonnement premium." value={new Date(premiumSince).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })} />}
+            {extra.slice(0, 8).map(([k, v]) => (
+              <InfoRow key={k} icon="ellipse-outline" label={k.replace(/_/g, ' ')} tip={`Champ « ${k} » renvoyé par l’API Fluxer.`} value={String(v)} />
+            ))}
+          </Box>
         </Grid>
 
         <Stack row wrap gap={8}>
@@ -370,6 +374,120 @@ function Profile({ onBrowse, tiles }: { onBrowse: () => void; tiles?: React.Reac
         </Stack>
       </Stack>
     </MentionContext.Provider>
+  );
+}
+
+/** Bouton de changement de compte (en-tête du profil) : avatar actuel + icône d'échange. */
+function AccountSwitcher({ onAdd }: { onAdd: () => void }) {
+  const { theme: t, haptic } = useSettings();
+  const ep = useEndpoints();
+  const toast = useToast();
+  const { user, accounts, switchAccount, forgetAccount } = useSession();
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
+  const others = accounts.filter((a) => a.id !== user?.id);
+  const pick = async (id: string, name: string) => {
+    if (id === user?.id) return setOpen(false);
+    haptic('light');
+    setBusy(id);
+    const ok = await switchAccount(id);
+    setBusy(null);
+    setOpen(false);
+    toast(ok ? tr('Connecté en tant que {name}', { name }) : tr('Ce compte doit être reconnecté.'), ok ? 'success' : 'error');
+  };
+  const row = (a: SavedAccount, current: boolean) => {
+    const name = a.global_name || a.username;
+    return (
+      <View key={a.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+        <Pressable
+          onPress={() => pick(a.id, name)}
+          accessibilityRole="button"
+          accessibilityLabel={name}
+          style={({ pressed }) => ({
+            flex: 1,
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 12,
+            padding: 10,
+            borderRadius: t.radiusSm,
+            backgroundColor: current ? t.accentSoft : pressed ? t.surface2 : 'transparent',
+            borderWidth: 1,
+            borderColor: current ? t.accent : 'transparent',
+          })}
+        >
+          <Avatar uri={avatarUrl(ep, a.id, a.avatar)} name={name} size={t.z(38)} />
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text numberOfLines={1} style={{ color: t.text, fontWeight: '800', fontSize: t.font(15) }}>{name}</Text>
+            <Text numberOfLines={1} style={{ color: t.textMuted, fontSize: t.font(12) }}>@{a.username}</Text>
+          </View>
+          {busy === a.id ? <ActivityIndicator color={t.accent} /> : current ? <Ionicons name="checkmark-circle" size={t.z(22)} color={t.accent} /> : null}
+        </Pressable>
+        {!current && (
+          <FieldButton
+            icon="close"
+            label="Retirer ce compte de la liste"
+            onPress={() =>
+              Alert.alert(tr('Retirer ce compte ?'), tr('Il sera oublié sur ce téléphone (sans déconnexion côté Fluxer).'), [
+                { text: tr('Annuler'), style: 'cancel' },
+                { text: tr('Retirer'), style: 'destructive', onPress: () => forgetAccount(a.id) },
+              ])
+            }
+          />
+        )}
+      </View>
+    );
+  };
+  if (!user) return null;
+  return (
+    <>
+      <Pressable
+        onPress={() => {
+          haptic('light');
+          setOpen(true);
+        }}
+        accessibilityRole="button"
+        accessibilityLabel={tr('Changer de compte')}
+        hitSlop={6}
+        style={({ pressed }) => ({
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 6,
+          paddingLeft: 4,
+          paddingRight: 10,
+          height: t.z(40),
+          marginRight: 6,
+          borderRadius: 999,
+          backgroundColor: pressed ? t.accentSoft : t.surface2,
+          borderWidth: 1,
+          borderColor: t.border,
+          transform: [{ scale: pressed ? 0.95 : 1 }],
+        })}
+      >
+        <Avatar uri={avatarUrl(ep, user.id, user.avatar)} name={user.global_name || user.username} size={t.z(30)} />
+        <MaterialCommunityIcons name="account-switch-outline" size={t.z(20)} color={t.text} />
+        {others.length > 0 && (
+          <View style={{ minWidth: t.z(18), height: t.z(18), borderRadius: 9, backgroundColor: t.accent, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 }}>
+            <Text style={{ color: t.onAccent, fontSize: t.font(10), fontWeight: '800' }}>{accounts.length}</Text>
+          </View>
+        )}
+      </Pressable>
+      <Dialog visible={open} onClose={() => setOpen(false)} title="Changer de compte" icon="people-outline">
+        <View style={{ gap: 6 }}>
+          {accounts.length ? accounts.map((a) => row(a, a.id === user.id)) : row({ id: user.id, username: user.username, global_name: user.global_name, avatar: user.avatar ?? null, lastUsed: 0 }, true)}
+          <Button
+            icon="person-add-outline"
+            label="Ajouter un compte"
+            onPress={() => {
+              setOpen(false);
+              onAdd();
+            }}
+          />
+          <Text style={{ color: t.textFaint, fontSize: t.font(11), textAlign: 'center' }}>
+            {tr('Les tokens restent chiffrés sur ce téléphone ; le changement est instantané.')}
+          </Text>
+        </View>
+      </Dialog>
+    </>
   );
 }
 
@@ -387,18 +505,24 @@ export function AccountSheet({
   onOpenEditor: () => void;
 }) {
   const { hasUser } = useSession();
+  const [adding, setAdding] = useState(false);
   return (
-    <Sheet visible={visible} onClose={onClose} title={hasUser ? 'Mon profil Fluxer' : 'Compte Fluxer'} fullscreen>
-      {hasUser ? (
+    <Sheet
+      visible={visible}
+      onClose={onClose}
+      title={adding ? 'Ajouter un compte' : hasUser ? 'Mon profil Fluxer' : 'Compte Fluxer'}
+      fullscreen
+      headerRight={hasUser && !adding ? <AccountSwitcher onAdd={() => setAdding(true)} /> : undefined}
+    >
+      {hasUser && !adding ? (
         <Profile
           onBrowse={() => {
             onClose();
             onBrowse();
           }}
-          tiles={<QuickTiles onOpenEditor={onOpenEditor} onAction={onAction} />}
         />
       ) : (
-        <LoginForm onDone={() => {}} />
+        <LoginForm adding={adding} onDone={() => setAdding(false)} onCancel={adding ? () => setAdding(false) : undefined} />
       )}
     </Sheet>
   );

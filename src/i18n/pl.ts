@@ -421,6 +421,18 @@ const dict: Record<string, string> = {
  "Tous mes serveurs ({n})": "Wszystkie moje serwery ({n})",
  "Envoyer": "Wyślij",
  "Tout envoyer": "Wyślij wszystko",
- "Envoyer et mettre à jour": "Wyślij i zaktualizuj"
+ "Envoyer et mettre à jour": "Wyślij i zaktualizuj",
+ "Bientôt disponible": "Wkrótce dostępne",
+ "Bientôt": "Wkrótce",
+ "Ajouter un compte": "Dodaj konto",
+ "Revenir au compte actuel": "Wróć do bieżącego konta",
+ "Changer de compte": "Zmień konto",
+ "Connecté en tant que {name}": "Zalogowano jako {name}",
+ "Ce compte doit être reconnecté.": "To konto musi zalogować się ponownie.",
+ "Retirer ce compte de la liste": "Usuń to konto z listy",
+ "Retirer ce compte ?": "Usunąć to konto?",
+ "Il sera oublié sur ce téléphone (sans déconnexion côté Fluxer).": "Zostanie zapomniane na tym telefonie (bez wylogowania z Fluxer).",
+ "Les tokens restent chiffrés sur ce téléphone ; le changement est instantané.": "Tokeny pozostają zaszyfrowane na tym telefonie; zmiana jest natychmiastowa.",
+ "Profil": "Profil"
 };
 export default dict;

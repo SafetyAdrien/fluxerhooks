@@ -421,6 +421,18 @@ const dict: Record<string, string> = {
  "Tous mes serveurs ({n})": "Al mijn servers ({n})",
  "Envoyer": "Verzenden",
  "Tout envoyer": "Alles verzenden",
- "Envoyer et mettre à jour": "Verzenden en bijwerken"
+ "Envoyer et mettre à jour": "Verzenden en bijwerken",
+ "Bientôt disponible": "Binnenkort beschikbaar",
+ "Bientôt": "Binnenkort",
+ "Ajouter un compte": "Account toevoegen",
+ "Revenir au compte actuel": "Terug naar huidig account",
+ "Changer de compte": "Account wisselen",
+ "Connecté en tant que {name}": "Ingelogd als {name}",
+ "Ce compte doit être reconnecté.": "Dit account moet opnieuw inloggen.",
+ "Retirer ce compte de la liste": "Dit account uit de lijst verwijderen",
+ "Retirer ce compte ?": "Dit account verwijderen?",
+ "Il sera oublié sur ce téléphone (sans déconnexion côté Fluxer).": "Het wordt op deze telefoon vergeten (zonder uit te loggen bij Fluxer).",
+ "Les tokens restent chiffrés sur ce téléphone ; le changement est instantané.": "Tokens blijven versleuteld op deze telefoon; wisselen gaat direct.",
+ "Profil": "Profiel"
 };
 export default dict;

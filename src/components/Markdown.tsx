@@ -129,7 +129,8 @@ const RULES: InlineRule[] = [
           <Image
             accessibilityLabel={`:${m[2]}:`}
             source={{ uri: emojiUrl({ media: c.media } as any, m[3], !!m[1], c.emojiSize > 40 ? 128 : 64) }}
-            style={{ width: c.emojiSize, height: c.emojiSize }}
+            // Centré sur la hauteur du texte (sinon l'image repose sur la ligne de base et paraît trop haute).
+            style={{ width: c.emojiSize, height: c.emojiSize, transform: [{ translateY: c.emojiSize > 40 ? 0 : Math.round(c.emojiSize * 0.22) }] }}
             resizeMode="contain"
           />
         </Text>
@@ -159,7 +160,7 @@ function pushText(out: Node[], text: string, ctx: Ctx, key: () => string) {
     if (m.index > last) out.push(text.slice(last, m.index));
     const char = m[0];
     out.push(
-      <Text key={key()} onPress={() => ctx.onEmoji!({ kind: 'unicode', char })} suppressHighlighting accessibilityRole="button">
+      <Text key={key()} onPress={() => ctx.onEmoji!({ kind: 'unicode', char })} suppressHighlighting>
         {char}
       </Text>,
     );

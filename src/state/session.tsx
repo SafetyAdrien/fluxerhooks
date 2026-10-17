@@ -1,8 +1,37 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { BOT_ENABLED } from '../config';
 import { apiFor, logout as apiLogout, type Credential } from '../api/fluxer';
 import { useSettings } from './settings';
 import { useEndpoints } from './useEndpoints';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
 import type { ApiChannel, ApiEmoji, ApiGuild, ApiRole, FluxerUser } from '../types';
+
+/** Compte enregistré pour le changement rapide (le token est à part, chiffré). */
+export interface SavedAccount {
+  id: string;
+  username: string;
+  global_name?: string | null;
+  avatar?: string | null;
+  lastUsed: number;
+}
+const ACCOUNTS_KEY = 'fluxerhooks:accounts:v1';
+const tokenKey = (id: string) => `fluxerhooks_acct_${id}`;
+async function readSecret(k: string) {
+  try {
+    return await SecureStore.getItemAsync(k);
+  } catch {
+    return null;
+  }
+}
+async function writeSecret(k: string, v: string | null) {
+  try {
+    if (v) await SecureStore.setItemAsync(k, v);
+    else await SecureStore.deleteItemAsync(k);
+  } catch {
+    // Keystore indisponible (web) : le compte reste utilisable pendant la session.
+  }
+}
 
 /**
  * Session Fluxer : compte utilisateur et/ou bot.
@@ -35,6 +64,12 @@ interface SessionApi {
   signOut: () => Promise<void>;
   /** Nom lisible d'une mention, si connu en cache. */
   resolve: (kind: 'channel' | 'role' | 'user' | 'emoji', id: string) => string | undefined;
+  /** Comptes enregistrés (multi-comptes). */
+  accounts: SavedAccount[];
+  /** Passe sur un autre compte enregistré : instantané grâce au cache, puis rafraîchi en arrière-plan. */
+  switchAccount: (id: string) => Promise<boolean>;
+  /** Oublie un compte enregistré (sans le déconnecter côté serveur). */
+  forgetAccount: (id: string) => Promise<void>;
 }
 
 const SessionContext = createContext<SessionApi | null>(null);
@@ -47,6 +82,20 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [guilds, setGuilds] = useState<Record<Source, ApiGuild[]>>({ user: [], bot: [] });
   const [guildData, setGuildData] = useState<Record<string, GuildData>>({});
   const inflight = useRef<Record<string, Promise<any>>>({});
+  const [accounts, setAccounts] = useState<SavedAccount[]>([]);
+  // Cache par token : profil et serveurs, pour un changement de compte sans attente.
+  const cache = useRef(new Map<string, { user?: FluxerUser; guilds?: ApiGuild[] }>());
+  const tokens = useRef(new Map<string, string>());
+
+  useEffect(() => {
+    AsyncStorage.getItem(ACCOUNTS_KEY)
+      .then((raw) => raw && setAccounts(JSON.parse(raw)))
+      .catch(() => {});
+  }, []);
+  const saveAccounts = useCallback((list: SavedAccount[]) => {
+    setAccounts(list);
+    AsyncStorage.setItem(ACCOUNTS_KEY, JSON.stringify(list)).catch(() => {});
+  }, []);
 
   const credential = useCallback(
     (source?: Source): Credential | null => {
@@ -59,17 +108,63 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   );
 
   const refreshMe = useCallback(async () => {
-    if (userToken) setUser(await apiFor(ep, { kind: 'user', token: userToken }).me().catch(() => null));
-    else setUser(null);
+    if (userToken) {
+      const hit = cache.current.get(userToken);
+      if (hit?.user) setUser(hit.user);
+      const me = await apiFor(ep, { kind: 'user', token: userToken }).me().catch(() => null);
+      if (me) {
+        cache.current.set(userToken, { ...cache.current.get(userToken), user: me });
+        setUser(me);
+      } else if (!hit?.user) setUser(null);
+    } else setUser(null);
     if (botToken) setBotUser(await apiFor(ep, { kind: 'bot', token: botToken }).me().catch(() => null));
     else setBotUser(null);
   }, [ep, userToken, botToken]);
 
   useEffect(() => {
     refreshMe();
-    setGuilds({ user: [], bot: [] });
+    setGuilds({ user: (userToken && cache.current.get(userToken)?.guilds) || [], bot: [] });
     setGuildData({});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshMe]);
+
+  // Compte connecté : enregistré dans la liste (token chiffré à part) pour pouvoir y revenir.
+  useEffect(() => {
+    if (!user || !userToken) return;
+    tokens.current.set(user.id, userToken);
+    writeSecret(tokenKey(user.id), userToken);
+    const entry: SavedAccount = { id: user.id, username: user.username, global_name: user.global_name, avatar: user.avatar ?? null, lastUsed: Date.now() };
+    setAccounts((prev) => {
+      const next = [entry, ...prev.filter((a) => a.id !== user.id)];
+      AsyncStorage.setItem(ACCOUNTS_KEY, JSON.stringify(next)).catch(() => {});
+      return next;
+    });
+  }, [user, userToken]);
+
+  const switchAccount = useCallback(
+    async (id: string) => {
+      const token = tokens.current.get(id) ?? (await readSecret(tokenKey(id)));
+      if (!token) return false;
+      tokens.current.set(id, token);
+      const saved = accounts.find((a) => a.id === id);
+      // Affichage immédiat avec le profil en cache (ou enregistré), avant la réponse du serveur.
+      const hit = cache.current.get(token);
+      setUser(hit?.user ?? (saved ? ({ id: saved.id, username: saved.username, global_name: saved.global_name, avatar: saved.avatar } as FluxerUser) : null));
+      if (!hit?.user && saved) cache.current.set(token, { ...hit, user: { id: saved.id, username: saved.username, global_name: saved.global_name, avatar: saved.avatar } as FluxerUser });
+      await setUserToken(token);
+      return true;
+    },
+    [accounts, setUserToken],
+  );
+
+  const forgetAccount = useCallback(
+    async (id: string) => {
+      tokens.current.delete(id);
+      await writeSecret(tokenKey(id), null);
+      saveAccounts(accounts.filter((a) => a.id !== id));
+    },
+    [accounts, saveAccounts],
+  );
 
   const loadGuilds = useCallback(
     async (source: Source, force = false) => {
@@ -79,10 +174,11 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       const key = `g:${source}`;
       inflight.current[key] ??= apiFor(ep, c).guilds().finally(() => delete inflight.current[key]);
       const list: ApiGuild[] = await inflight.current[key];
+      if (source === 'user' && userToken) cache.current.set(userToken, { ...cache.current.get(userToken), guilds: list });
       setGuilds((g) => ({ ...g, [source]: list }));
       return list;
     },
-    [credential, ep, guilds],
+    [credential, ep, guilds, userToken],
   );
 
   const loadGuild = useCallback(
@@ -109,11 +205,29 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     [credential, ep, guildData],
   );
 
+  /** Déconnexion du compte actif ; on bascule sur le compte enregistré suivant s'il y en a un. */
   const signOut = useCallback(async () => {
-    if (userToken) await apiLogout(ep, userToken);
-    await setUserToken('');
-    setUser(null);
-  }, [ep, userToken, setUserToken]);
+    const current = user?.id;
+    if (userToken) {
+      cache.current.delete(userToken);
+      await apiLogout(ep, userToken);
+    }
+    const rest = accounts.filter((a) => a.id !== current);
+    if (current) {
+      tokens.current.delete(current);
+      await writeSecret(tokenKey(current), null);
+      saveAccounts(rest);
+    }
+    const next = rest[0];
+    const nextToken = next ? (tokens.current.get(next.id) ?? (await readSecret(tokenKey(next.id)))) : null;
+    if (next && nextToken) {
+      setUser(cache.current.get(nextToken)?.user ?? ({ id: next.id, username: next.username, global_name: next.global_name, avatar: next.avatar } as FluxerUser));
+      await setUserToken(nextToken);
+    } else {
+      await setUserToken('');
+      setUser(null);
+    }
+  }, [ep, user, userToken, accounts, setUserToken, saveAccounts]);
 
   const resolve = useCallback(
     (kind: 'channel' | 'role' | 'user' | 'emoji', id: string) => {
@@ -141,11 +255,11 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const value = useMemo<SessionApi>(
     () => ({
       hasUser: !!userToken,
-      hasBot: !!botToken,
+      hasBot: BOT_ENABLED && !!botToken,
       user,
       botUser,
       credential,
-      defaultSource: userToken ? 'user' : botToken ? 'bot' : null,
+      defaultSource: userToken ? 'user' : BOT_ENABLED && botToken ? 'bot' : null,
       guilds,
       loadGuilds,
       guildData,
@@ -153,8 +267,11 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       refreshMe,
       signOut,
       resolve,
+      accounts,
+      switchAccount,
+      forgetAccount,
     }),
-    [userToken, botToken, user, botUser, credential, guilds, loadGuilds, guildData, loadGuild, refreshMe, signOut, resolve],
+    [userToken, botToken, user, botUser, credential, guilds, loadGuilds, guildData, loadGuild, refreshMe, signOut, resolve, accounts, switchAccount, forgetAccount],
   );
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }

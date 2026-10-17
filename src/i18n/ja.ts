@@ -421,6 +421,18 @@ const dict: Record<string, string> = {
  "Tous mes serveurs ({n})": "すべてのサーバー（{n}）",
  "Envoyer": "送信",
  "Tout envoyer": "すべて送信",
- "Envoyer et mettre à jour": "送信して更新"
+ "Envoyer et mettre à jour": "送信して更新",
+ "Bientôt disponible": "近日公開",
+ "Bientôt": "近日",
+ "Ajouter un compte": "アカウントを追加",
+ "Revenir au compte actuel": "現在のアカウントに戻る",
+ "Changer de compte": "アカウントを切り替え",
+ "Connecté en tant que {name}": "{name} としてログイン中",
+ "Ce compte doit être reconnecté.": "このアカウントは再ログインが必要です。",
+ "Retirer ce compte de la liste": "このアカウントを一覧から削除",
+ "Retirer ce compte ?": "このアカウントを削除しますか？",
+ "Il sera oublié sur ce téléphone (sans déconnexion côté Fluxer).": "このスマートフォンから削除されます（Fluxer からはログアウトしません）。",
+ "Les tokens restent chiffrés sur ce téléphone ; le changement est instantané.": "トークンはこのスマートフォンで暗号化されたままです。切り替えは一瞬です。",
+ "Profil": "プロフィール"
 };
 export default dict;
