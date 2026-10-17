@@ -11,7 +11,7 @@ export function LanguagePicker({ onClose }: { onClose: () => void }) {
   const sys = LANGUAGES.find((l) => l.code === systemLanguage())!;
   const choose = (code: string) => {
     haptic('light');
-    update({ language: code });
+    update({ language: code, languageChosen: true });
     onClose();
   };
   const row = (key: string, flag: React.ReactNode, title: string, subtitle: string, selected: boolean) => (

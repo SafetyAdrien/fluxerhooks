@@ -10,8 +10,7 @@ import { cancelAltcha, HINT_HI, HINT_LO, solveAltcha } from '../api/altcha';
 /**
  * Widget CAPTCHA « Je ne suis pas un robot » façon ALTCHA (le système utilisé par Fluxer).
  * - Sans image ni pistage : une preuve de travail calculée sur le téléphone, en natif multi-cœurs.
- * - Démarre tout seul dès que l'identifiant et le mot de passe sont saisis (ou au toucher),
- *   pour que la connexion soit instantanée au moment d'appuyer sur « Se connecter ».
+ * - Ne démarre que lorsque l'utilisateur touche la case (jamais automatiquement).
  * - Le jeton est valable 10 minutes et à usage unique ; il est renouvelé automatiquement.
  */
 
@@ -28,8 +27,12 @@ export interface CaptchaHandle {
   obtain: () => Promise<string | null>;
   /** Résout un défi renvoyé par le serveur (jeton refusé / expiré) en affichant la progression. */
   solveChallenge: (challenge: any) => Promise<string>;
+  /** Jeton déjà obtenu par un toucher de la case (null si non requis, undefined si rien de valable). */
+  peek: () => string | null | undefined;
   /** À appeler après un envoi : le jeton est consommé. */
   consume: () => void;
+  /** Remet la case à l'état initial (jeton refusé ou expiré : il faut la toucher de nouveau). */
+  reset: () => void;
   start: () => void;
 }
 
@@ -120,11 +123,21 @@ export function useCaptcha(): CaptchaHandle {
     }
   }, []);
 
+  const peek = useCallback(() => {
+    const tk = token.current;
+    return tk && Date.now() - tk.at < TOKEN_TTL_MS ? tk.value : undefined;
+  }, []);
+
+  const reset = useCallback(() => {
+    token.current = null;
+    setStatus('idle');
+  }, []);
+
   const start = useCallback(() => {
     if (status === 'idle' || status === 'error') run().catch(() => {});
   }, [status, run]);
 
-  return { status, tries, elapsed, error, obtain, solveChallenge, consume, start };
+  return { status, tries, elapsed, error, obtain, solveChallenge, peek, consume, reset, start };
 }
 
 export function CaptchaBox({ captcha }: { captcha: CaptchaHandle }) {
@@ -164,14 +177,14 @@ export function CaptchaBox({ captcha }: { captcha: CaptchaHandle }) {
             : 'Je ne suis pas un robot';
   const sub =
     status === 'verified'
-      ? `Preuve calculée en ${elapsed.toFixed(1)} s · valable 10 min`
+      ? tr('Preuve calculée en {s} s · valable 10 min', { s: elapsed.toFixed(1) })
       : status === 'verifying'
-        ? `${tries} calculs · ${elapsed.toFixed(1)} s`
+        ? tr('{n} calculs · {s} s', { n: tries, s: elapsed.toFixed(1) })
         : status === 'loading'
-          ? 'Demande du défi à Fluxer…'
+          ? tr('Demande du défi à Fluxer…')
           : status === 'error'
-            ? (error ?? 'Touchez pour réessayer')
-            : 'Touchez pour vérifier';
+            ? (error ?? tr('Touchez pour réessayer'))
+            : tr('Touchez pour vérifier');
 
   return (
     <Pressable

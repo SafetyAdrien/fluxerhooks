@@ -128,6 +128,8 @@ export interface AppSettings {
   recentColors: number[];
   /** Langue de l'interface (« system » : celle du téléphone). */
   language: string;
+  /** true dès que l'utilisateur a choisi sa langue lui-même (sinon : anglais par défaut). */
+  languageChosen?: boolean;
   /** Démarrage du bot (connexion au gateway) et statut publié. */
   botPresence: BotPresence;
 }

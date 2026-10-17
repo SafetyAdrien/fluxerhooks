@@ -433,6 +433,16 @@ const dict: Record<string, string> = {
  "Retirer ce compte ?": "このアカウントを削除しますか？",
  "Il sera oublié sur ce téléphone (sans déconnexion côté Fluxer).": "このスマートフォンから削除されます（Fluxer からはログアウトしません）。",
  "Les tokens restent chiffrés sur ce téléphone ; le changement est instantané.": "トークンはこのスマートフォンで暗号化されたままです。切り替えは一瞬です。",
- "Profil": "プロフィール"
+ "Profil": "プロフィール",
+ "Domaine": "ドメイン",
+ "Coche « Je ne suis pas un robot » avant de te connecter.": "ログインする前に「私はロボットではありません」にチェックしてください。",
+ "La vérification a expiré. Coche de nouveau « Je ne suis pas un robot ».": "認証の有効期限が切れました。もう一度「私はロボットではありません」にチェックしてください。",
+ "Ton compte utilise uniquement une clé de sécurité (WebAuthn), non prise en charge par FluxerHooks.": "このアカウントはセキュリティキー（WebAuthn）のみを使用しており、FluxerHooks では対応していません。",
+ "Touchez pour vérifier": "タップして認証",
+ "Touchez pour réessayer": "タップして再試行",
+ "Demande du défi à Fluxer…": "Fluxer にチャレンジを要求中…",
+ "Preuve calculée en {s} s · valable 10 min": "{s} 秒で証明を計算 · 10 分間有効",
+ "{n} calculs · {s} s": "{n} 回計算 · {s} 秒",
+ "Réponse inattendue du serveur.": "サーバーから予期しない応答がありました。"
 };
 export default dict;

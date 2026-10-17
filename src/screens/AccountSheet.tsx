@@ -6,6 +6,7 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
 import { apiFor, avatarUrl, bannerUrl, guildIconUrl, loginMfaTotp, loginWithPassword } from '../api/fluxer';
 import { CaptchaBox, useCaptcha } from '../components/CaptchaBox';
+import { BrandIcon, brandInfo } from '../components/BrandIcon';
 import { useSettings } from '../state/settings';
 import { useSession } from '../state/session';
 import { useEndpoints } from '../state/useEndpoints';
@@ -20,25 +21,18 @@ function LoginForm({ onDone, onCancel, adding }: { onDone: () => void; onCancel?
   const { theme: t, setUserToken, haptic } = useSettings();
   const ep = useEndpoints();
   const toast = useToast();
-  const [mode, setMode] = useState<'password' | 'token'>('password');
   const [login, setLogin] = useState('');
   const [password, setPassword] = useState('');
-  const [token, setToken] = useState('');
   const [ticket, setTicket] = useState<string | null>(null);
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
+  // CAPTCHA : uniquement au toucher de la case « Je ne suis pas un robot ».
   const captcha = useCaptcha();
-  const ready = mode === 'password' && !ticket && login.trim().length > 2 && password.length >= 8;
-  // Vérification anti-robot lancée en arrière-plan dès que le formulaire est rempli.
-  useEffect(() => {
-    if (!ready || captcha.status !== 'idle') return;
-    const h = setTimeout(captcha.start, 500);
-    return () => clearTimeout(h);
-  }, [ready, captcha.status, captcha.start]);
+  const verified = captcha.status === 'verified' || captcha.status === 'not_required';
   const [error, setError] = useState<string | null>(null);
 
   const finish = async (tok?: string) => {
-    if (!tok) throw new Error('Réponse inattendue du serveur.');
+    if (!tok) throw new Error(tr('Réponse inattendue du serveur.'));
     await setUserToken(tok);
     haptic('success');
     toast('Connecté à Fluxer ✔', 'success');
@@ -49,24 +43,30 @@ function LoginForm({ onDone, onCancel, adding }: { onDone: () => void; onCancel?
     setBusy(true);
     setError(null);
     try {
-      if (mode === 'token') return await finish(token.trim());
       if (ticket) {
         const r = await loginMfaTotp(ep, ticket, code);
         return await finish(r.token);
       }
-      const pre = await captcha.obtain();
-      const r = await loginWithPassword(ep, login, password, captcha.solveChallenge, pre ?? undefined);
+      const pre = captcha.peek();
+      if (pre === undefined) {
+        captcha.reset();
+        throw new Error(tr('Coche « Je ne suis pas un robot » avant de te connecter.'));
+      }
+      // Jeton refusé ou expiré par Fluxer : pas de nouvelle vérification automatique, l'utilisateur recoche la case.
+      const r = await loginWithPassword(ep, login, password, async () => {
+        throw new Error(tr('La vérification a expiré. Coche de nouveau « Je ne suis pas un robot ».'));
+      }, pre ?? undefined);
       captcha.consume();
       if (r.mfa) {
         if (!r.mfa.methods.includes('totp') && !r.mfa.methods.includes('backup_codes')) {
-          throw new Error('Ton compte utilise uniquement une clé de sécurité (WebAuthn), non prise en charge ici. Utilise la connexion par token.');
+          throw new Error(tr('Ton compte utilise uniquement une clé de sécurité (WebAuthn), non prise en charge par FluxerHooks.'));
         }
         setTicket(r.mfa.ticket);
         return;
       }
       await finish(r.token);
     } catch (e) {
-      captcha.consume();
+      captcha.reset();
       haptic('error');
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -80,16 +80,6 @@ function LoginForm({ onDone, onCancel, adding }: { onDone: () => void; onCancel?
         <Text style={{ color: t.textMuted, fontSize: t.font(13), lineHeight: t.font(19) }}>
           {tr("Ton compte donne accès à tes serveurs, salons, threads et tags de forum, et à ton profil complet. Le token de session est stocké chiffré sur ce téléphone et n’est envoyé qu’à ton instance Fluxer.")}
         </Text>
-        {!ticket && (
-          <Segmented
-            value={mode}
-            onChange={setMode}
-            options={[
-              { value: 'password', label: 'E-mail', icon: 'mail-outline' },
-              { value: 'token', label: 'Token', icon: 'key-outline' },
-            ]}
-          />
-        )}
         {ticket ? (
           <>
             <Text style={{ color: t.text, fontWeight: '700' }}>{tr("Double authentification")}</Text>
@@ -103,24 +93,13 @@ function LoginForm({ onDone, onCancel, adding }: { onDone: () => void; onCancel?
               maxLength={32}
             />
           </>
-        ) : mode === 'password' ? (
+        ) : (
           <>
             <Input label="E-mail ou identifiant" value={login} onChangeText={setLogin} autoCapitalize="none" keyboardType="email-address" autoComplete="email" />
             <Input label="Mot de passe" value={password} onChangeText={setPassword} secureTextEntry autoComplete="password" />
           </>
-        ) : (
-          <Input
-            label="Token de session"
-            value={token}
-            onChangeText={setToken}
-            placeholder="flx_…"
-            hint="À utiliser si tu te connectes avec une clé de sécurité ou si le CAPTCHA échoue."
-            secureTextEntry
-            autoCapitalize="none"
-            mono
-          />
         )}
-        {mode === 'password' && !ticket && <CaptchaBox captcha={captcha} />}
+        {!ticket && <CaptchaBox captcha={captcha} />}
         {error && (
           <View style={{ flexDirection: 'row', gap: 8, padding: 10, borderRadius: t.radiusSm, borderLeftWidth: 4, borderLeftColor: t.danger, backgroundColor: t.surface2 }}>
             <Ionicons name="alert-circle" size={t.z(18)} color={t.danger} />
@@ -130,9 +109,9 @@ function LoginForm({ onDone, onCancel, adding }: { onDone: () => void; onCancel?
         <Button
           variant="primary"
           icon="log-in-outline"
-          label={ticket ? 'Valider le code' : busy && captcha.status === 'verifying' ? 'Vérification…' : 'Se connecter'}
+          label={ticket ? 'Valider le code' : 'Se connecter'}
           loading={busy}
-          disabled={ticket ? code.trim().length < 6 : mode === 'token' ? !token.trim() : !login.trim() || password.length < 8}
+          disabled={ticket ? code.trim().length < 6 : !login.trim() || password.length < 8 || !verified}
           onPress={submit}
         />
         {ticket && <Button variant="ghost" label="Annuler" onPress={() => { setTicket(null); setCode(''); }} />}
@@ -195,13 +174,6 @@ function IconBadge({ label, text, mci, color, image }: { label: string; text?: s
 }
 
 /** Icônes modernes des connexions, dans un carré aux coins arrondis. */
-const CONNECTION_STYLE: Record<string, { icon: React.ComponentProps<typeof MaterialCommunityIcons>['name']; bg?: string }> = {
-  bsky: { icon: 'butterfly', bg: '#1185FE' },
-  bluesky: { icon: 'butterfly', bg: '#1185FE' },
-  domain: { icon: 'web', bg: '#0EA5E9' },
-  other: { icon: 'link-variant' },
-};
-
 function Profile({ onBrowse, tiles }: { onBrowse: () => void; tiles?: React.ReactNode }) {
   const { theme: t } = useSettings();
   const ep = useEndpoints();
@@ -318,13 +290,11 @@ function Profile({ onBrowse, tiles }: { onBrowse: () => void; tiles?: React.Reac
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                 {connections.map((c) => {
                   const kind = String(c.type).toLowerCase();
-                  const kindLabel = kind === 'domain' ? 'Domaine' : kind === 'bsky' || kind === 'bluesky' ? 'Bluesky' : String(c.type);
+                  const kindLabel = kind === 'domain' ? tr('Domaine') : (brandInfo(kind)?.title ?? String(c.type));
                   return (
                     <Tip key={c.id} title={`${kindLabel} · ${c.name}`} text={c.verified ? 'Connexion vérifiée par Fluxer.' : 'Connexion non vérifiée.'} align="left" style={{ maxWidth: '100%' }}>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 6, paddingRight: 10, paddingVertical: 6, borderRadius: t.radius, backgroundColor: t.surface2 }}>
-                        <View style={{ width: t.z(26), height: t.z(26), borderRadius: t.z(8), alignItems: 'center', justifyContent: 'center', backgroundColor: (CONNECTION_STYLE[kind] ?? CONNECTION_STYLE.other).bg ?? t.accent }}>
-                          <MaterialCommunityIcons name={(CONNECTION_STYLE[kind] ?? CONNECTION_STYLE.other).icon} size={t.z(16)} color="#fff" />
-                        </View>
+                        <BrandIcon type={kind} size={t.z(26)} radius={t.z(8)} fallbackBg={t.accent} borderColor={t.border} />
                         <Text style={{ color: t.text, fontSize: t.font(13), flexShrink: 1 }}>{c.name}</Text>
                         {c.verified && <Ionicons name="checkmark-circle" size={t.z(14)} color={t.success} />}
                       </View>

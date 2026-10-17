@@ -46,7 +46,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   messageStyle: DEFAULT_MESSAGE_STYLE,
   customCss: {},
   themeVars: {},
-  language: 'system',
+  language: 'en',
   botPresence: { autoStart: true, status: 'online', text: '' },
   customCssEnabled: true,
   recentColors: [],
@@ -158,6 +158,8 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
           setSettings({
             ...DEFAULT_SETTINGS,
             ...saved,
+            // Anglais par défaut tant que l'utilisateur n'a pas choisi sa langue.
+            language: saved.languageChosen ? (saved.language ?? 'en') : 'en',
             wallpaper: { ...DEFAULT_WALLPAPER, ...(saved.wallpaper ?? {}) },
             messageStyle: { ...DEFAULT_MESSAGE_STYLE, ...(saved.messageStyle ?? {}) },
             botPresence: { ...DEFAULT_SETTINGS.botPresence, ...(saved.botPresence ?? {}) },

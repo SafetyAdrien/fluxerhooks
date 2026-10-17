@@ -433,6 +433,16 @@ const dict: Record<string, string> = {
  "Retirer ce compte ?": "Remove this account?",
  "Il sera oublié sur ce téléphone (sans déconnexion côté Fluxer).": "It will be forgotten on this phone (without signing out on Fluxer).",
  "Les tokens restent chiffrés sur ce téléphone ; le changement est instantané.": "Tokens stay encrypted on this phone; switching is instant.",
- "Profil": "Profile"
+ "Profil": "Profile",
+ "Domaine": "Domain",
+ "Coche « Je ne suis pas un robot » avant de te connecter.": "Tick “I'm not a robot” before signing in.",
+ "La vérification a expiré. Coche de nouveau « Je ne suis pas un robot ».": "The verification expired. Tick “I'm not a robot” again.",
+ "Ton compte utilise uniquement une clé de sécurité (WebAuthn), non prise en charge par FluxerHooks.": "Your account only uses a security key (WebAuthn), which FluxerHooks doesn't support.",
+ "Touchez pour vérifier": "Tap to verify",
+ "Touchez pour réessayer": "Tap to try again",
+ "Demande du défi à Fluxer…": "Requesting a challenge from Fluxer…",
+ "Preuve calculée en {s} s · valable 10 min": "Proof computed in {s} s · valid for 10 min",
+ "{n} calculs · {s} s": "{n} attempts · {s} s",
+ "Réponse inattendue du serveur.": "Unexpected server response."
 };
 export default dict;

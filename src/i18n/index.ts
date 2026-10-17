@@ -30,7 +30,7 @@ export const LANGUAGES: { code: LangCode; native: string; english: string; flag:
 
 const DICTS: Record<Exclude<LangCode, 'fr'>, Record<string, string>> = { en, es, de, it, pt, nl, pl, ru, ja };
 
-let current: LangCode = 'fr';
+let current: LangCode = 'en';
 
 /** Langue du téléphone, si elle fait partie des langues proposées. */
 export function systemLanguage(): LangCode {
@@ -46,7 +46,7 @@ export function systemLanguage(): LangCode {
 
 export function resolveLanguage(setting: string | undefined): LangCode {
   if (!setting || setting === 'system') return systemLanguage();
-  return (LANGUAGES.find((l) => l.code === setting)?.code ?? 'fr') as LangCode;
+  return (LANGUAGES.find((l) => l.code === setting)?.code ?? 'en') as LangCode;
 }
 
 export function setLanguage(code: LangCode) {
@@ -54,7 +54,7 @@ export function setLanguage(code: LangCode) {
 }
 
 export const currentLanguage = () => current;
-export const currentLocale = () => LANGUAGES.find((l) => l.code === current)?.locale ?? 'fr-FR';
+export const currentLocale = () => LANGUAGES.find((l) => l.code === current)?.locale ?? 'en-US';
 
 /** Traduit un texte français ; `{nom}` est remplacé par vars.nom. */
 export function tr(s: string, vars?: Record<string, string | number>): string;
