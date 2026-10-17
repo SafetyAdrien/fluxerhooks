@@ -372,7 +372,7 @@ export function SettingsSheet({
 
       <Box title="À propos" icon="information-circle-outline" defaultCollapsed>
         <Text style={{ color: t.textMuted, fontSize: t.font(13) }}>
-          {tr("FluxerHooks")} {Constants.expoConfig?.version ?? ''} — éditeur de messages webhook pour Fluxer. Projet indépendant, non affilié à Fluxer.
+          FluxerHooks-{Constants.expoConfig?.version ?? ''} — éditeur de messages webhook pour Fluxer. Projet indépendant, non affilié à Fluxer.
         </Text>
         <ListRow icon="book-outline" title="Documentation API Fluxer" onPress={() => Linking.openURL('https://docs.fluxer.app')} />
         <ListRow icon="logo-github" title="Fluxer sur GitHub" onPress={() => Linking.openURL('https://github.com/fluxerapp/fluxer')} />

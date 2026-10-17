@@ -74,9 +74,9 @@ jobs:
           V=$(node -p "require('./app.json').expo.version")
           OUT=android/app/build/outputs/apk/release
           ls -la $OUT
-          cp $OUT/app-arm64-v8a-release.apk   "dist/FluxerHooks-v$V-arm64.apk"
-          cp $OUT/app-armeabi-v7a-release.apk "dist/FluxerHooks-v$V-armv7.apk"
-          cp $OUT/app-universal-release.apk   "dist/FluxerHooks-v$V-universel.apk"
+          cp $OUT/app-arm64-v8a-release.apk   "dist/FluxerHooks-$V-arm64.apk"
+          cp $OUT/app-armeabi-v7a-release.apk "dist/FluxerHooks-$V-armv7.apk"
+          cp $OUT/app-universal-release.apk   "dist/FluxerHooks-$V-universel.apk"
           # Contrôle d'intégrité : signature vérifiée + sommes SHA-256 publiées avec les APK.
           BT=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -1)
           for f in dist/*.apk; do $BT/apksigner verify "$f" && echo "OK $f"; done
@@ -100,7 +100,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release delete latest --yes --cleanup-tag 2>/dev/null || true
-          gh release create latest dist/* --prerelease --title "FluxerHooks (dernier build)" --notes "APK généré depuis ${GITHUB_SHA::7}. Prends **-arm64** pour la plupart des téléphones (plus léger), **-armv7** pour les anciens, **-universel** en cas de doute." --target "$GITHUB_SHA"
+          gh release create latest dist/* --prerelease --title "FluxerHooks-$(node -p "require('./app.json').expo.version") (dernier build)" --notes "APK généré depuis ${GITHUB_SHA::7}. Prends **-arm64** pour la plupart des téléphones (plus léger), **-armv7** pour les anciens, **-universel** en cas de doute." --target "$GITHUB_SHA"
 
       # En cas d'échec, le journal est publié sur la branche ci-logs pour diagnostic.
       - name: Publier le journal d'échec

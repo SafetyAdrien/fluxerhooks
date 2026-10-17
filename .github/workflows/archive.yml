@@ -1,0 +1,92 @@
+name: Rebuild old beta
+
+# Reconstruit une ancienne version (commit donné) sous le nom « FluxerHooks-beta<N> »
+# et la publie dans sa propre release « beta<N> ».
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Commit de la version
+        required: true
+      beta:
+        description: Numéro de beta
+        required: true
+
+jobs:
+  apk:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    timeout-minutes: 60
+    env:
+      HAS_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+      N: ${{ inputs.beta }}
+    steps:
+      - name: Outils de build actuels
+        uses: actions/checkout@v5
+        with:
+          path: ci
+
+      - name: Code de la version
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.ref }}
+          path: app
+
+      - name: Scripts manquants et nommage beta
+        run: |
+          mkdir -p app/scripts
+          for f in enable-abi-splits.js use-release-signing.js; do [ -f app/scripts/$f ] || cp ci/scripts/$f app/scripts/; done
+          node ci/scripts/beta-label.js "$N" app
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Installer, générer le projet natif
+        working-directory: app
+        run: |
+          npm ci
+          npx expo prebuild --platform android --no-install
+          node scripts/enable-abi-splits.js
+
+      - name: Configurer la signature
+        if: env.HAS_KEYSTORE == 'true'
+        working-directory: app
+        env:
+          KS: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          echo "$KS" | base64 -d > android/app/release.keystore
+          cat >> android/gradle.properties <<PROPS
+          FLUXERHOOKS_STORE_FILE=release.keystore
+          FLUXERHOOKS_STORE_PASSWORD=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          FLUXERHOOKS_KEY_ALIAS=${{ secrets.ANDROID_KEY_ALIAS }}
+          FLUXERHOOKS_KEY_PASSWORD=${{ secrets.ANDROID_KEY_PASSWORD }}
+          PROPS
+          node scripts/use-release-signing.js
+
+      - name: Compiler l'APK (release)
+        working-directory: app/android
+        run: ./gradlew assembleRelease --no-daemon -PreactNativeArchitectures=armeabi-v7a,arm64-v8a,x86_64
+
+      - name: Renommer, vérifier, publier
+        working-directory: app
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p dist
+          OUT=android/app/build/outputs/apk/release
+          cp $OUT/app-arm64-v8a-release.apk   "dist/FluxerHooks-beta$N-arm64.apk"
+          cp $OUT/app-armeabi-v7a-release.apk "dist/FluxerHooks-beta$N-armv7.apk"
+          cp $OUT/app-universal-release.apk   "dist/FluxerHooks-beta$N-universel.apk"
+          BT=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -1)
+          for f in dist/*.apk; do $BT/apksigner verify "$f"; done
+          (cd dist && sha256sum *.apk > SHA256SUMS.txt && cat SHA256SUMS.txt)
+          gh release delete "beta$N" -R "$GITHUB_REPOSITORY" --yes --cleanup-tag 2>/dev/null || true
+          gh release create "beta$N" dist/* -R "$GITHUB_REPOSITORY" --prerelease --target "${{ inputs.ref }}" \
+            --title "FluxerHooks-beta$N" --notes "Reconstruction de l'ancienne version (commit ${{ inputs.ref }}) sous le nom FluxerHooks-beta$N."
