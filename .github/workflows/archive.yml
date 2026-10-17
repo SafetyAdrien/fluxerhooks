@@ -79,6 +79,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          exec > >(tee /tmp/pub.log) 2>&1
+          set -x
           mkdir -p dist
           OUT=android/app/build/outputs/apk/release
           cp $OUT/app-arm64-v8a-release.apk   "dist/FluxerHooks-beta$N-arm64.apk"
@@ -90,3 +92,12 @@ jobs:
           gh release delete "beta$N" -R "$GITHUB_REPOSITORY" --yes --cleanup-tag 2>/dev/null || true
           gh release create "beta$N" dist/* -R "$GITHUB_REPOSITORY" --prerelease --target "${{ inputs.ref }}" \
             --title "FluxerHooks-beta$N" --notes "Reconstruction de l'ancienne version (commit ${{ inputs.ref }}) sous le nom FluxerHooks-beta$N."
+
+      - name: Journal d'échec
+        if: failure()
+        run: |
+          mkdir -p /tmp/logs && cp /tmp/pub.log /tmp/logs/ 2>/dev/null || echo "pas de journal" > /tmp/logs/pub.log
+          cd /tmp/logs && git init -q && git checkout -q -b ci-logs-beta
+          git config user.name "github-actions" && git config user.email "actions@github.com"
+          git add . && git commit -q -m "Journal ${GITHUB_RUN_ID}"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${GITHUB_REPOSITORY}.git" ci-logs-beta
