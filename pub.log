@@ -1,0 +1,25 @@
++ mkdir -p dist
++ OUT=android/app/build/outputs/apk/release
++ cp android/app/build/outputs/apk/release/app-arm64-v8a-release.apk dist/FluxerHooks-beta14-arm64.apk
++ cp android/app/build/outputs/apk/release/app-armeabi-v7a-release.apk dist/FluxerHooks-beta14-armv7.apk
++ cp android/app/build/outputs/apk/release/app-universal-release.apk dist/FluxerHooks-beta14-universel.apk
+++ ls -d /usr/local/lib/android/sdk/build-tools/34.0.0 /usr/local/lib/android/sdk/build-tools/35.0.0 /usr/local/lib/android/sdk/build-tools/35.0.1 /usr/local/lib/android/sdk/build-tools/36.0.0 /usr/local/lib/android/sdk/build-tools/36.1.0 /usr/local/lib/android/sdk/build-tools/37.0.0
+++ sort -V
+++ tail -1
++ BT=/usr/local/lib/android/sdk/build-tools/37.0.0
++ for f in dist/*.apk
++ /usr/local/lib/android/sdk/build-tools/37.0.0/apksigner verify dist/FluxerHooks-beta14-arm64.apk
++ for f in dist/*.apk
++ /usr/local/lib/android/sdk/build-tools/37.0.0/apksigner verify dist/FluxerHooks-beta14-armv7.apk
++ for f in dist/*.apk
++ /usr/local/lib/android/sdk/build-tools/37.0.0/apksigner verify dist/FluxerHooks-beta14-universel.apk
++ cd dist
++ sha256sum FluxerHooks-beta14-arm64.apk FluxerHooks-beta14-armv7.apk FluxerHooks-beta14-universel.apk
++ cat SHA256SUMS.txt
+63211e4d5a5c49b9b27ccb4ec2819f643deda71b2fe4d360dd29be9821c9a60f  FluxerHooks-beta14-arm64.apk
+a5d63f4d5fd93f70f6dce74f867cbedab90452b791b40cbf998d79918006585a  FluxerHooks-beta14-armv7.apk
+a9eec3ed37f42796f6638ff162b892bf290590b3510f8132f3c5f90676238c89  FluxerHooks-beta14-universel.apk
++ gh release delete beta14 -R SafetyAdrien/fluxerhooks --yes --cleanup-tag
++ true
++ gh release create beta14 dist/FluxerHooks-beta14-arm64.apk dist/FluxerHooks-beta14-armv7.apk dist/FluxerHooks-beta14-universel.apk dist/SHA256SUMS.txt -R SafetyAdrien/fluxerhooks --prerelease --target a6e6756fcde2b0902ebff2a485a5584bb348c134 --title FluxerHooks-beta14 --notes 'Reconstruction de l'\''ancienne version (commit a6e6756fcde2b0902ebff2a485a5584bb348c134) sous le nom FluxerHooks-beta14.'
+HTTP 403: Resource not accessible by integration (https://api.github.com/repos/SafetyAdrien/fluxerhooks/releases)
