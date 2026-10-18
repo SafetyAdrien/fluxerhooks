@@ -89,9 +89,14 @@ jobs:
           BT=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -1)
           for f in dist/*.apk; do $BT/apksigner verify "$f"; done
           (cd dist && sha256sum *.apk > SHA256SUMS.txt && cat SHA256SUMS.txt)
+          {
+            echo "Reconstruction de l'ancienne version (commit ${{ inputs.ref }}) sous le nom FluxerHooks-beta$N."
+            echo
+            node "$GITHUB_WORKSPACE/ci/scripts/release-notes.js" "$N" "$GITHUB_WORKSPACE/ci/CHANGELOG.md" || echo "_Pas d'entrée dans CHANGELOG.md pour beta$N._"
+          } > /tmp/notes.md
           gh release delete "beta$N" -R "$GITHUB_REPOSITORY" --yes --cleanup-tag 2>/dev/null || true
           gh release create "beta$N" dist/* -R "$GITHUB_REPOSITORY" --prerelease --target "$GITHUB_SHA" \
-            --title "FluxerHooks-beta$N" --notes "Reconstruction de l'ancienne version (commit ${{ inputs.ref }}) sous le nom FluxerHooks-beta$N."
+            --title "FluxerHooks-beta$N" --notes-file /tmp/notes.md
 
       - name: Journal d'échec
         if: failure()
