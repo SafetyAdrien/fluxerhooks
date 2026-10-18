@@ -1,4 +1,5 @@
 import { getUi, setUi } from '../state/uiMemory';
+import { HistorySheet } from './HistorySheet';
 import React, { useEffect, useRef, useState } from 'react';
 import { tr } from '../i18n';
 import { ActivityIndicator, Animated, BackHandler, Easing, Image, ScrollView, Text, View, useWindowDimensions } from 'react-native';
@@ -27,15 +28,15 @@ import { Pressable } from 'react-native';
 type Tab = 'editor' | 'preview';
 
 export function HomeScreen({ onRestored }: { onRestored: () => void }) {
-  const { theme: t, settings, base } = useSettings();
+  const { theme: t, settings, base, haptic } = useSettings();
   const session = useSession();
   const ep = useEndpoints();
   const wp = settings.wallpaper;
-  const { state, addMessage, setAllCollapsed } = useEditor();
+  const { state, addMessage, setAllCollapsed, undo, redo, canUndo, canRedo } = useEditor();
   const { busy, sendAll, activeTargets } = useSender();
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
-  const [sheet, setSheet] = useState<null | 'settings' | 'bot' | 'json' | 'data' | 'account' | 'css'>(null);
+  const [sheet, setSheet] = useState<null | 'settings' | 'bot' | 'json' | 'data' | 'account' | 'css' | 'history'>(null);
   const [tab, setTab] = useState<Tab>('editor');
   const [page, setPage] = useState<'home' | 'editor'>('home');
   // Transition douce entre l'accueil et l'éditeur.
@@ -272,6 +273,59 @@ export function HomeScreen({ onRestored }: { onRestored: () => void }) {
             </>
           )}
 
+          {/* Historique d'édition : annuler, chronologie, rétablir */}
+          {(split || tab === 'editor') && (
+            <View
+              style={{
+                position: 'absolute',
+                left: 18,
+                bottom: insets.bottom + 24,
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 2,
+                padding: 4,
+                borderRadius: 999,
+                backgroundColor: t.surface,
+                borderWidth: 1,
+                borderColor: t.border,
+                elevation: 8,
+                shadowColor: '#000',
+                shadowOpacity: 0.3,
+                shadowRadius: 10,
+                shadowOffset: { width: 0, height: 4 },
+              }}
+            >
+              {([
+                ['undo-variant', 'Annuler la modification', undo, canUndo],
+                ['history', 'Historique d’édition', () => setSheet('history'), true],
+                ['redo-variant', 'Rétablir la modification', redo, canRedo],
+              ] as const).map(([icon, label, fn, on]) => (
+                <Pressable
+                  key={icon}
+                  onPress={() => {
+                    haptic('light');
+                    fn();
+                  }}
+                  disabled={!on}
+                  accessibilityRole="button"
+                  accessibilityLabel={tr(label)}
+                  hitSlop={4}
+                  style={({ pressed }) => ({
+                    width: t.z(42),
+                    height: t.z(42),
+                    borderRadius: 999,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor: pressed ? t.accentSoft : 'transparent',
+                    opacity: on ? 1 : 0.35,
+                  })}
+                >
+                  <MaterialCommunityIcons name={icon} size={t.z(22)} color={icon === 'history' ? t.accent : t.text} />
+                </Pressable>
+              ))}
+            </View>
+          )}
+
           {/* Aperçu : bouton flottant */}
           {!split && (
             <Pressable
@@ -315,6 +369,7 @@ export function HomeScreen({ onRestored }: { onRestored: () => void }) {
       />
       {sheet === 'bot' && <BotBrowser visible onClose={() => setSheet(null)} onOpenAccount={() => setSheet('account')} />}
       {sheet === 'json' && <JsonSheet visible onClose={() => setSheet(null)} />}
+      {sheet === 'history' && <HistorySheet visible onClose={() => setSheet(null)} />}
       {sheet === 'data' && <DataHubSheet visible onClose={() => setSheet(null)} onRestored={onRestored} />}
       {sheet === 'account' && (
         <AccountSheet

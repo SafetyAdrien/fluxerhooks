@@ -2,7 +2,7 @@
   "expo": {
     "name": "FluxerHooks",
     "slug": "fluxerhooks",
-    "version": "beta14",
+    "version": "beta15",
     "orientation": "default",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -24,7 +24,7 @@
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "app.fluxerhooks",
-      "versionCode": 14,
+      "versionCode": 15,
       "softwareKeyboardLayoutMode": "resize",
       "blockedPermissions": [
         "android.permission.RECORD_AUDIO",

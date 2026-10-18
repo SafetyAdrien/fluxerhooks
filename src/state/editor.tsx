@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { loadUiMemory } from './uiMemory';
+import { addEntry, applyKeepingUi, contentSignature, loadHistory, record, redoTarget, saveHistory, undoTarget, type HistoryData } from './history';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Backup, DraftMessage, EditorState, Embed, EmbedField, WebhookTarget } from '../types';
 import { cloneEmbed, cloneMessage, moveItem, newEmbed, newField, newMessage, newTarget, uid, welcomeState } from '../utils/factory';
@@ -42,6 +43,16 @@ interface EditorApi {
   saveBackup: (name: string) => void;
   deleteBackup: (id: string) => void;
   renameBackup: (id: string, name: string) => void;
+  // historique d'édition
+  history: HistoryData;
+  canUndo: boolean;
+  canRedo: boolean;
+  undo: () => void;
+  redo: () => void;
+  /** Revient à n'importe quelle étape de la chronologie. */
+  restoreEntry: (id: string) => void;
+  /** Vide l'historique en gardant l'état actuel comme point de départ. */
+  clearHistory: () => void;
 }
 
 const EditorContext = createContext<EditorApi | null>(null);
@@ -51,6 +62,10 @@ export function EditorProvider({ children }: { children: React.ReactNode }) {
   const [backups, setBackups] = useState<Backup[]>([]);
   const [ready, setReady] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [history, setHistory] = useState<HistoryData>({ entries: [], cursor: null });
+  const recorded = useRef<{ state: EditorState; sig: string } | null>(null);
+  /** Libellé imposé pour la prochaine étape (import, effacement…). */
+  const nextLabel = useRef<{ kind: 'import' | 'remove'; label: string } | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -63,7 +78,18 @@ export function EditorProvider({ children }: { children: React.ReactNode }) {
         }
         await loadUiMemory();
         const b = await AsyncStorage.getItem(BACKUPS_KEY);
-        if (b) setBackups(JSON.parse(b));
+        const list: Backup[] = b ? JSON.parse(b) : [];
+        setBackups(list);
+        // Historique : repris s'il existe, sinon construit depuis les sauvegardes et le brouillon existants.
+        let current = welcomeState();
+        if (raw) {
+          const parsed = JSON.parse(raw) as EditorState;
+          if (parsed?.messages?.length) current = parsed;
+        }
+        const h = await loadHistory(current, list);
+        recorded.current = { state: current, sig: contentSignature(current) };
+        setHistory(h);
+        saveHistory(h);
       } catch {
         // brouillon corrompu : on repart du message d'accueil
       }
@@ -79,6 +105,38 @@ export function EditorProvider({ children }: { children: React.ReactNode }) {
       AsyncStorage.setItem(KEY, JSON.stringify(state)).catch(() => {});
     }, 400);
   }, [state, ready]);
+
+  // Chaque modification du contenu devient une étape de l'historique.
+  useEffect(() => {
+    if (!ready || !recorded.current) return;
+    const sig = contentSignature(state);
+    if (sig === recorded.current.sig) return;
+    const prev = recorded.current.state;
+    recorded.current = { state, sig };
+    const forced = nextLabel.current;
+    nextLabel.current = null;
+    setHistory((h) => {
+      const n = forced ? addEntry(h, forced.kind, forced.label, state) : record(h, prev, state);
+      saveHistory(n);
+      return n;
+    });
+  }, [state, ready]);
+
+  const historyRef = useRef(history);
+  historyRef.current = history;
+  const stateRef = useRef(state);
+  stateRef.current = state;
+  const jumpTo = useCallback((id: string | null | undefined) => {
+    const h = historyRef.current;
+    const e = id ? h.entries.find((x) => x.id === id) : null;
+    if (!e) return;
+    const next = applyKeepingUi(stateRef.current, e.state);
+    recorded.current = { state: next, sig: contentSignature(next) };
+    const n = { ...h, cursor: e.id };
+    setState(next);
+    setHistory(n);
+    saveHistory(n);
+  }, []);
 
   const persistBackups = (b: Backup[]) => {
     setBackups(b);
@@ -96,10 +154,16 @@ export function EditorProvider({ children }: { children: React.ReactNode }) {
     [mapMsg],
   );
 
-  const api = useMemo<Omit<EditorApi, 'state' | 'ready' | 'backups'>>(
+  const api = useMemo<Omit<EditorApi, 'state' | 'ready' | 'backups' | 'history' | 'canUndo' | 'canRedo' | 'undo' | 'redo' | 'restoreEntry' | 'clearHistory'>>(
     () => ({
-      replace: (s) => setState(s),
-      clearAll: () => setState({ targets: [newTarget()], messages: [newMessage()] }),
+      replace: (s) => {
+        nextLabel.current = { kind: 'import', label: 'Brouillon remplacé (import, sauvegarde ou modèle)' };
+        setState(s);
+      },
+      clearAll: () => {
+        nextLabel.current = { kind: 'remove', label: 'Brouillon vidé' };
+        setState({ targets: [newTarget()], messages: [newMessage()] });
+      },
       addTarget: (url) => setState((s) => ({ ...s, targets: [...s.targets, newTarget(url)] })),
       updateTarget: (id, u) =>
         setState((s) => ({ ...s, targets: s.targets.map((t) => (t.id === id ? apply(t, u) : t)) })),
@@ -166,6 +230,17 @@ export function EditorProvider({ children }: { children: React.ReactNode }) {
       ]),
     deleteBackup: (id) => persistBackups(backups.filter((b) => b.id !== id)),
     renameBackup: (id, name) => persistBackups(backups.map((b) => (b.id === id ? { ...b, name } : b))),
+    history,
+    canUndo: !!undoTarget(history),
+    canRedo: !!redoTarget(history),
+    undo: () => jumpTo(undoTarget(history)?.id),
+    redo: () => jumpTo(redoTarget(history)?.id),
+    restoreEntry: (id) => jumpTo(id),
+    clearHistory: () => {
+      const n = addEntry({ entries: [], cursor: null }, 'initial', 'Point de départ', state);
+      setHistory(n);
+      saveHistory(n);
+    },
   };
 
   return <EditorContext.Provider value={value}>{children}</EditorContext.Provider>;
