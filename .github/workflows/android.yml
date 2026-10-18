@@ -112,6 +112,14 @@ jobs:
             node scripts/release-notes.js "$V" || echo "_Pas d'entrée dans CHANGELOG.md pour $V._"
           } > release-notes.md
           gh release create latest dist/* --prerelease --title "FluxerHooks-$V (dernier build)" --notes-file release-notes.md --target "$GITHUB_SHA"
+          # Release propre à la version (beta<N>), avec son audit log
+          node scripts/release-notes.js "$V" > version-notes.md || echo "_Pas d'entrée dans CHANGELOG.md pour $V._" > version-notes.md
+          if gh release view "$V" >/dev/null 2>&1; then
+            gh release edit "$V" --notes-file version-notes.md
+            gh release upload "$V" dist/* --clobber
+          else
+            gh release create "$V" dist/* --prerelease --title "FluxerHooks-$V" --notes-file version-notes.md --target "$GITHUB_SHA"
+          fi
 
       # En cas d'échec, le journal est publié sur la branche ci-logs pour diagnostic.
       - name: Publier le journal d'échec
