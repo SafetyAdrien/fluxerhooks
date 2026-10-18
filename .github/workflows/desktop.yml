@@ -1,0 +1,82 @@
+name: Build Linux AppImage
+
+# FluxerHooks Desktop (branche « desktop ») : même interface que l'app Mobile (export web d'Expo)
+# dans Electron, empaquetée en AppImage x86_64. Publie la pré-release « desktop-latest ».
+on:
+  push:
+    branches: [desktop]
+  workflow_dispatch:
+
+jobs:
+  appimage:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            desktop/package-lock.json
+
+      - name: Installer les dépendances
+        run: |
+          npm ci
+          npm ci --prefix desktop
+
+      - name: Vérifier le TypeScript
+        run: npx tsc --noEmit
+
+      - name: Exporter l'interface (web)
+        run: npx expo export --platform web --output-dir desktop/web
+
+      - name: Construire l'AppImage
+        working-directory: desktop
+        run: |
+          V=$(node -p "require('./package.json').fluxerhooksVersion")
+          FH_VERSION=$V npx electron-builder --linux AppImage --x64 --publish never
+          mkdir -p ../dist-desktop
+          cp dist/*.AppImage ../dist-desktop/
+          cd ../dist-desktop && sha256sum *.AppImage > SHA256SUMS-linux.txt && cat SHA256SUMS-linux.txt
+
+      - uses: actions/upload-artifact@v5
+        with:
+          name: FluxerHooks-linux
+          path: dist-desktop/*
+
+  publish:
+    needs: [appimage]
+    if: github.ref == 'refs/heads/desktop'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - uses: actions/download-artifact@v5
+        with:
+          name: FluxerHooks-linux
+          path: out
+
+      - name: Publier la release Desktop « desktop-latest »
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ls -la out
+          V=$(node -p "require('./desktop/package.json').fluxerhooksVersion")
+          {
+            echo "**FluxerHooks Desktop — Linux x86_64**, build de la branche \`desktop\` (${GITHUB_SHA::7})."
+            echo
+            echo "Télécharge \`FluxerHooks-$V-x86_64.AppImage\`, rends-le exécutable (\`chmod +x\`) puis lance-le. Nécessite FUSE 2 (\`fuse2\` sur Arch/CachyOS)."
+            echo
+            NOTES_BRANCH=desktop NOTES_LABEL=Desktop node scripts/release-notes.js "$V" CHANGELOG.md || echo "_Pas d'entrée dans CHANGELOG.md pour $V._"
+          } > notes.md
+          gh release delete desktop-latest --yes --cleanup-tag 2>/dev/null || true
+          gh release create desktop-latest out/* --prerelease --title "FluxerHooks-$V Desktop · Linux (dernier build)" --notes-file notes.md --target "$GITHUB_SHA"

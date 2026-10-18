@@ -1,0 +1,64 @@
+{
+  "name": "fluxerhooks-desktop",
+  "productName": "FluxerHooks",
+  "version": "0.1.0",
+  "description": "FluxerHooks — webhook message editor for Fluxer (desktop)",
+  "author": "SafetyAdrien",
+  "license": "UNLICENSED",
+  "private": true,
+  "main": "main.js",
+  "scripts": {
+    "web": "cd .. && npx expo export --platform web --output-dir desktop/web",
+    "start": "electron .",
+    "dist": "electron-builder --linux AppImage --x64"
+  },
+  "devDependencies": {
+    "electron": "^44.9.0",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "app.fluxerhooks",
+    "productName": "FluxerHooks",
+    "executableName": "fluxerhooks",
+    "artifactName": "FluxerHooks-${env.FH_VERSION}-${arch}.${ext}",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "altcha-worker.js",
+      "build/icon.png",
+      "web/**/*"
+    ],
+    "asar": true,
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png",
+      "category": "Network",
+      "synopsis": "Webhook message editor for Fluxer",
+      "description": "Free, intuitive interface for creating webhook messages in your Fluxer server.",
+      "desktop": {
+        "entry": {
+          "Name": "FluxerHooks",
+          "Keywords": "fluxer;webhook;discohook;"
+        }
+      },
+      "syncDesktopName": true
+    },
+    "publish": null,
+    "asarUnpack": [
+      "altcha-worker.js"
+    ]
+  },
+  "desktopName": "fluxerhooks.desktop",
+  "fluxerhooksVersion": "beta1"
+}

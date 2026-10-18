@@ -1,0 +1,446 @@
+import React, { useMemo, useState } from 'react';
+import { tr } from '../i18n';
+import { Alert, Switch, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import * as DocumentPicker from 'expo-document-picker';
+import { readPickedText } from '../platform/files';
+import { useEditor } from '../state/editor';
+import { useSettings } from '../state/settings';
+import { useLibrary } from '../state/library';
+import { VARIABLES, describeSchedule, WEEKDAYS } from '../state/automation';
+import { backupHasAccounts, exportFullBackup, importFullBackup } from '../utils/fullBackup';
+import { WrongPasswordError } from '../utils/secretsTransfer';
+import { cloneMessage, uid } from '../utils/factory';
+import { isSendableUrl } from '../utils/parse';
+import { Box, Button, Chip, Dialog, EmptyState, IconBtn, Input, ListRow, Segmented, Sheet, Stack, ToggleRow, useToast, type IconName } from '../components/ui';
+import { Dropdown } from '../components/Dropdown';
+import type { Automation, ScheduleKind } from '../types';
+
+type Tab = 'saves' | 'templates' | 'automations' | 'backup';
+
+const TEMPLATE_ICONS: IconName[] = ['document-text-outline', 'megaphone-outline', 'shield-checkmark-outline', 'sparkles-outline', 'calendar-outline', 'heart-outline', 'rocket-outline', 'game-controller-outline'];
+
+/* ---------- Sauvegardes ---------- */
+
+function Saves({ close }: { close: () => void }) {
+  const { theme: t } = useSettings();
+  const { backups, saveBackup, deleteBackup, renameBackup, replace } = useEditor();
+  const toast = useToast();
+  const [name, setName] = useState('');
+  const [editing, setEditing] = useState<string | null>(null);
+  const [rename, setRename] = useState('');
+  return (
+    <>
+      <Box title="Sauvegarder le brouillon" icon="save-outline" collapsible={false}>
+        <Input value={name} onChangeText={setName} placeholder="Nom (ex : Règlement du serveur)" max={60} />
+        <Button variant="primary" icon="save" label="Sauvegarder" onPress={() => { saveBackup(name); setName(''); toast('Brouillon sauvegardé.', 'success'); }} />
+      </Box>
+      {!backups.length ? (
+        <EmptyState icon="archive-outline" title="Aucune sauvegarde" text="Sauvegarde tes messages pour les retrouver, les automatiser ou les réutiliser." />
+      ) : (
+        backups.map((b) =>
+          editing === b.id ? (
+            <Stack key={b.id} row gap={6}>
+              <View style={{ flex: 1 }}>
+                <Input value={rename} onChangeText={setRename} autoFocus />
+              </View>
+              <IconBtn icon="checkmark" label="Valider" color={t.success} onPress={() => { renameBackup(b.id, rename.trim() || b.name); setEditing(null); }} />
+            </Stack>
+          ) : (
+            <ListRow
+              key={b.id}
+              icon="document-text-outline"
+              title={b.name}
+              subtitle={`${new Date(b.createdAt).toLocaleString('fr-FR')} · ${b.state.messages.length} message(s)`}
+              onPress={() =>
+                Alert.alert(`Charger « ${b.name} » ?`, 'Le brouillon actuel sera remplacé.', [
+                  { text: 'Annuler', style: 'cancel' },
+                  { text: 'Charger', onPress: () => { replace(JSON.parse(JSON.stringify(b.state))); toast('Sauvegarde chargée.', 'success'); close(); } },
+                ])
+              }
+              right={
+                <Stack row gap={0}>
+                  <IconBtn icon="pencil-outline" label="Renommer" onPress={() => { setEditing(b.id); setRename(b.name); }} />
+                  <IconBtn icon="trash-outline" label="Supprimer" color={t.danger} onPress={() => Alert.alert('Supprimer cette sauvegarde ?', undefined, [{ text: 'Annuler', style: 'cancel' }, { text: 'Supprimer', style: 'destructive', onPress: () => deleteBackup(b.id) }])} />
+                </Stack>
+              }
+            />
+          ),
+        )
+      )}
+    </>
+  );
+}
+
+/* ---------- Modèles ---------- */
+
+function Templates({ close }: { close: () => void }) {
+  const { theme: t } = useSettings();
+  const { state, replace } = useEditor();
+  const { templates, saveTemplate, deleteTemplate } = useLibrary();
+  const toast = useToast();
+  const [name, setName] = useState('');
+  const [desc, setDesc] = useState('');
+  const [icon, setIcon] = useState<IconName>(TEMPLATE_ICONS[0]);
+
+  const use = (id: string, mode: 'add' | 'replace') => {
+    const tpl = templates.find((x) => x.id === id)!;
+    const copies = tpl.messages.map(cloneMessage);
+    replace({ ...state, messages: mode === 'replace' ? copies : [...state.messages, ...copies] });
+    toast(`Modèle « ${tpl.name} » ${mode === 'replace' ? 'chargé' : 'ajouté'}.`, 'success');
+    close();
+  };
+
+  return (
+    <>
+      <Box title="Créer un modèle depuis le brouillon" icon="add-circle-outline" defaultCollapsed>
+        <Input value={name} onChangeText={setName} label="Nom" max={50} />
+        <Input value={desc} onChangeText={setDesc} label="Description" max={100} />
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+          {TEMPLATE_ICONS.map((i) => (
+            <Chip key={i} label="" icon={i} selected={icon === i} onPress={() => setIcon(i)} />
+          ))}
+        </View>
+        <Button variant="primary" icon="bookmark-outline" label="Enregistrer comme modèle" disabled={!name.trim()} onPress={() => { saveTemplate(name, desc, icon, state.messages); setName(''); setDesc(''); toast('Modèle enregistré.', 'success'); }} />
+      </Box>
+      {templates.map((tpl) => (
+        <View key={tpl.id} style={{ backgroundColor: t.surface, borderRadius: t.radius, padding: t.pad, gap: 8, borderWidth: 1, borderColor: t.border }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <View style={{ width: t.z(40), height: t.z(40), borderRadius: t.radiusSm, backgroundColor: t.accentSoft, alignItems: 'center', justifyContent: 'center' }}>
+              <Ionicons name={tpl.icon as IconName} size={t.z(20)} color={t.accent} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: t.text, fontWeight: '700', fontSize: t.font(15) }}>{tpl.name}</Text>
+              <Text style={{ color: t.textMuted, fontSize: t.font(12) }}>
+                {tpl.builtin ? 'Intégré' : 'Personnel'} · {tpl.description || `${tpl.messages.length} message(s)`}
+              </Text>
+            </View>
+            {!tpl.builtin && <IconBtn icon="trash-outline" label="Supprimer le modèle" color={t.danger} onPress={() => deleteTemplate(tpl.id)} />}
+          </View>
+          <Stack row gap={8}>
+            <Button flex small icon="add" label="Ajouter" onPress={() => use(tpl.id, 'add')} />
+            <Button flex small variant="primary" icon="swap-horizontal" label="Remplacer" onPress={() => use(tpl.id, 'replace')} />
+          </Stack>
+        </View>
+      ))}
+    </>
+  );
+}
+
+/* ---------- Automatisations ---------- */
+
+const pad = (n: number) => String(n).padStart(2, '0');
+const toLocalInput = (d: Date) => `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+function fromLocalInput(s: string): Date | null {
+  const m = s.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})$/);
+  if (!m) return null;
+  const d = new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]), Number(m[4]), Number(m[5]));
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function AutomationEditor({ initial, onDone }: { initial?: Automation; onDone: () => void }) {
+  const { theme: t } = useSettings();
+  const { backups, state } = useEditor();
+  const { templates, upsertAutomation } = useLibrary();
+  const toast = useToast();
+  const [name, setName] = useState(initial?.name ?? '');
+  const [source, setSource] = useState(initial ? `${initial.source.kind}:${initial.source.id}` : '');
+  const [useCurrent, setUseCurrent] = useState(initial ? initial.targets.length > 0 : true);
+  const [kind, setKind] = useState<ScheduleKind>(initial?.schedule.kind ?? 'daily');
+  const [when, setWhen] = useState(toLocalInput(initial ? new Date(initial.schedule.at) : new Date(Date.now() + 3600_000)));
+  const [every, setEvery] = useState(String(initial?.schedule.everyMinutes ?? 60));
+  const [days, setDays] = useState<number[]>(initial?.schedule.weekdays ?? [new Date().getDay()]);
+  const currentTargets = state.targets.filter((x) => x.enabled && isSendableUrl(x.url)).map((x) => x.url);
+  const date = fromLocalInput(when);
+
+  const options = useMemo(
+    () => [
+      ...backups.map((b) => ({ value: `backup:${b.id}`, label: b.name, subtitle: `${b.state.messages.length} message(s)`, group: 'Sauvegardes', left: <Ionicons name="archive-outline" size={t.z(18)} color={t.textMuted} /> })),
+      ...templates.map((x) => ({ value: `template:${x.id}`, label: x.name, subtitle: x.description, group: 'Modèles', left: <Ionicons name={x.icon as IconName} size={t.z(18)} color={t.textMuted} /> })),
+    ],
+    [backups, templates, t],
+  );
+
+  const save = () => {
+    if (!date) return toast('Date invalide : utilise JJ/MM/AAAA HH:MM.', 'error');
+    const [k, id] = source.split(':');
+    const a: Automation = {
+      id: initial?.id ?? uid(),
+      name: name.trim() || 'Automatisation',
+      enabled: true,
+      source: { kind: k as 'backup' | 'template', id },
+      targets: useCurrent ? currentTargets : [],
+      schedule: { kind, at: date.toISOString(), everyMinutes: Math.max(15, Number(every) || 60), weekdays: days },
+      nextRun: null,
+      lastRun: initial?.lastRun,
+      lastResult: initial?.lastResult,
+      runs: initial?.runs ?? 0,
+    };
+    if (k === 'template' && !a.targets.length) return toast('Un modèle n’a pas de destination : garde « destinations actuelles » activé.', 'error');
+    upsertAutomation(a);
+    toast('Automatisation enregistrée.', 'success');
+    onDone();
+  };
+
+  return (
+    <Box title={initial ? 'Modifier l’automatisation' : 'Nouvelle automatisation'} icon="timer-outline" collapsible={false}>
+      <Input label="Nom" value={name} onChangeText={setName} placeholder="Ex : Rappel du règlement" max={60} />
+      <Dropdown label="Messages à envoyer" title="Source" placeholder="Choisir une sauvegarde ou un modèle" value={source || null} options={options} onChange={setSource} emptyText="Crée d’abord une sauvegarde ou un modèle." />
+      <ToggleRow
+        icon="link-outline"
+        label="Utiliser les destinations actuelles (webhooks et salons du bot)"
+        description={useCurrent ? `${currentTargets.length} webhook(s) du brouillon` : 'Webhooks enregistrés dans la sauvegarde'}
+        value={useCurrent}
+        onChange={setUseCurrent}
+      />
+      <Segmented
+        value={kind}
+        onChange={setKind}
+        options={[
+          { value: 'once', label: 'Une fois' },
+          { value: 'interval', label: 'Intervalle' },
+          { value: 'daily', label: 'Jour' },
+          { value: 'weekly', label: 'Semaine' },
+        ]}
+      />
+      <Input
+        label={kind === 'once' ? 'Date et heure' : kind === 'interval' ? 'Premier envoi' : 'Heure (et date de début)'}
+        value={when}
+        onChangeText={setWhen}
+        placeholder="JJ/MM/AAAA HH:MM"
+        error={date ? null : 'Format JJ/MM/AAAA HH:MM'}
+        keyboardType="numbers-and-punctuation"
+        mono
+      />
+      {kind === 'interval' && (
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+          {[15, 30, 60, 120, 360, 720, 1440, 10080].map((m) => (
+            <Chip key={m} label={m < 60 ? `${m} min` : m < 1440 ? `${m / 60} h` : m === 1440 ? '1 jour' : '1 semaine'} selected={Number(every) === m} onPress={() => setEvery(String(m))} />
+          ))}
+        </View>
+      )}
+      {kind === 'weekly' && (
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+          {WEEKDAYS.map((d, i) => (
+            <Chip key={d} label={d} selected={days.includes(i)} onPress={() => setDays(days.includes(i) ? days.filter((x) => x !== i) : [...days, i])} />
+          ))}
+        </View>
+      )}
+      <Text style={{ color: t.textFaint, fontSize: t.font(12) }}>
+        {tr("Variables :")} {VARIABLES.map((v) => `${v.key} (${v.label.toLowerCase()})`).join(' · ')}
+      </Text>
+      <Stack row gap={8}>
+        <Button flex label="Annuler" onPress={onDone} />
+        <Button flex variant="primary" icon="checkmark" label="Enregistrer" disabled={!source} onPress={save} />
+      </Stack>
+    </Box>
+  );
+}
+
+function Automations() {
+  const { theme: t } = useSettings();
+  const { automations, toggleAutomation, deleteAutomation, runNow, log } = useLibrary();
+  const toast = useToast();
+  const [editing, setEditing] = useState<Automation | 'new' | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+
+  if (editing) return <AutomationEditor initial={editing === 'new' ? undefined : editing} onDone={() => setEditing(null)} />;
+  return (
+    <>
+      <View style={{ flexDirection: 'row', gap: 8, padding: 10, borderRadius: t.radiusSm, backgroundColor: t.accentSoft }}>
+        <Ionicons name="information-circle-outline" size={t.z(18)} color={t.accent} />
+        <Text style={{ color: t.text, flex: 1, fontSize: t.font(12), lineHeight: t.font(17) }}>
+          {tr("Les envois partent depuis ton téléphone. Android lance la vérification en arrière-plan environ toutes les 15 minutes (parfois moins souvent en économie d’énergie) ; les envois en retard partent dès que tu ouvres l’app.")}
+        </Text>
+      </View>
+      <Button variant="primary" icon="add" label="Nouvelle automatisation" onPress={() => setEditing('new')} />
+      {!automations.length && <EmptyState icon="timer-outline" title="Aucune automatisation" text="Programme l’envoi d’une sauvegarde ou d’un modèle : une fois, chaque jour, chaque semaine ou à intervalle." />}
+      {automations.map((a) => (
+        <View key={a.id} style={{ backgroundColor: t.surface, borderRadius: t.radius, padding: t.pad, gap: 6, borderWidth: 1, borderColor: a.enabled ? t.accent : t.border }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Ionicons name="timer-outline" size={t.z(20)} color={a.enabled ? t.accent : t.textFaint} />
+            <Text style={{ flex: 1, color: t.text, fontWeight: '700', fontSize: t.font(15) }}>{a.name}</Text>
+            <Switch value={a.enabled} onValueChange={(v) => toggleAutomation(a.id, v)} trackColor={{ false: t.border, true: t.accentSoft }} thumbColor={a.enabled ? t.accent : t.textFaint} />
+          </View>
+          <Text style={{ color: t.textMuted, fontSize: t.font(13) }}>{describeSchedule(a)}</Text>
+          <Text style={{ color: t.textFaint, fontSize: t.font(12) }}>
+            {a.enabled && a.nextRun ? `Prochain envoi : ${new Date(a.nextRun).toLocaleString('fr-FR')}` : 'En pause'} · {a.runs} exécution(s)
+          </Text>
+          {!!a.lastResult && <Text style={{ color: t.textFaint, fontSize: t.font(12) }}>{tr("Dernier :")} {a.lastResult}</Text>}
+          <Stack row gap={6}>
+            <Button small icon="play" label="Lancer" loading={busy === a.id} onPress={async () => { setBusy(a.id); const r = await runNow(a.id); setBusy(null); toast(r, r.includes('échec') || r.startsWith('Aucun') ? 'error' : 'success'); }} />
+            <Button small icon="create-outline" label="Modifier" onPress={() => setEditing(a)} />
+            <View style={{ flex: 1 }} />
+            <IconBtn icon="trash-outline" label="Supprimer" color={t.danger} onPress={() => Alert.alert('Supprimer cette automatisation ?', undefined, [{ text: 'Annuler', style: 'cancel' }, { text: 'Supprimer', style: 'destructive', onPress: () => deleteAutomation(a.id) }])} />
+          </Stack>
+        </View>
+      ))}
+      {!!log.length && (
+        <Box title="Historique" icon="time-outline" defaultCollapsed badge={String(log.length)}>
+          {log.slice(0, 20).map((l, i) => (
+            <Text key={i} style={{ color: t.textMuted, fontSize: t.font(12) }}>
+              {new Date(l.at).toLocaleString('fr-FR')} · {l.name} — {l.result}
+            </Text>
+          ))}
+        </Box>
+      )}
+    </>
+  );
+}
+
+/* ---------- Backup complet ---------- */
+
+function FullBackup({ onRestored }: { onRestored: () => void }) {
+  const { theme: t } = useSettings();
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+  const [withAccounts, setWithAccounts] = useState(false);
+  const [password, setPassword] = useState('');
+  const [password2, setPassword2] = useState('');
+  // Backup avec comptes chiffrés en attente du mot de passe.
+  const [locked, setLocked] = useState<string | null>(null);
+  const [unlock, setUnlock] = useState('');
+  const [unlocking, setUnlocking] = useState(false);
+  const [unlockError, setUnlockError] = useState('');
+  const pwdOk = password.length >= 6 && password === password2;
+
+  const restore = async (text: string, pwd?: string) => {
+    try {
+      const r = await importFullBackup(text, pwd);
+      toast(
+        r.accounts ? tr('Backup restauré ({n} éléments, {a} compte(s)).', { n: r.items, a: r.accounts }) : tr('Backup restauré ({n} éléments).', { n: r.items }),
+        'success',
+      );
+      setLocked(null);
+      setUnlock('');
+      setUnlockError('');
+      onRestored();
+    } catch (e) {
+      const msg = e instanceof WrongPasswordError ? tr('Mot de passe incorrect.') : e instanceof Error ? tr(e.message) : tr('Backup invalide.');
+      // La boîte de mot de passe reste ouverte : l'erreur s'affiche dedans (le toast serait caché derrière).
+      if (pwd) setUnlockError(msg);
+      else toast(msg, 'error');
+    }
+  };
+
+  return (
+    <>
+      <Box title="Backup complet" icon="cloud-download-outline" collapsible={false}>
+        <Text style={{ color: t.textMuted, fontSize: t.font(13), lineHeight: t.font(19) }}>
+          {tr("Un seul fichier contenant le brouillon, toutes les sauvegardes, modèles, automatisations et paramètres (thème, zoom, styles…). Les tokens de compte et de bot ne sont inclus que si tu le demandes, chiffrés par un mot de passe.")}
+        </Text>
+        <ToggleRow
+          label="Inclure mes comptes"
+          description="Pour retrouver tes comptes Fluxer sur un autre appareil (ex. FluxerHooks pour Linux). Les tokens sont chiffrés avec ton mot de passe."
+          value={withAccounts}
+          onChange={setWithAccounts}
+        />
+        {withAccounts && (
+          <>
+            <Input label="Mot de passe du backup" value={password} onChangeText={setPassword} placeholder="6 caractères minimum" secureTextEntry autoCapitalize="none" autoCorrect={false} />
+            <Input label="Confirmer le mot de passe" value={password2} onChangeText={setPassword2} secureTextEntry autoCapitalize="none" autoCorrect={false} />
+            <Text style={{ color: t.textMuted, fontSize: t.font(12), lineHeight: t.font(17) }}>
+              {tr("Garde ce fichier pour toi : avec le mot de passe, il donne accès à tes comptes. Le mot de passe n’est enregistré nulle part.")}
+            </Text>
+          </>
+        )}
+        <Button
+          variant="primary"
+          icon="share-outline"
+          label="Exporter un backup"
+          loading={busy}
+          disabled={withAccounts && !pwdOk}
+          onPress={async () => {
+            setBusy(true);
+            try {
+              const r = await exportFullBackup({ password: withAccounts ? password : undefined });
+              if (r === 'saved') toast('Backup enregistré.', 'success');
+              else if (r === 'unavailable') toast('Partage indisponible sur cet appareil.', 'error');
+              if (r === 'saved' || r === 'shared') {
+                setPassword('');
+                setPassword2('');
+              }
+            } catch {
+              toast('Échec de l’export.', 'error');
+            } finally {
+              setBusy(false);
+            }
+          }}
+        />
+        <Button
+          icon="download-outline"
+          label="Restaurer un backup"
+          onPress={async () => {
+            try {
+              const res = await DocumentPicker.getDocumentAsync({ type: ['application/json', '*/*'], copyToCacheDirectory: true });
+              if (res.canceled) return;
+              const text = await readPickedText(res.assets[0]);
+              if (backupHasAccounts(text)) {
+                setLocked(text);
+                return;
+              }
+              Alert.alert('Restaurer ce backup ?', 'Tes données actuelles seront remplacées.', [
+                { text: 'Annuler', style: 'cancel' },
+                { text: 'Restaurer', style: 'destructive', onPress: () => restore(text) },
+              ]);
+            } catch {
+              toast('Impossible de lire ce fichier.', 'error');
+            }
+          }}
+        />
+      </Box>
+      <Dialog visible={!!locked} onClose={() => { setLocked(null); setUnlock(''); setUnlockError(''); }} title="Restaurer ce backup ?" icon="key-outline">
+        <Text style={{ color: t.textMuted, fontSize: t.font(14), lineHeight: t.font(20) }}>
+          {tr("Ce backup contient des comptes chiffrés. Entre son mot de passe pour les retrouver ici. Tes données actuelles seront remplacées.")}
+        </Text>
+        <Input label="Mot de passe du backup" value={unlock} onChangeText={(v) => { setUnlock(v); setUnlockError(''); }} secureTextEntry autoCapitalize="none" autoCorrect={false} />
+        {!!unlockError && <Text style={{ color: t.danger, fontSize: t.font(13), fontWeight: '600' }}>{unlockError}</Text>}
+        <Button
+          variant="primary"
+          icon="lock-open-outline"
+          label="Restaurer avec mes comptes"
+          disabled={!unlock}
+          loading={unlocking}
+          onPress={async () => {
+            if (!locked) return;
+            setUnlocking(true);
+            await restore(locked, unlock);
+            setUnlocking(false);
+          }}
+        />
+        <Button
+          icon="download-outline"
+          label="Restaurer sans les comptes"
+          onPress={() => {
+            if (!locked) return;
+            const text = locked;
+            setLocked(null);
+            restore(text);
+          }}
+        />
+      </Dialog>
+    </>
+  );
+}
+
+export function DataHubSheet({ visible, onClose, onRestored, initialTab = 'saves' }: { visible: boolean; onClose: () => void; onRestored: () => void; initialTab?: Tab }) {
+  const [tab, setTab] = useState<Tab>(initialTab);
+  return (
+    <Sheet visible={visible} onClose={onClose} title="Données" full>
+      <Segmented
+        value={tab}
+        onChange={setTab}
+        options={[
+          { value: 'saves', label: 'Sauvegardes' },
+          { value: 'templates', label: 'Modèles' },
+          { value: 'automations', label: 'Auto.' },
+          { value: 'backup', label: 'Backup' },
+        ]}
+      />
+      {tab === 'saves' && <Saves close={onClose} />}
+      {tab === 'templates' && <Templates close={onClose} />}
+      {tab === 'automations' && <Automations />}
+      {tab === 'backup' && <FullBackup onRestored={() => { onClose(); onRestored(); }} />}
+    </Sheet>
+  );
+}

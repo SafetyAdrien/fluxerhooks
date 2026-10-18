@@ -1,0 +1,7 @@
+{
+  "name": "altcha-solver",
+  "version": "1.0.0",
+  "description": "Solveur natif ALTCHA v2 (PBKDF2 multi-cœurs) pour FluxerHooks",
+  "main": "src/index.ts",
+  "private": true
+}

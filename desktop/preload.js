@@ -1,0 +1,27 @@
+// Pont exposé à l'interface (window.fluxerDesktop) — voir src/platform/desktop.ts.
+const { contextBridge, ipcRenderer } = require('electron');
+
+contextBridge.exposeInMainWorld('fluxerDesktop', {
+  platform: process.platform,
+  version: ipcRenderer.sendSync('app:version'),
+  secret: {
+    get: (key) => ipcRenderer.invoke('secret:get', key),
+    set: (key, value) => ipcRenderer.invoke('secret:set', key, value),
+    del: (key) => ipcRenderer.invoke('secret:del', key),
+  },
+  files: {
+    save: (name, text) => ipcRenderer.invoke('files:save', name, text),
+    store: (name, data) => ipcRenderer.invoke('files:store', name, data),
+    remove: (url) => ipcRenderer.invoke('files:remove', url),
+  },
+  altcha: {
+    solve: (opts) => ipcRenderer.invoke('altcha:solve', opts),
+    cancel: () => ipcRenderer.invoke('altcha:cancel'),
+    onProgress: (cb) => {
+      const listener = (_e, data) => cb(data);
+      ipcRenderer.on('altcha:progress', listener);
+      return () => ipcRenderer.removeListener('altcha:progress', listener);
+    },
+  },
+  setBackground: (enabled) => ipcRenderer.invoke('app:background', !!enabled),
+});
