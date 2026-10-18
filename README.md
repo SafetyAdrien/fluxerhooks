@@ -1,72 +1,72 @@
 # FluxerHooks
 
-Application Android (React Native + Expo) pour composer et envoyer des messages webhook sur **Fluxer** — l’équivalent mobile de Discohook, adapté à l’API Fluxer.
+Android app (React Native + Expo) for composing and sending webhook messages on **Fluxer**: the mobile equivalent of Discohook, adapted to the Fluxer API.
 
-## Fonctionnalités
+## Features
 
-- **Messages multiples** : ajoute, duplique, réordonne, replie/déplie ; envoi d’un message ou de tous d’un coup.
-- **Plusieurs webhooks** en même temps, vérifiés automatiquement (nom, avatar, salon).
-- **Embeds** (jusqu’à 10 par message) : auteur, titre + lien, description markdown, couleur (palette + hex), 25 champs en ligne ou non, image, miniature, pied de page, horodatage. Compteurs de caractères calés sur les limites Fluxer.
-- **Threads & forums** : envoyer dans un thread existant (`thread_id`), créer un **post de forum** (`thread_name`) avec ses **tags** (`applied_tags`).
-- **Édition / suppression** d’un message déjà envoyé (lien ou ID), chargement de son contenu dans l’éditeur.
-- **Fichiers** (jusqu’à 10) avec spoiler, texte alternatif et référence `attachment://` pour les images d’embed.
-- Options : masquer les embeds, message silencieux, mentions autorisées, réponse à un message, pseudo et avatar par message.
-- **Aperçu** façon Fluxer (markdown complet : gras, italique, souligné, barré, code, blocs, spoilers, liens, titres, sous-texte, citations, listes, mentions, `<t:…>`).
-- **Compte bot (optionnel)** : liste tes serveurs, salons, threads actifs, posts de forum et tags ; crée des webhooks. Token stocké chiffré (Android Keystore).
-- **Sauvegardes** locales et **import/export JSON** (compatible avec le format de partage Discohook et les payloads bruts).
-- **Compte Fluxer** : connexion par e-mail et mot de passe (CAPTCHA ALTCHA résolu sur le téléphone, double authentification TOTP) ou par token ; profil complet via l’icône de profil.
-- **Menus déroulants** serveur → salon, rangés par catégorie avec les icônes de chaque type de salon (texte, annonces, vocal, forum, média, threads), pour le compte comme pour le bot.
-- **Sélecteur de couleur moderne** (spectre, teinte, palettes, nuances, couleurs récentes, hex et RVB).
-- **Import d’images** avec retouche : rotation ±90°, miroir horizontal/vertical, redimensionnement, format et qualité.
-- **Compositeur** sur tous les champs texte : barre markdown complète et insertion de #salons, @rôles, @membres, émojis du serveur, horodatages `<t:…>` et liens de navigation.
-- **Données** : sauvegardes, modèles (8 intégrés + les tiens), automatisations (une fois, intervalle, quotidien, hebdomadaire, avec variables) et backup complet exportable.
-- **Paramètres** (icône engrenage) : zoom de l’interface mémorisé, fond d’écran assombri (DIM, flou, opacité), apparence des messages (avatars, tailles, bulles, espacement, embeds), éditeur de styles façon CSS par catégorie : 6 thèmes (Sombre, Clair, AMOLED, Indigo, Minuit, Système), couleur d’accent, taille du texte, arrondi des conteneurs, densité, aperçu compact, écran partagé tablette/paysage, confirmation d’envoi, vibrations, instance auto-hébergée.
+- **Multiple messages**: add, duplicate, reorder, collapse/expand; send one message or all of them at once.
+- **Several webhooks** at the same time, checked automatically (name, avatar, channel).
+- **Embeds** (up to 10 per message): author, title + link, markdown description, color (palette + hex), 25 inline or non-inline fields, image, thumbnail, footer, timestamp. Character counters match Fluxer's limits.
+- **Threads & forums**: send into an existing thread (`thread_id`), create a **forum post** (`thread_name`) with its **tags** (`applied_tags`).
+- **Edit / delete** a message that was already sent (link or ID), loading its content into the editor.
+- **Files** (up to 10) with spoiler, alt text and `attachment://` references for embed images.
+- Options: hide embeds, silent message, allowed mentions, reply to a message, per-message username and avatar.
+- **Fluxer-style preview** (full markdown: bold, italic, underline, strikethrough, code, code blocks, spoilers, links, headings, subtext, quotes, lists, mentions, `<t:…>`).
+- **Bot account (optional)**: lists your servers, channels, active threads, forum posts and tags; creates webhooks. Token stored encrypted (Android Keystore).
+- Local **saves** and **JSON import/export** (compatible with Discohook's share format and raw payloads).
+- **Fluxer account**: sign in with email and password (ALTCHA CAPTCHA solved on the phone, TOTP two-factor authentication); full profile through the profile icon.
+- **Dropdown menus** server → channel, grouped by category with an icon for each channel type (text, announcements, voice, forum, media, threads), for both the account and the bot.
+- **Modern color picker** (spectrum, hue, palettes, shades, recent colors, hex and RGB).
+- **Image import** with editing: ±90° rotation, horizontal/vertical flip, resizing, format and quality.
+- **Composer** on every text field: full markdown toolbar and insertion of #channels, @roles, @members, server emojis, `<t:…>` timestamps and navigation links.
+- **Data**: saves, templates (8 built-in + your own), automations (once, interval, daily, weekly, with variables) and an exportable full backup.
+- **Settings** (gear icon): remembered interface zoom, dimmed wallpaper (DIM, blur, opacity), message appearance (avatars, sizes, bubbles, spacing, embeds), CSS-style style editor by category: 6 themes (Dark, Light, AMOLED, Indigo, Midnight, System), accent color, text size, container rounding, density, compact preview, split screen on tablet/landscape, send confirmation, vibrations, self-hosted instance.
 
-## Compatibilité Android
+## Android compatibility
 
-Android **7.0 (API 24) et plus**, soit la quasi-totalité des appareils en service. C’est le minimum imposé par React Native 0.81 / Expo SDK 54 ; aucune version récente de React Native ne descend plus bas. APK universel (armeabi-v7a, arm64-v8a, x86, x86_64).
+Android **7.0 (API 24) and later**, which covers nearly every device in use. This is the minimum required by React Native 0.81 / Expo SDK 54; no recent React Native version goes lower. Universal APK (armeabi-v7a, arm64-v8a, x86, x86_64).
 
-## Obtenir l’APK
+## Getting the APK
 
-### GitHub Actions (automatique)
-1. Pousse ce dossier dans un dépôt GitHub.
-2. Chaque push sur `main` lance **Build Android APK** ; l’APK est dans les *Artifacts* du run.
-3. Un tag `v1.0.0` crée aussi une *Release* avec l’APK attaché.
+### GitHub Actions (automatic)
+1. Push this folder to a GitHub repository.
+2. Every push to `main` runs **Build Android APK**; the APK is in the run's *Artifacts*.
+3. A `v1.0.0` tag also creates a *Release* with the APK attached.
 
-Sans configuration, l’APK est signé avec la clé de debug (installable directement). Pour le Play Store, ajoute ces secrets du dépôt : `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`.
+Without any configuration, the APK is signed with the debug key (installable directly). For the Play Store, add these repository secrets: `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`.
 
-### En local
+### Locally
 ```bash
 npm install
 npx expo prebuild --platform android
 cd android && ./gradlew assembleRelease
 ```
-Ou avec EAS : `npx eas build -p android --profile preview`.
+Or with EAS: `npx eas build -p android --profile preview`.
 
-### Développement
+### Development
 ```bash
 npm install
-npx expo start      # puis « a » pour Android, ou scanne le QR avec Expo Go
-npm run web         # aperçu rapide dans le navigateur
+npx expo start      # then "a" for Android, or scan the QR code with Expo Go
+npm run web         # quick preview in the browser
 ```
 
-## Notes sur l’API Fluxer
+## Notes on the Fluxer API
 
-- Les URL d’API sont découvertes via `GET {instance}/.well-known/fluxer` (`endpoints.api_public`), comme le recommande la documentation.
-- Envoi : `POST /v1/webhooks/{id}/{token}?wait=true[&thread_id=…]`, multipart `payload_json` + `files[n]` quand il y a des fichiers.
-- Édition / suppression : `PATCH` / `DELETE /v1/webhooks/{id}/{token}/messages/{message_id}`.
-- Fluxer ne propose pas de **boutons ni de composants** dans les messages : ils ne sont donc pas dans l’éditeur.
-- Les URL d’avatars et d’icônes de serveur sont construites au mieux depuis le serveur média ; en cas d’échec, l’app affiche l’initiale.
+- API URLs are discovered through `GET {instance}/.well-known/fluxer` (`endpoints.api_public`), as recommended by the documentation.
+- Sending: `POST /v1/webhooks/{id}/{token}?wait=true[&thread_id=…]`, multipart `payload_json` + `files[n]` when there are files.
+- Editing / deleting: `PATCH` / `DELETE /v1/webhooks/{id}/{token}/messages/{message_id}`.
+- Fluxer does not offer **buttons or components** in messages, so they are not in the editor.
+- Avatar and server icon URLs are built on a best-effort basis from the media server; if that fails, the app shows the initial.
 
 ## Structure
 
 ```
-App.tsx                    providers (paramètres, brouillon, toasts)
-src/api/fluxer.ts          client HTTP Fluxer (webhooks + bot)
-src/state/                 paramètres/thèmes, brouillon persistant, envoi
-src/components/            UI flexible (Box, Grid, Stack…), éditeurs, aperçu, markdown
-src/screens/               accueil, paramètres, navigateur bot, JSON, sauvegardes
-.github/workflows/         build APK automatique
+App.tsx                    providers (settings, draft, toasts)
+src/api/fluxer.ts          Fluxer HTTP client (webhooks + bot)
+src/state/                 settings/themes, persistent draft, sending
+src/components/            flexible UI (Box, Grid, Stack…), editors, preview, markdown
+src/screens/               home, settings, bot browser, JSON, saves
+.github/workflows/         automatic APK build
 ```
 
-Projet indépendant, non affilié à Fluxer.
+Independent project, not affiliated with Fluxer.
