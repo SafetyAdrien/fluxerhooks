@@ -9,7 +9,7 @@ Légende : ✨ Ajouts · 🔧 Modifications · 🐛 Correctifs · 🏗️ Build 
 
 ---
 
-## beta1
+## beta-0.0.1
 
 **Première version de FluxerHooks pour Linux** — branche `desktop` · 18 oct. 2026
 
