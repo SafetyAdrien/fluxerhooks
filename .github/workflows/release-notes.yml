@@ -1,0 +1,37 @@
+name: Sync release notes
+
+# Réécrit la description de chaque release « beta<N> » à partir de CHANGELOG.md (audit log).
+# Se lance à la main (Actions → Sync release notes → Run workflow) ou quand CHANGELOG.md change.
+# La release « latest » est régénérée par « Build Android APK » à chaque push sur main.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [CHANGELOG.md, scripts/release-notes.js]
+
+jobs:
+  notes:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: Mettre à jour les descriptions
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for N in $(grep -oE '^## beta[0-9]+' CHANGELOG.md | grep -oE '[0-9]+'); do
+            if ! gh release view "beta$N" >/dev/null 2>&1; then echo "beta$N : pas de release, ignorée"; continue; fi
+            {
+              echo "Reconstruction de l'ancienne version sous le nom FluxerHooks-beta$N."
+              echo
+              node scripts/release-notes.js "$N"
+            } > "/tmp/notes-$N.md"
+            gh release edit "beta$N" --notes-file "/tmp/notes-$N.md"
+            echo "beta$N : description mise à jour"
+          done
