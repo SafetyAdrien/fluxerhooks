@@ -19,6 +19,7 @@ import { ColorPickerModal } from '../components/ColorPicker';
 import { MessagePreview } from '../components/Preview';
 import { newEmbed, newMessage } from '../utils/factory';
 import type { MessageStyle, ThemeName, WallpaperSettings } from '../types';
+import { DataTransfer } from '../components/DataTransfer';
 
 function ThemeCard({ name, label, selected, onPress }: { name: ThemeName; label: string; selected: boolean; onPress: () => void }) {
   const { theme: t } = useSettings();
@@ -74,6 +75,7 @@ export function SettingsSheet({
   onOpenJson,
   onOpenData,
   onOpenCss,
+  onRestored,
 }: {
   visible: boolean;
   onClose: () => void;
@@ -82,6 +84,7 @@ export function SettingsSheet({
   onOpenJson: () => void;
   onOpenData: () => void;
   onOpenCss: () => void;
+  onRestored: () => void;
 }) {
   const { theme: t, settings, update, reset } = useSettings();
   const { clearAll } = useEditor();
@@ -348,6 +351,20 @@ export function SettingsSheet({
         />
         <Button icon="pulse-outline" label="Tester et enregistrer" loading={testing} onPress={testInstance} />
       </Box>
+
+      {/* ---------- Transfert entre plateformes ---------- */}
+      <DataTransfer
+        title="Transférer vers une autre plateforme"
+        icon="swap-horizontal-outline"
+        intro="Exporte toutes tes données dans un fichier, puis importe-le dans FluxerHooks sur un autre appareil (Mobile ⇄ Desktop) : brouillon, historique, sauvegardes, modèles, automatisations et paramètres, avec tes comptes Fluxer si tu le souhaites."
+        exportLabel="Exporter mes données"
+        importLabel="Importer des données"
+        accountsByDefault
+        onRestored={() => {
+          onClose();
+          onRestored();
+        }}
+      />
 
       {/* ---------- Données ---------- */}
       <Box title="Données" icon="folder-open-outline" collapsible={false}>

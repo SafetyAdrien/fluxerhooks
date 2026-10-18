@@ -541,6 +541,10 @@ const dict: Record<string, string> = {
  "Il sera effacé de ce téléphone.": "It will be erased from this device.",
  "Messages et webhooks seront effacés.": "Messages and webhooks will be cleared.",
  "Tes données actuelles seront remplacées.": "Your current data will be replaced.",
- "Thème, zoom, fond, styles et apparence des messages reviennent par défaut.": "Theme, zoom, wallpaper, styles and message appearance go back to defaults."
+ "Thème, zoom, fond, styles et apparence des messages reviennent par défaut.": "Theme, zoom, wallpaper, styles and message appearance go back to defaults.",
+ "Transférer vers une autre plateforme": "Transfer to another platform",
+ "Exporte toutes tes données dans un fichier, puis importe-le dans FluxerHooks sur un autre appareil (Mobile ⇄ Desktop) : brouillon, historique, sauvegardes, modèles, automatisations et paramètres, avec tes comptes Fluxer si tu le souhaites.": "Export all your data to a file, then import it into FluxerHooks on another device (Mobile ⇄ Desktop): draft, history, saves, templates, automations and settings, with your Fluxer accounts if you want.",
+ "Exporter mes données": "Export my data",
+ "Importer des données": "Import data"
 };
 export default dict;

@@ -541,6 +541,10 @@ const dict: Record<string, string> = {
  "Il sera effacé de ce téléphone.": "このデバイスから消去されます。",
  "Messages et webhooks seront effacés.": "メッセージと Webhook が消去されます。",
  "Tes données actuelles seront remplacées.": "現在のデータは置き換えられます。",
- "Thème, zoom, fond, styles et apparence des messages reviennent par défaut.": "テーマ、ズーム、背景、スタイル、メッセージの外観が初期設定に戻ります。"
+ "Thème, zoom, fond, styles et apparence des messages reviennent par défaut.": "テーマ、ズーム、背景、スタイル、メッセージの外観が初期設定に戻ります。",
+ "Transférer vers une autre plateforme": "別のプラットフォームへ移行",
+ "Exporte toutes tes données dans un fichier, puis importe-le dans FluxerHooks sur un autre appareil (Mobile ⇄ Desktop) : brouillon, historique, sauvegardes, modèles, automatisations et paramètres, avec tes comptes Fluxer si tu le souhaites.": "すべてのデータをファイルに書き出し、別のデバイス（モバイル ⇄ デスクトップ）の FluxerHooks で読み込みます：下書き、履歴、保存、テンプレート、自動化、設定、必要なら Fluxer アカウントも。",
+ "Exporter mes données": "データを書き出す",
+ "Importer des données": "データを読み込む"
 };
 export default dict;

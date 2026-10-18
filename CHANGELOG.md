@@ -9,6 +9,14 @@ Légende : ✨ Ajouts · 🔧 Modifications · 🐛 Correctifs · 🏗️ Build 
 
 ---
 
+## beta2
+
+**Transfert des données vers une autre plateforme depuis les Paramètres** — branche `desktop` · 18 oct. 2026
+
+### ✨ Ajouts
+- Nouvelle section **« Transférer vers une autre plateforme »** dans les Paramètres : **Exporter mes données** (« Enregistrer sous ») puis **Importer des données** dans FluxerHooks sur un autre appareil (Desktop ⇄ Mobile).
+- Le fichier contient le brouillon, l'historique, les sauvegardes, les modèles, les automatisations et les paramètres ; les **comptes Fluxer** sont inclus par défaut, chiffrés par un mot de passe (option désactivable).
+
 ## beta1
 
 **Première version de FluxerHooks pour Linux** — branche `desktop` · 18 oct. 2026

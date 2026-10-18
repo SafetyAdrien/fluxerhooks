@@ -541,6 +541,10 @@ const dict: Record<string, string> = {
  "Il sera effacé de ce téléphone.": "Zostanie usunięte z tego urządzenia.",
  "Messages et webhooks seront effacés.": "Wiadomości i webhooki zostaną usunięte.",
  "Tes données actuelles seront remplacées.": "Twoje obecne dane zostaną zastąpione.",
- "Thème, zoom, fond, styles et apparence des messages reviennent par défaut.": "Motyw, powiększenie, tło, style i wygląd wiadomości wracają do domyślnych."
+ "Thème, zoom, fond, styles et apparence des messages reviennent par défaut.": "Motyw, powiększenie, tło, style i wygląd wiadomości wracają do domyślnych.",
+ "Transférer vers une autre plateforme": "Przenieś na inną platformę",
+ "Exporte toutes tes données dans un fichier, puis importe-le dans FluxerHooks sur un autre appareil (Mobile ⇄ Desktop) : brouillon, historique, sauvegardes, modèles, automatisations et paramètres, avec tes comptes Fluxer si tu le souhaites.": "Wyeksportuj wszystkie dane do pliku, a potem zaimportuj go w FluxerHooks na innym urządzeniu (Mobile ⇄ Desktop): szkic, historia, zapisy, szablony, automatyzacje i ustawienia, a jeśli chcesz, także konta Fluxer.",
+ "Exporter mes données": "Eksportuj moje dane",
+ "Importer des données": "Importuj dane"
 };
 export default dict;

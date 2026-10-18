@@ -366,6 +366,7 @@ export function HomeScreen({ onRestored }: { onRestored: () => void }) {
         onOpenJson={() => setSheet('json')}
         onOpenData={() => setSheet('data')}
         onOpenCss={() => setSheet('css')}
+        onRestored={onRestored}
       />
       {sheet === 'bot' && <BotBrowser visible onClose={() => setSheet(null)} onOpenAccount={() => setSheet('account')} />}
       {sheet === 'json' && <JsonSheet visible onClose={() => setSheet(null)} />}

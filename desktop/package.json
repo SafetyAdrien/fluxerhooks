@@ -1,7 +1,7 @@
 {
   "name": "fluxerhooks-desktop",
   "productName": "FluxerHooks",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "FluxerHooks — webhook message editor for Fluxer (desktop)",
   "author": "SafetyAdrien",
   "license": "UNLICENSED",
@@ -60,5 +60,5 @@
     ]
   },
   "desktopName": "fluxerhooks.desktop",
-  "fluxerhooksVersion": "beta1"
+  "fluxerhooksVersion": "beta2"
 }
