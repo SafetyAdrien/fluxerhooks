@@ -24,4 +24,24 @@ contextBridge.exposeInMainWorld('fluxerDesktop', {
     },
   },
   setBackground: (enabled) => ipcRenderer.invoke('app:background', !!enabled),
+  link: {
+    hostname: ipcRenderer.sendSync('app:hostname'),
+    localAddresses: () => ipcRenderer.invoke('link:addresses'),
+    request: (url, method, body, timeoutMs) => ipcRenderer.invoke('link:request', url, method, body, timeoutMs),
+    serve: (on) => ipcRenderer.invoke('link:serve', !!on),
+    port: () => ipcRenderer.invoke('link:port'),
+    onRequest: (handler) => {
+      const listener = async (_e, req) => {
+        let res;
+        try {
+          res = await handler(req);
+        } catch (err) {
+          res = { status: 500, body: JSON.stringify({ error: 'renderer_error' }) };
+        }
+        ipcRenderer.send('link:response', { id: req.id, status: res.status, body: res.body });
+      };
+      ipcRenderer.on('link:request', listener);
+      return () => ipcRenderer.removeListener('link:request', listener);
+    },
+  },
 });

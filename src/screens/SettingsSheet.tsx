@@ -20,6 +20,7 @@ import { MessagePreview } from '../components/Preview';
 import { newEmbed, newMessage } from '../utils/factory';
 import type { MessageStyle, ThemeName, WallpaperSettings } from '../types';
 import { DataTransfer } from '../components/DataTransfer';
+import { DevicesSection } from '../link/DevicesSection';
 
 function ThemeCard({ name, label, selected, onPress }: { name: ThemeName; label: string; selected: boolean; onPress: () => void }) {
   const { theme: t } = useSettings();
@@ -339,6 +340,8 @@ export function SettingsSheet({
           onPress={go(onOpenAccount)}
         />
       </Box>
+
+      <DevicesSection />
 
       <Box title="Instance Fluxer" icon="globe-outline" defaultCollapsed>
         <Input

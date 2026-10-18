@@ -9,6 +9,7 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const os = require('node:os');
 const { Worker } = require('node:worker_threads');
+const http = require('node:http');
 
 const ORIGIN = 'app://fluxerhooks';
 // Numérotation propre à la version Desktop (« beta1 »…), distincte de celle de l'app Mobile.
@@ -258,6 +259,121 @@ ipcMain.handle('altcha:solve', (e, opts) => {
       w.on('error', (err) => finish(() => reject(err)));
       job.workers.push(w);
     }
+  });
+});
+
+/* ---------- Connexion d'appareils : serveur local (réseau local) ---------- */
+
+const LINK_PORTS = [47321, 47322, 47323, 47324, 47325];
+const MAX_LINK_BODY = 64 * 1024 * 1024;
+let linkServer = null;
+let linkPort = 0;
+const linkPending = new Map();
+
+ipcMain.on('app:hostname', (e) => (e.returnValue = os.hostname()));
+ipcMain.on('link:response', (_e, r) => {
+  const p = linkPending.get(r?.id);
+  if (!p) return;
+  linkPending.delete(r.id);
+  p(r);
+});
+
+function onLinkHttp(req, res) {
+  const reply = (status, body) => {
+    res.writeHead(status, { 'content-type': 'application/json', 'cache-control': 'no-store' });
+    res.end(body);
+  };
+  if (!String(req.url || '').startsWith('/fluxerhooks/')) return reply(404, '{"error":"not_found"}');
+  const chunks = [];
+  let size = 0;
+  req.on('data', (c) => {
+    size += c.length;
+    if (size > MAX_LINK_BODY) req.destroy();
+    else chunks.push(c);
+  });
+  req.on('end', () => {
+    if (!win || win.isDestroyed()) return reply(503, '{"error":"unavailable"}');
+    const id = crypto.randomBytes(8).toString('hex');
+    const timer = setTimeout(() => {
+      linkPending.delete(id);
+      reply(504, '{"error":"timeout"}');
+    }, 90000);
+    linkPending.set(id, (r) => {
+      clearTimeout(timer);
+      reply(Number(r.status) || 500, String(r.body ?? ''));
+    });
+    const headers = {};
+    for (const [k, v] of Object.entries(req.headers)) headers[k.toLowerCase()] = Array.isArray(v) ? v.join(',') : String(v ?? '');
+    win.webContents.send('link:request', { id, method: req.method, path: req.url, headers, body: Buffer.concat(chunks).toString('utf8') });
+  });
+}
+
+function startLinkServer() {
+  if (linkServer) return Promise.resolve(linkPort);
+  return new Promise((resolve) => {
+    const tryPort = (i) => {
+      if (i >= LINK_PORTS.length) return resolve(null);
+      const srv = http.createServer(onLinkHttp);
+      srv.once('error', () => tryPort(i + 1));
+      srv.listen(LINK_PORTS[i], '0.0.0.0', () => {
+        linkServer = srv;
+        linkPort = LINK_PORTS[i];
+        resolve(linkPort);
+      });
+    };
+    tryPort(0);
+  });
+}
+function stopLinkServer() {
+  if (!linkServer) return;
+  linkServer.close();
+  linkServer = null;
+  linkPort = 0;
+}
+ipcMain.handle('link:serve', async (_e, on) => (on ? startLinkServer() : (stopLinkServer(), null)));
+ipcMain.handle('link:port', () => linkPort);
+function lanAddresses() {
+  const out = [];
+  for (const [name, list] of Object.entries(os.networkInterfaces())) {
+    if (/^(lo|docker|br-|veth|virbr|tun|tap|zt|tailscale)/.test(name)) continue;
+    for (const a of list || []) if (a.family === 'IPv4' && !a.internal) out.push(a.address);
+  }
+  return out;
+}
+ipcMain.handle('link:addresses', () => lanAddresses());
+// Requêtes vers un autre appareil lié : réseau local uniquement (plages privées ou même sous-réseau que cet ordinateur).
+const subnet = (ip) => ip.split('.').slice(0, 3).join('.');
+const isLocalHost = (h) =>
+  h === 'localhost' ||
+  /^(127\.|10\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.)/.test(h) ||
+  (/^\d+\.\d+\.\d+\.\d+$/.test(h) && lanAddresses().some((a) => subnet(a) === subnet(h)));
+ipcMain.handle('link:request', (_e, url, method, body, timeoutMs) => {
+  let u;
+  try {
+    u = new URL(String(url));
+  } catch {
+    return { status: 0, body: '' };
+  }
+  if (u.protocol !== 'http:' || !isLocalHost(u.hostname)) return { status: 0, body: '' };
+  return new Promise((resolve) => {
+    const req = http.request(
+      { hostname: u.hostname, port: u.port || 80, path: u.pathname + u.search, method: method === 'POST' ? 'POST' : 'GET', headers: { 'content-type': 'application/json' }, timeout: Math.min(Number(timeoutMs) || 15000, 120000) },
+      (res) => {
+        const chunks = [];
+        let size = 0;
+        res.on('data', (c) => {
+          size += c.length;
+          if (size > MAX_LINK_BODY) req.destroy();
+          else chunks.push(c);
+        });
+        res.on('end', () => resolve({ status: res.statusCode || 0, body: Buffer.concat(chunks).toString('utf8') }));
+        res.on('error', () => resolve({ status: 0, body: '' }));
+      },
+    );
+    req.on('timeout', () => req.destroy());
+    req.on('error', () => resolve({ status: 0, body: '' }));
+    if (body != null) req.write(String(body));
+    req.end();
   });
 });
 

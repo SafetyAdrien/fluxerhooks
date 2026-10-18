@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { automationRunner } from '../link/engine';
 import { resolveEndpoints, sendToTarget } from '../api/fluxer';
 import type { Automation, Backup, DraftMessage, Template } from '../types';
 import { isSendableUrl, parseBotTarget } from '../utils/parse';
@@ -157,6 +158,10 @@ export async function runDueAutomations(): Promise<number> {
   let count = 0;
   for (const a of list) {
     if (!a.enabled || !a.nextRun || new Date(a.nextRun) > now) continue;
+    // Appareils liés : l'automatisation n'est envoyée que par l'appareil qui l'exécute.
+    const who = await automationRunner(a.device);
+    if (!who.run) continue;
+    a.device = who.device;
     a.lastResult = await runAutomation(a);
     a.lastRun = new Date().toISOString();
     a.runs += 1;

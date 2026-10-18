@@ -39,6 +39,15 @@ export interface DesktopBridge {
   };
   /** Garde l'app dans la zone de notification à la fermeture (automatisations en arrière-plan). */
   setBackground(enabled: boolean): Promise<void>;
+  /** Connexion d'appareils : serveur local et requêtes sur le réseau local. */
+  link?: {
+    hostname: string;
+    localAddresses(): Promise<string[]>;
+    request(url: string, method: string, body: string | null, timeoutMs: number): Promise<{ status: number; body: string }>;
+    serve(on: boolean): Promise<number | null>;
+    port(): Promise<number>;
+    onRequest(handler: (req: { method: string; path: string; headers: Record<string, string>; body: string }) => Promise<{ status: number; body: string }>): () => void;
+  };
 }
 
 export const desktop: DesktopBridge | null =

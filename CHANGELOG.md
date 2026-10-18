@@ -9,6 +9,25 @@ Légende : ✨ Ajouts · 🔧 Modifications · 🐛 Correctifs · 🏗️ Build 
 
 ---
 
+## beta3
+
+**Connexion d'appareils et synchro automatique sur le même Wi-Fi** — branche `desktop` · 18 oct. 2026
+
+### ✨ Ajouts
+- **Connexion d'appareils** (Paramètres → **Appareils**) : FluxerHooks Desktop affiche un **QR code** (« Connecter un appareil »), le téléphone le scanne (« Scanner le QR code ») ; entre deux ordinateurs, le code se copie et se colle (« Saisir un code »).
+- Les deux appareils doivent être **connectés au même compte Fluxer** : sinon la liaison est refusée, et la synchro s'arrête si l'un d'eux passe sur un autre compte.
+- **Synchro automatique** entre appareils liés dès qu'ils sont sur le **même Wi-Fi** avec l'app ouverte : brouillon, historique, sauvegardes, modèles, automatisations et paramètres. Pour chaque élément, la modification la plus récente gagne ; un modèle ajouté sur un appareil et un autre sur le second sont tous deux gardés, et une suppression se propage.
+- Au moment de la liaison, choix des **données de départ** : fusionner, garder celles de cet appareil ou prendre celles de l'autre.
+- Liste des **appareils connectés au compte Fluxer** (type, système, lieu approximatif, dernière activité, « Cet appareil »), et des appareils liés à FluxerHooks avec leur état (« Synchronisé à… », « Introuvable sur le réseau »…), possibilité de les délier.
+- Aucun serveur ni note personnelle Fluxer : les données passent directement d'un appareil à l'autre, **chiffrées en AES-256-GCM** avec une clé propre à chaque liaison.
+- Automatisations : avec des appareils liés, chacune n'est envoyée que par un seul appareil (celui qui l'a exécutée en premier).
+
+### 🔧 Modifications
+- L'instance Fluxer et l'image de fond restent propres à chaque appareil.
+
+### 🏗️ Build / technique
+- Serveur local sur le port **47321** (TCP, réseau local), actif seulement quand un appareil est lié ou en cours de liaison ; les requêtes vers les autres appareils passent par le processus principal.
+
 ## beta2
 
 **Transfert des données vers une autre plateforme depuis les Paramètres** — branche `desktop` · 18 oct. 2026

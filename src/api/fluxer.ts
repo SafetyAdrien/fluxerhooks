@@ -545,3 +545,22 @@ export const CHANNEL_TYPES = {
 export const WEBHOOK_CHANNEL_TYPES: number[] = [0, 2, 5, 15, 16];
 export const isForumType = (t: number) => t === 15 || t === 16;
 export const isThreadType = (t: number) => t === 10 || t === 11 || t === 12;
+
+/* ---------- Sessions du compte (appareils connectés) ---------- */
+
+export interface AuthSession {
+  id_hash: string;
+  current: boolean;
+  client_info?: {
+    platform?: string | null;
+    os?: string | null;
+    browser?: string | null;
+    device?: string | null;
+    location?: { city?: string | null; region?: string | null; country?: string | null } | null;
+  } | null;
+  masked_ip?: string | null;
+  approx_last_used_at?: string | null;
+}
+
+/** GET /v1/auth/sessions : appareils connectés au compte, du plus récemment actif au plus ancien. */
+export const listAuthSessions = (ep: Endpoints, token: string) => request<AuthSession[]>(ep, '/auth/sessions', { user: token });
