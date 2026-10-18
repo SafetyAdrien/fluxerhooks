@@ -1,0 +1,19 @@
+name: Delete release
+
+# Supprime une release (et son tag) : Actions → Delete release → Run workflow.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Tag de la release à supprimer
+        required: true
+
+jobs:
+  delete:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release delete "${{ inputs.tag }}" -R "$GITHUB_REPOSITORY" --yes --cleanup-tag

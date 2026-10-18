@@ -502,6 +502,7 @@ const dict: Record<string, string> = {
  "Vider": "消去",
  "Historique vidé": "履歴を消去しました",
  "Annuler la modification": "元に戻す",
- "Rétablir la modification": "やり直す"
+ "Rétablir la modification": "やり直す",
+ "Changement de compte…": "アカウントを切り替え中…"
 };
 export default dict;

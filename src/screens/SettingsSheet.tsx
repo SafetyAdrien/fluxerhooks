@@ -1,3 +1,4 @@
+import { APP_VERSION } from '../version';
 import React, { useState } from 'react';
 import { Alert, Image, Linking, Pressable, Text, View } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -372,7 +373,7 @@ export function SettingsSheet({
 
       <Box title="À propos" icon="information-circle-outline" defaultCollapsed>
         <Text style={{ color: t.textMuted, fontSize: t.font(13) }}>
-          FluxerHooks-{Constants.expoConfig?.version ?? ''} — éditeur de messages webhook pour Fluxer. Projet indépendant, non affilié à Fluxer.
+          FluxerHooks-{APP_VERSION} — éditeur de messages webhook pour Fluxer. Projet indépendant, non affilié à Fluxer.
         </Text>
         <ListRow icon="book-outline" title="Documentation API Fluxer" onPress={() => Linking.openURL('https://docs.fluxer.app')} />
         <ListRow icon="logo-github" title="Fluxer sur GitHub" onPress={() => Linking.openURL('https://github.com/fluxerapp/fluxer')} />

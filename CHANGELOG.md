@@ -12,7 +12,7 @@ Légende : ✨ Ajouts · 🔧 Modifications · 🐛 Correctifs · 🏗️ Build 
 
 ## beta15
 
-**Historique d'édition avancé** — commit `8f34f2b` · 18 oct. 2026
+**Historique d'édition avancé, changement de compte corrigé** — commits `8f34f2b` et suivants · 18 oct. 2026
 
 ### ✨ Ajouts
 - **Historique d'édition** : chaque modification de l'éditeur devient une étape (les frappes consécutives sont regroupées).
@@ -22,6 +22,7 @@ Légende : ✨ Ajouts · 🔧 Modifications · 🐛 Correctifs · 🏗️ Build 
 - **150 étapes persistées** entre deux lancements de l'application.
 - **Reprise de l'existant** : les sauvegardes et le brouillon d'avant la mise à jour sont importés dans l'historique (« Point de départ », « Brouillon retrouvé »).
 - Traductions de tout l'historique dans les **10 langues**.
+- **Écran de chargement lors du changement de compte** : avatar, nom et « Changement de compte… » pendant la transition, puis retour au même endroit du profil qu'avant d'ouvrir le sélecteur.
 
 ### 🔧 Modifications
 - `state/editor` : gestion de l'historique intégrée à l'état de l'éditeur ; l'écran d'accueil expose les nouvelles actions.
@@ -30,6 +31,12 @@ Légende : ✨ Ajouts · 🔧 Modifications · 🐛 Correctifs · 🏗️ Build 
 ### 🏗️ Build / technique
 - Nouveau module `src/state/history.ts` et écran `HistorySheet`.
 - Workflow « Rebuild old beta » ajusté.
+
+### 🐛 Correctifs
+- **Changement de compte impossible après l'ajout d'un deuxième compte** : le profil du nouveau compte était affiché avant que son token soit pris en compte, ce qui enregistrait l'ancien token sous le nouveau compte ; le sélecteur revenait donc toujours au même compte.
+- Les comptes ne sont désormais enregistrés qu'à partir d'une réponse du serveur pour leur propre token, et chaque token est vérifié avant de basculer.
+- Un compte enregistré avec un mauvais token par une version précédente est détecté : son token est oublié et l'app demande de le reconnecter.
+- Déconnexion avec bascule vers le compte suivant : même correction de l'ordre token / profil.
 
 ---
 

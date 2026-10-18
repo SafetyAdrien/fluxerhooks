@@ -502,6 +502,7 @@ const dict: Record<string, string> = {
  "Vider": "Borrar",
  "Historique vidé": "Historial borrado",
  "Annuler la modification": "Deshacer",
- "Rétablir la modification": "Rehacer"
+ "Rétablir la modification": "Rehacer",
+ "Changement de compte…": "Cambiando de cuenta…"
 };
 export default dict;

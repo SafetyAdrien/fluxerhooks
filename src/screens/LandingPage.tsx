@@ -1,3 +1,4 @@
+import { APP_VERSION } from '../version';
 import React, { useEffect, useRef, useState } from 'react';
 import { tr } from '../i18n';
 import { Animated, Easing, Platform, Pressable, ScrollView, Text, View, useWindowDimensions } from 'react-native';
@@ -228,7 +229,7 @@ export function LandingPage({ onOpenEditor, onAction }: { onOpenEditor: () => vo
   const { state } = useEditor();
   const { activeTargets } = useSender();
   const targets = activeTargets().length;
-  const version = Constants.expoConfig?.version ?? '';
+  const version = APP_VERSION;
 
   return (
     <ScrollView contentContainerStyle={{ flexGrow: 1, paddingTop: insets.top + 8, paddingBottom: insets.bottom + 24 }}>

@@ -107,6 +107,18 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     [userToken, botToken],
   );
 
+  /** Mémorise un compte avec SON token, uniquement après une réponse du serveur pour ce token. */
+  const register = useCallback((me: FluxerUser, token: string) => {
+    tokens.current.set(me.id, token);
+    writeSecret(tokenKey(me.id), token);
+    const entry: SavedAccount = { id: me.id, username: me.username, global_name: me.global_name, avatar: me.avatar ?? null, lastUsed: Date.now() };
+    setAccounts((prev) => {
+      const next = [entry, ...prev.filter((a) => a.id !== me.id)];
+      AsyncStorage.setItem(ACCOUNTS_KEY, JSON.stringify(next)).catch(() => {});
+      return next;
+    });
+  }, []);
+
   const refreshMe = useCallback(async () => {
     if (userToken) {
       const hit = cache.current.get(userToken);
@@ -115,11 +127,12 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       if (me) {
         cache.current.set(userToken, { ...cache.current.get(userToken), user: me });
         setUser(me);
+        register(me, userToken);
       } else if (!hit?.user) setUser(null);
     } else setUser(null);
     if (botToken) setBotUser(await apiFor(ep, { kind: 'bot', token: botToken }).me().catch(() => null));
     else setBotUser(null);
-  }, [ep, userToken, botToken]);
+  }, [ep, userToken, botToken, register]);
 
   useEffect(() => {
     refreshMe();
@@ -128,33 +141,29 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refreshMe]);
 
-  // Compte connecté : enregistré dans la liste (token chiffré à part) pour pouvoir y revenir.
-  useEffect(() => {
-    if (!user || !userToken) return;
-    tokens.current.set(user.id, userToken);
-    writeSecret(tokenKey(user.id), userToken);
-    const entry: SavedAccount = { id: user.id, username: user.username, global_name: user.global_name, avatar: user.avatar ?? null, lastUsed: Date.now() };
-    setAccounts((prev) => {
-      const next = [entry, ...prev.filter((a) => a.id !== user.id)];
-      AsyncStorage.setItem(ACCOUNTS_KEY, JSON.stringify(next)).catch(() => {});
-      return next;
-    });
-  }, [user, userToken]);
-
   const switchAccount = useCallback(
     async (id: string) => {
       const token = tokens.current.get(id) ?? (await readSecret(tokenKey(id)));
       if (!token) return false;
-      tokens.current.set(id, token);
-      const saved = accounts.find((a) => a.id === id);
-      // Affichage immédiat avec le profil en cache (ou enregistré), avant la réponse du serveur.
-      const hit = cache.current.get(token);
-      setUser(hit?.user ?? (saved ? ({ id: saved.id, username: saved.username, global_name: saved.global_name, avatar: saved.avatar } as FluxerUser) : null));
-      if (!hit?.user && saved) cache.current.set(token, { ...hit, user: { id: saved.id, username: saved.username, global_name: saved.global_name, avatar: saved.avatar } as FluxerUser });
+      // Vérifie que ce token appartient bien à ce compte avant de basculer.
+      const me = await apiFor(ep, { kind: 'user', token }).me().catch(() => null);
+      const cached = cache.current.get(token)?.user;
+      const who = me ?? (cached?.id === id ? cached : null);
+      if (!who || who.id !== id) {
+        if (me && me.id !== id) {
+          // Token enregistré par erreur sous ce compte (ancienne version) : on l'oublie, il faudra le reconnecter.
+          tokens.current.delete(id);
+          await writeSecret(tokenKey(id), null);
+        }
+        return false;
+      }
+      cache.current.set(token, { ...cache.current.get(token), user: who });
+      // Le token d'abord, puis le profil : jamais de profil associé au mauvais token.
       await setUserToken(token);
+      setUser(who);
       return true;
     },
-    [accounts, setUserToken],
+    [ep, setUserToken],
   );
 
   const forgetAccount = useCallback(
@@ -221,8 +230,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     const next = rest[0];
     const nextToken = next ? (tokens.current.get(next.id) ?? (await readSecret(tokenKey(next.id)))) : null;
     if (next && nextToken) {
-      setUser(cache.current.get(nextToken)?.user ?? ({ id: next.id, username: next.username, global_name: next.global_name, avatar: next.avatar } as FluxerUser));
       await setUserToken(nextToken);
+      setUser(cache.current.get(nextToken)?.user ?? null);
     } else {
       await setUserToken('');
       setUser(null);

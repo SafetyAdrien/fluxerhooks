@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { tr } from '../i18n';
-import { ActivityIndicator, Alert, Image, Linking, Pressable, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Animated, Image, Linking, Modal, Pressable, Text, View } from 'react-native';
+import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
@@ -355,14 +356,25 @@ function AccountSwitcher({ onAdd }: { onAdd: () => void }) {
   const { user, accounts, switchAccount, forgetAccount } = useSession();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
+  const [switching, setSwitching] = useState<SavedAccount | null>(null);
+  const fade = useRef(new Animated.Value(0)).current;
   const others = accounts.filter((a) => a.id !== user?.id);
   const pick = async (id: string, name: string) => {
     if (id === user?.id) return setOpen(false);
     haptic('light');
     setBusy(id);
-    const ok = await switchAccount(id);
-    setBusy(null);
+    // Écran de chargement pendant la transition ; on reste ensuite à la même place dans le profil.
     setOpen(false);
+    setSwitching(accounts.find((a) => a.id === id) ?? null);
+    fade.setValue(0);
+    Animated.timing(fade, { toValue: 1, duration: 180, useNativeDriver: true }).start();
+    const t0 = Date.now();
+    const ok = await switchAccount(id).catch(() => false);
+    await new Promise((res) => setTimeout(res, Math.max(0, 900 - (Date.now() - t0))));
+    await new Promise<void>((res) => Animated.timing(fade, { toValue: 0, duration: 200, useNativeDriver: true }).start(() => res()));
+    setSwitching(null);
+    setBusy(null);
+    haptic(ok ? 'success' : 'error');
     toast(ok ? tr('Connecté en tant que {name}', { name }) : tr('Ce compte doit être reconnecté.'), ok ? 'success' : 'error');
   };
   const row = (a: SavedAccount, current: boolean) => {
@@ -441,6 +453,25 @@ function AccountSwitcher({ onAdd }: { onAdd: () => void }) {
           </View>
         )}
       </Pressable>
+      <Modal visible={!!switching} transparent animationType="none" statusBarTranslucent onRequestClose={() => {}}>
+        <Animated.View style={{ flex: 1, opacity: fade, alignItems: 'center', justifyContent: 'center' }} accessibilityLiveRegion="polite">
+          <BlurView intensity={30} tint={t.dark ? 'dark' : 'light'} experimentalBlurMethod="dimezisBlurView" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} />
+          <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: t.bg, opacity: 0.82 }} />
+          {switching && (
+            <View style={{ alignItems: 'center', gap: 14, padding: 24 }}>
+              <View style={{ padding: 4, borderRadius: 999, borderWidth: 2, borderColor: t.accent }}>
+                <Avatar uri={avatarUrl(ep, switching.id, switching.avatar)} name={switching.global_name || switching.username} size={t.z(84)} />
+              </View>
+              <Text style={{ color: t.text, fontWeight: '900', fontSize: t.font(20), textAlign: 'center' }}>{switching.global_name || switching.username}</Text>
+              <Text style={{ color: t.textMuted, fontSize: t.font(13) }}>@{switching.username}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 6 }}>
+                <ActivityIndicator color={t.accent} />
+                <Text style={{ color: t.textMuted, fontSize: t.font(14), fontWeight: '600' }}>{tr('Changement de compte…')}</Text>
+              </View>
+            </View>
+          )}
+        </Animated.View>
+      </Modal>
       <Dialog visible={open} onClose={() => setOpen(false)} title="Changer de compte" icon="people-outline">
         <View style={{ gap: 6 }}>
           {accounts.length ? accounts.map((a) => row(a, a.id === user.id)) : row({ id: user.id, username: user.username, global_name: user.global_name, avatar: user.avatar ?? null, lastUsed: 0 }, true)}
