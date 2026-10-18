@@ -503,6 +503,9 @@ const dict: Record<string, string> = {
  "Historique vidé": "Historial borrado",
  "Annuler la modification": "Deshacer",
  "Rétablir la modification": "Rehacer",
- "Changement de compte…": "Cambiando de cuenta…"
+ "Changement de compte…": "Cambiando de cuenta…",
+ "Reconnecter {name}": "Volver a iniciar sesión como {name}",
+ "Reconnecter le compte": "Volver a iniciar sesión",
+ "La session de ce compte a expiré. Connecte-toi de nouveau : tu basculeras dessus automatiquement.": "La sesión de esta cuenta ha caducado. Vuelve a iniciar sesión y cambiarás a ella automáticamente."
 };
 export default dict;

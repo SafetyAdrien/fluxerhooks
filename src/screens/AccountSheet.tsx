@@ -18,11 +18,11 @@ import { type SavedAccount } from '../state/session';
 import type { FluxerProfile } from '../types';
 import { intToHex } from '../utils/parse';
 
-function LoginForm({ onDone, onCancel, adding }: { onDone: () => void; onCancel?: () => void; adding?: boolean }) {
+function LoginForm({ onDone, onCancel, adding, reauth }: { onDone: () => void; onCancel?: () => void; adding?: boolean; reauth?: SavedAccount | null }) {
   const { theme: t, setUserToken, haptic } = useSettings();
   const ep = useEndpoints();
   const toast = useToast();
-  const [login, setLogin] = useState('');
+  const [login, setLogin] = useState(reauth?.username ?? '');
   const [password, setPassword] = useState('');
   const [ticket, setTicket] = useState<string | null>(null);
   const [code, setCode] = useState('');
@@ -77,7 +77,12 @@ function LoginForm({ onDone, onCancel, adding }: { onDone: () => void; onCancel?
 
   return (
     <Stack>
-      <Box title={adding ? 'Ajouter un compte' : 'Se connecter à Fluxer'} icon={adding ? 'person-add-outline' : 'person-circle-outline'} collapsible={false}>
+      <Box title={reauth ? tr('Reconnecter {name}', { name: reauth.global_name || reauth.username }) : adding ? 'Ajouter un compte' : 'Se connecter à Fluxer'} icon={reauth ? 'refresh-circle-outline' : adding ? 'person-add-outline' : 'person-circle-outline'} collapsible={false}>
+        {reauth && (
+          <Text style={{ color: t.text, fontSize: t.font(13), lineHeight: t.font(19) }}>
+            {tr('La session de ce compte a expiré. Connecte-toi de nouveau : tu basculeras dessus automatiquement.')}
+          </Text>
+        )}
         <Text style={{ color: t.textMuted, fontSize: t.font(13), lineHeight: t.font(19) }}>
           {tr("Ton compte donne accès à tes serveurs, salons, threads et tags de forum, et à ton profil complet. Le token de session est stocké chiffré sur ce téléphone et n’est envoyé qu’à ton instance Fluxer.")}
         </Text>
@@ -349,7 +354,7 @@ function Profile({ onBrowse, tiles }: { onBrowse: () => void; tiles?: React.Reac
 }
 
 /** Bouton de changement de compte (en-tête du profil) : avatar actuel + icône d'échange. */
-function AccountSwitcher({ onAdd }: { onAdd: () => void }) {
+function AccountSwitcher({ onAdd, onReauth }: { onAdd: () => void; onReauth: (a: SavedAccount) => void }) {
   const { theme: t, haptic } = useSettings();
   const ep = useEndpoints();
   const toast = useToast();
@@ -369,13 +374,20 @@ function AccountSwitcher({ onAdd }: { onAdd: () => void }) {
     fade.setValue(0);
     Animated.timing(fade, { toValue: 1, duration: 180, useNativeDriver: true }).start();
     const t0 = Date.now();
-    const ok = await switchAccount(id).catch(() => false);
+    const res = await switchAccount(id).catch(() => 'reauth' as const);
+    const ok = res === 'ok';
     await new Promise((res) => setTimeout(res, Math.max(0, 900 - (Date.now() - t0))));
     await new Promise<void>((res) => Animated.timing(fade, { toValue: 0, duration: 200, useNativeDriver: true }).start(() => res()));
     setSwitching(null);
     setBusy(null);
-    haptic(ok ? 'success' : 'error');
-    toast(ok ? tr('Connecté en tant que {name}', { name }) : tr('Ce compte doit être reconnecté.'), ok ? 'success' : 'error');
+    if (ok) {
+      haptic('success');
+      toast(tr('Connecté en tant que {name}', { name }), 'success');
+    } else {
+      // Session expirée : formulaire de connexion prérempli pour ce compte, puis bascule automatique.
+      const a = accounts.find((x) => x.id === id);
+      if (a) onReauth(a);
+    }
   };
   const row = (a: SavedAccount, current: boolean) => {
     const name = a.global_name || a.username;
@@ -507,13 +519,18 @@ export function AccountSheet({
 }) {
   const { hasUser } = useSession();
   const [adding, setAdding] = useState(false);
+  const [reauth, setReauth] = useState<SavedAccount | null>(null);
+  const done = () => {
+    setAdding(false);
+    setReauth(null);
+  };
   return (
     <Sheet
       visible={visible}
       onClose={onClose}
-      title={adding ? 'Ajouter un compte' : hasUser ? 'Mon profil Fluxer' : 'Compte Fluxer'}
+      title={reauth ? 'Reconnecter le compte' : adding ? 'Ajouter un compte' : hasUser ? 'Mon profil Fluxer' : 'Compte Fluxer'}
       fullscreen
-      headerRight={hasUser && !adding ? <AccountSwitcher onAdd={() => setAdding(true)} /> : undefined}
+      headerRight={hasUser && !adding ? <AccountSwitcher onAdd={() => setAdding(true)} onReauth={(a) => { setReauth(a); setAdding(true); }} /> : undefined}
     >
       {hasUser && !adding ? (
         <Profile
@@ -523,7 +540,7 @@ export function AccountSheet({
           }}
         />
       ) : (
-        <LoginForm adding={adding} onDone={() => setAdding(false)} onCancel={adding ? () => setAdding(false) : undefined} />
+        <LoginForm key={reauth?.id ?? 'new'} adding={adding} reauth={reauth} onDone={done} onCancel={adding ? done : undefined} />
       )}
     </Sheet>
   );

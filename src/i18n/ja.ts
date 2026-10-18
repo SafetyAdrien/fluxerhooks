@@ -503,6 +503,9 @@ const dict: Record<string, string> = {
  "Historique vidé": "履歴を消去しました",
  "Annuler la modification": "元に戻す",
  "Rétablir la modification": "やり直す",
- "Changement de compte…": "アカウントを切り替え中…"
+ "Changement de compte…": "アカウントを切り替え中…",
+ "Reconnecter {name}": "{name} として再ログイン",
+ "Reconnecter le compte": "再ログイン",
+ "La session de ce compte a expiré. Connecte-toi de nouveau : tu basculeras dessus automatiquement.": "このアカウントのセッションの有効期限が切れました。再ログインすると自動的に切り替わります。"
 };
 export default dict;

@@ -503,6 +503,9 @@ const dict: Record<string, string> = {
  "Historique vidé": "Geschiedenis gewist",
  "Annuler la modification": "Ongedaan maken",
  "Rétablir la modification": "Opnieuw",
- "Changement de compte…": "Account wisselen…"
+ "Changement de compte…": "Account wisselen…",
+ "Reconnecter {name}": "Opnieuw inloggen als {name}",
+ "Reconnecter le compte": "Opnieuw inloggen",
+ "La session de ce compte a expiré. Connecte-toi de nouveau : tu basculeras dessus automatiquement.": "De sessie van dit account is verlopen. Log opnieuw in om er automatisch naar over te schakelen."
 };
 export default dict;

@@ -35,7 +35,8 @@ Légende : ✨ Ajouts · 🔧 Modifications · 🐛 Correctifs · 🏗️ Build 
 ### 🐛 Correctifs
 - **Changement de compte impossible après l'ajout d'un deuxième compte** : le profil du nouveau compte était affiché avant que son token soit pris en compte, ce qui enregistrait l'ancien token sous le nouveau compte ; le sélecteur revenait donc toujours au même compte.
 - Les comptes ne sont désormais enregistrés qu'à partir d'une réponse du serveur pour leur propre token, et chaque token est vérifié avant de basculer.
-- Un compte enregistré avec un mauvais token par une version précédente est détecté : son token est oublié et l'app demande de le reconnecter.
+- Un compte enregistré avec un mauvais token par une version précédente, ou dont la session a expiré, ouvre directement un **formulaire de reconnexion prérempli** pour ce compte (au lieu d'un simple message d'erreur) ; après connexion, l'app bascule automatiquement dessus.
+- Une coupure réseau pendant le changement de compte n'est plus prise pour une session invalide : la bascule se fait avec le profil enregistré.
 - Déconnexion avec bascule vers le compte suivant : même correction de l'ordre token / profil.
 
 ---

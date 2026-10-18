@@ -67,7 +67,7 @@ interface SessionApi {
   /** Comptes enregistrés (multi-comptes). */
   accounts: SavedAccount[];
   /** Passe sur un autre compte enregistré : instantané grâce au cache, puis rafraîchi en arrière-plan. */
-  switchAccount: (id: string) => Promise<boolean>;
+  switchAccount: (id: string) => Promise<'ok' | 'reauth'>;
   /** Oublie un compte enregistré (sans le déconnecter côté serveur). */
   forgetAccount: (id: string) => Promise<void>;
 }
@@ -144,26 +144,33 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const switchAccount = useCallback(
     async (id: string) => {
       const token = tokens.current.get(id) ?? (await readSecret(tokenKey(id)));
-      if (!token) return false;
+      if (!token) return 'reauth';
       // Vérifie que ce token appartient bien à ce compte avant de basculer.
-      const me = await apiFor(ep, { kind: 'user', token }).me().catch(() => null);
-      const cached = cache.current.get(token)?.user;
-      const who = me ?? (cached?.id === id ? cached : null);
-      if (!who || who.id !== id) {
-        if (me && me.id !== id) {
-          // Token enregistré par erreur sous ce compte (ancienne version) : on l'oublie, il faudra le reconnecter.
-          tokens.current.delete(id);
-          await writeSecret(tokenKey(id), null);
-        }
-        return false;
+      let me: FluxerUser | null = null;
+      let rejected = false;
+      try {
+        me = await apiFor(ep, { kind: 'user', token }).me();
+      } catch (e: any) {
+        // 401/403 : session expirée ou révoquée. Autre erreur (réseau) : on bascule quand même.
+        rejected = e?.status === 401 || e?.status === 403;
       }
+      const saved = accounts.find((a) => a.id === id);
+      const fallback = cache.current.get(token)?.user ?? (saved ? ({ id: saved.id, username: saved.username, global_name: saved.global_name, avatar: saved.avatar } as FluxerUser) : null);
+      if (rejected || (me && me.id !== id)) {
+        // Session refusée, ou token enregistré sous le mauvais compte par une ancienne version : on l'oublie.
+        tokens.current.delete(id);
+        await writeSecret(tokenKey(id), null);
+        return 'reauth';
+      }
+      const who = me ?? fallback;
+      if (!who) return 'reauth';
       cache.current.set(token, { ...cache.current.get(token), user: who });
       // Le token d'abord, puis le profil : jamais de profil associé au mauvais token.
       await setUserToken(token);
       setUser(who);
-      return true;
+      return 'ok';
     },
-    [ep, setUserToken],
+    [ep, accounts, setUserToken],
   );
 
   const forgetAccount = useCallback(
