@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { loadUiMemory } from './uiMemory';
-import { addEntry, applyKeepingUi, contentSignature, loadHistory, record, redoTarget, saveHistory, undoTarget, type HistoryData } from './history';
+import { addEntry, applyKeepingUi, contentSignature, HISTORY_KEY, loadHistory, record, redoTarget, saveHistory, undoTarget, type HistoryData } from './history';
+import { onExternalChange } from '../link/storageHook';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Backup, DraftMessage, EditorState, Embed, EmbedField, WebhookTarget } from '../types';
 import { cloneEmbed, cloneMessage, moveItem, newEmbed, newField, newMessage, newTarget, uid, welcomeState } from '../utils/factory';
@@ -96,6 +97,40 @@ export function EditorProvider({ children }: { children: React.ReactNode }) {
       setReady(true);
     })();
   }, []);
+
+  // Brouillon, sauvegardes ou historique modifiés sur un appareil lié : appliqués tout de suite, sans
+  // créer d'étape d'historique (l'historique de l'autre appareil arrive avec).
+  useEffect(
+    () =>
+      onExternalChange(async (keys) => {
+        try {
+          if (keys.includes(KEY)) {
+            const raw = await AsyncStorage.getItem(KEY);
+            const parsed = raw ? (JSON.parse(raw) as EditorState) : null;
+            if (parsed?.messages?.length) {
+              recorded.current = { state: parsed, sig: contentSignature(parsed) };
+              setState(parsed);
+            }
+          }
+          if (keys.includes(BACKUPS_KEY)) {
+            const b = await AsyncStorage.getItem(BACKUPS_KEY);
+            setBackups(b ? JSON.parse(b) : []);
+          }
+          if (keys.includes(HISTORY_KEY)) {
+            const h = await AsyncStorage.getItem(HISTORY_KEY);
+            if (h) {
+              const parsed = JSON.parse(h) as HistoryData;
+              setHistory(parsed);
+              // Remplace une sauvegarde différée de l'ancien historique (même contenu : rien n'est renvoyé).
+              saveHistory(parsed);
+            }
+          }
+        } catch {
+          // données illisibles : on garde l'état actuel
+        }
+      }),
+    [],
+  );
 
   // Sauvegarde automatique du brouillon (débounce 400 ms).
   useEffect(() => {

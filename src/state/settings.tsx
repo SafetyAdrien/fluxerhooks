@@ -3,6 +3,7 @@ import { useColorScheme } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SecureStore from '../platform/secureStore';
 import * as Haptics from 'expo-haptics';
+import { onExternalChange } from '../link/storageHook';
 import type { AppSettings, MessageStyle, WallpaperSettings } from '../types';
 import { PALETTES, type Palette } from '../theme/themes';
 import { compileSheets, paletteOverrides, varsToRules } from '../theme/css';
@@ -149,22 +150,36 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const [userToken, setUserTokenState] = useState('');
   const [ready, setReady] = useState(false);
 
+  const fromSaved = (saved: any): AppSettings => ({
+    ...DEFAULT_SETTINGS,
+    ...saved,
+    // Anglais par défaut tant que l'utilisateur n'a pas choisi sa langue.
+    language: saved.languageChosen ? (saved.language ?? 'en') : 'en',
+    wallpaper: { ...DEFAULT_WALLPAPER, ...(saved.wallpaper ?? {}) },
+    messageStyle: { ...DEFAULT_MESSAGE_STYLE, ...(saved.messageStyle ?? {}) },
+    botPresence: { ...DEFAULT_SETTINGS.botPresence, ...(saved.botPresence ?? {}) },
+  });
+
+  // Paramètres modifiés sur un appareil lié : appliqués tout de suite.
+  useEffect(
+    () =>
+      onExternalChange(async (keys) => {
+        if (!keys.includes(KEY)) return;
+        try {
+          const raw = await AsyncStorage.getItem(KEY);
+          if (raw) setSettings(fromSaved(JSON.parse(raw)));
+        } catch {
+          // paramètres illisibles : on garde les actuels
+        }
+      }),
+    [],
+  );
+
   useEffect(() => {
     (async () => {
       try {
         const raw = await AsyncStorage.getItem(KEY);
-        if (raw) {
-          const saved = JSON.parse(raw);
-          setSettings({
-            ...DEFAULT_SETTINGS,
-            ...saved,
-            // Anglais par défaut tant que l'utilisateur n'a pas choisi sa langue.
-            language: saved.languageChosen ? (saved.language ?? 'en') : 'en',
-            wallpaper: { ...DEFAULT_WALLPAPER, ...(saved.wallpaper ?? {}) },
-            messageStyle: { ...DEFAULT_MESSAGE_STYLE, ...(saved.messageStyle ?? {}) },
-            botPresence: { ...DEFAULT_SETTINGS.botPresence, ...(saved.botPresence ?? {}) },
-          });
-        }
+        if (raw) setSettings(fromSaved(JSON.parse(raw)));
         const t = await SecureStore.getItemAsync(BOT_KEY);
         if (t) setBotTokenState(t);
         const u = await SecureStore.getItemAsync(USER_KEY);

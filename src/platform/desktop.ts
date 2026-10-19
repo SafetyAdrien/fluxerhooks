@@ -47,6 +47,11 @@ export interface DesktopBridge {
     serve(on: boolean): Promise<number | null>;
     port(): Promise<number>;
     onRequest(handler: (req: { method: string; path: string; headers: Record<string, string>; body: string }) => Promise<{ status: number; body: string }>): () => void;
+    /** Connexion en direct (WebSocket) relayée par le processus principal. */
+    liveConnect?(url: string): Promise<string | null>;
+    liveSend?(id: string, data: string): void;
+    liveClose?(id: string): void;
+    onLive?(cb: (msg: { type: 'open' | 'message' | 'close'; id: string; data?: string; incoming?: boolean }) => void): () => void;
   };
 }
 

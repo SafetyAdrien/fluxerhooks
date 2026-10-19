@@ -600,6 +600,7 @@ const dict: Record<string, string> = {
  "Appareil injoignable.": "Dispositivo inacessível.",
  "Cet appareil": "Este dispositivo",
  "Appareils de ton compte": "Dispositivos da sua conta",
- "{n} sessions": "{n} sessões"
+ "{n} sessions": "{n} sessões",
+ "Connecté en direct · synchronisé à {h}": "Conectado ao vivo · sincronizado às {h}"
 };
 export default dict;
