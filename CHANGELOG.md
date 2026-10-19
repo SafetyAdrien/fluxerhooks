@@ -21,7 +21,8 @@ Légende : ✨ Ajouts · 🔧 Modifications · 🐛 Correctifs · 🏗️ Build 
 - Liste des **appareils connectés au compte Fluxer** (type, système, lieu approximatif, dernière activité, « Cet appareil »), et des appareils liés à FluxerHooks avec leur état (« Synchronisé à… », « Introuvable sur le réseau »…), possibilité de les délier.
 - Aucun serveur ni note personnelle Fluxer : les données passent directement d'un appareil à l'autre, **chiffrées en AES-256-GCM** avec une clé propre à chaque liaison.
 - Automatisations : avec des appareils liés, chacune n'est envoyée que par un seul appareil (celui qui l'a exécutée en premier).
-- **Synchronisation en temps réel** entre appareils liés : connexion directe permanente (WebSocket chiffrée avec la clé de la liaison) ; chaque modification est envoyée et affichée sur l'autre appareil en moins d'une seconde, sans redémarrer l'app.
+- **Synchronisation en temps réel** entre appareils liés : connexion directe permanente (WebSocket chiffrée avec la clé de la liaison) ; les données créées depuis **Données** (bouton « Éditeur » : sauvegardes, modèles, automatisations) et l'**historique** sont envoyés et affichés sur l'autre appareil en moins d'une seconde, sans redémarrer l'app. Le brouillon en cours (éditeur et aperçu) reste propre à chaque appareil.
+- Historique fusionné étape par étape : chaque appareil voit les étapes des deux et garde sa propre position pour Annuler / Rétablir ; une étape venue de l'autre appareil se restaure depuis la chronologie.
 - Rattrapage automatique à la reconnexion (app rouverte, retour du Wi-Fi) ; statut « Connecté en direct » dans Paramètres → Appareils.
 
 ### 🔧 Modifications
@@ -33,7 +34,7 @@ Légende : ✨ Ajouts · 🔧 Modifications · 🐛 Correctifs · 🏗️ Build 
 
 ### 🐛 Correctifs
 - **Appareils** : seules les sessions du compte actives depuis la création de FluxerHooks (16 oct. 2026) sont affichées ; chaque appareil n'apparaît qu'une fois (les reconnexions du même appareil sont regroupées) ; cet appareil et les appareils liés sont reconnus par leur session Fluxer et réunis dans une seule liste, sans doublon ni appareil d'exemple.
-- Les données reçues d'un appareil lié ne s'affichaient qu'après un arrêt forcé de l'app : paramètres, éditeur, historique, sauvegardes, modèles et automatisations se mettent maintenant à jour à l'écran, sans fermer l'écran ouvert.
+- Les données reçues d'un appareil lié ne s'affichaient qu'après un arrêt forcé de l'app : sauvegardes, modèles, automatisations, historique et paramètres se mettent maintenant à jour à l'écran, sans fermer l'écran ouvert.
 - Une modification faite juste après en avoir reçu une pouvait être ignorée.
 
 ## beta-0.0.2

@@ -1,11 +1,13 @@
-import { LIST_KEYS, WHOLE_KEYS } from './config';
+import { HISTORY_STORAGE_KEY, HISTORY_SYNC_MAX, LIST_KEYS, WHOLE_KEYS } from './config';
 
 /**
  * Découpage des données locales en « entrées » synchronisées :
- * - une entrée par clé simple (brouillon, historique, paramètres, journal) ;
+ * - une entrée par clé simple (paramètres, journal des automatisations) ;
  * - pour les listes (sauvegardes, modèles, automatisations), une entrée par élément
  *   (`backups#<id>`) plus l'ordre (`backups#order`) : deux appareils peuvent ajouter
- *   chacun un modèle sans que l'un efface l'autre.
+ *   chacun un modèle sans que l'un efface l'autre ;
+ * - pour l'historique, une entrée par étape (`history#<id>`), sans la position actuelle.
+ * Le brouillon de l'éditeur n'est pas synchronisé.
  */
 export type Entries = Record<string, unknown>;
 
@@ -40,6 +42,12 @@ export function entriesOf(storageKey: string, rawValue: string | null | undefine
     return { [name]: name === 'settings' ? stripDeviceSettings(value) : value };
   }
   const name = LIST_KEYS[storageKey];
+  if (storageKey === HISTORY_STORAGE_KEY) {
+    const out: Entries = {};
+    const list = (value as any)?.entries;
+    if (Array.isArray(list)) for (const el of list) if (el && typeof el === 'object' && el.id != null) out[`${name}#${el.id}`] = el;
+    return out;
+  }
   if (!Array.isArray(value)) return { [`${name}#order`]: [] };
   const out: Entries = {};
   const order: string[] = [];
@@ -81,6 +89,16 @@ export function valueOf(storageKey: string, entries: Entries, localRaw: string |
   const prefix = `${name}#`;
   const items = new Map<string, unknown>();
   for (const [k, v] of Object.entries(entries)) if (k.startsWith(prefix) && k !== `${name}#order`) items.set(k.slice(prefix.length), v);
+  if (storageKey === HISTORY_STORAGE_KEY) {
+    // Étapes des deux appareils rangées par date ; la position reste celle de cet appareil.
+    const local: any = parse(localRaw);
+    const steps = [...items.values()]
+      .filter((e: any) => e && typeof e === 'object' && e.state)
+      .sort((a: any, b: any) => (a.at ?? 0) - (b.at ?? 0))
+      .slice(-HISTORY_SYNC_MAX);
+    const cursor = local && typeof local === 'object' && 'cursor' in local ? local.cursor ?? null : null;
+    return JSON.stringify({ entries: steps, cursor });
+  }
   const order = Array.isArray(entries[`${name}#order`]) ? (entries[`${name}#order`] as string[]) : [];
   const list: unknown[] = [];
   const seen = new Set<string>();

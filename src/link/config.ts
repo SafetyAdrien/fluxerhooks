@@ -6,10 +6,12 @@
 /** Port du serveur local de FluxerHooks Desktop. */
 export const LINK_PORT = 47321;
 
-/** Clés de stockage synchronisées. Les listes sont fusionnées élément par élément (par `id`). */
+/**
+ * Clés de stockage synchronisées. Les listes sont fusionnées élément par élément (par `id`).
+ * Le brouillon en cours de l'éditeur (et donc l'aperçu) reste propre à chaque appareil : seules les
+ * données créées depuis « Données » (sauvegardes, modèles, automatisations) et l'historique sont partagés.
+ */
 export const WHOLE_KEYS: Record<string, string> = {
-  'fluxerhooks:editor:v1': 'editor',
-  'fluxerhooks:history:v1': 'history',
   'fluxerhooks:settings:v1': 'settings',
   'fluxerhooks:automation-log:v1': 'automation-log',
 };
@@ -17,7 +19,14 @@ export const LIST_KEYS: Record<string, string> = {
   'fluxerhooks:backups:v1': 'backups',
   'fluxerhooks:templates:v1': 'templates',
   'fluxerhooks:automations:v1': 'automations',
+  'fluxerhooks:history:v1': 'history',
 };
+/**
+ * Historique : fusionné étape par étape (une entrée par étape, rangées par date) ; la position
+ * actuelle (Annuler / Rétablir) reste celle de l'appareil, qui garde son propre brouillon.
+ */
+export const HISTORY_STORAGE_KEY = 'fluxerhooks:history:v1';
+export const HISTORY_SYNC_MAX = 150;
 export const SYNCED_KEYS = [...Object.keys(WHOLE_KEYS), ...Object.keys(LIST_KEYS)];
 export const isSyncedKey = (k: string) => k in WHOLE_KEYS || k in LIST_KEYS;
 
