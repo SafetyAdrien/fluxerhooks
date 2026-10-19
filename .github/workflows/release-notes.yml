@@ -1,6 +1,6 @@
 name: Sync release notes
 
-# Réécrit la description de chaque release « beta<N> » à partir de CHANGELOG.md (audit log).
+# Réécrit la description de chaque release « mobile-b0.0.<N> » à partir de CHANGELOG.md (audit log).
 # Se lance à la main (Actions → Sync release notes → Run workflow) ou quand CHANGELOG.md change.
 # La release « mobile-latest » est régénérée par « Build Android APK » à chaque push sur la branche mobile.
 on:
@@ -25,13 +25,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          for N in $(grep -oE '^## beta[0-9]+' CHANGELOG.md | grep -oE '[0-9]+'); do
-            if ! gh release view "beta$N" >/dev/null 2>&1; then echo "beta$N : pas de release, ignorée"; continue; fi
-            {
-              echo "Reconstruction de l'ancienne version sous le nom FluxerHooks-beta$N."
-              echo
-              node scripts/release-notes.js "$N"
-            } > "/tmp/notes-$N.md"
-            gh release edit "beta$N" --notes-file "/tmp/notes-$N.md"
-            echo "beta$N : description mise à jour"
+          for N in $(grep -oE '^## beta-0\.0\.[0-9]+' CHANGELOG.md | grep -oE '[0-9]+$'); do
+            T="mobile-b0.0.$N"
+            if ! gh release view "$T" >/dev/null 2>&1; then echo "$T : pas de release, ignorée"; continue; fi
+            node scripts/release-notes.js "$N" > "/tmp/notes-$N.md"
+            gh release edit "$T" --notes-file "/tmp/notes-$N.md"
+            echo "$T : description mise à jour"
           done

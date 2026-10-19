@@ -98,7 +98,7 @@ jobs:
           files: dist/*
           body_path: release-notes-tag.md
 
-      # Dernière version Mobile : une seule release « FluxerHooks-beta<N> », tag mobile-latest.
+      # Dernière version Mobile : une seule release « FluxerHooks-beta-0.0.<N> », tag mobile-latest.
       - name: Publier la release « mobile-latest »
         if: github.ref == 'refs/heads/mobile'
         env:

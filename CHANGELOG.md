@@ -1,16 +1,16 @@
 # Journal des modifications (audit log) — FluxerHooks
 
 Historique complet de chaque version publiée : **ajouts**, **modifications** et **correctifs**.
-La correspondance est `versionCode N` = `FluxerHooks-beta<N>`. Les numéros « v1.x » sont les anciens noms internes des versions, avant le nommage `beta<N>`.
+La correspondance est `versionCode N` = `FluxerHooks-beta-0.0.<N>` (branche `mobile-beta-0.0.<N>`, tag `mobile-b0.0.<N>`). Les noms « v1.x » puis « beta<N> » sont les anciens noms des versions, avant le nommage `beta-0.0.<N>`.
 
-> Ce fichier est la source des descriptions des releases GitHub : chaque section `## beta<N>` est reprise telle quelle dans la release correspondante (`scripts/release-notes.js`).
-> **À chaque nouvelle version, ajouter une section `## beta<N>` en haut de ce fichier.**
+> Ce fichier est la source des descriptions des releases GitHub : chaque section `## beta-0.0.<N>` est reprise telle quelle dans la release correspondante (`scripts/release-notes.js`).
+> **À chaque nouvelle version, ajouter une section `## beta-0.0.<N>` en haut de ce fichier.**
 
 Légende : ✨ Ajouts · 🔧 Modifications · 🐛 Correctifs · 🏗️ Build / technique
 
 ---
 
-## beta15
+## beta-0.0.15
 
 **Historique d'édition avancé, changement de compte corrigé, transfert des données et connexion d'appareils** — commits `8f34f2b` et suivants · 18–19 oct. 2026
 
@@ -59,7 +59,7 @@ Légende : ✨ Ajouts · 🔧 Modifications · 🐛 Correctifs · 🏗️ Build 
 
 ---
 
-## beta14
+## beta-0.0.14
 
 **Connexion par e-mail uniquement, CAPTCHA manuel, vrais logos, anglais par défaut** (ex-v1.4.2) — commits `a6e6756`, `8166c4c`, `dac293e`, `914ce33`, `ad5f4d3` · 17 oct. 2026
 
@@ -86,7 +86,7 @@ Légende : ✨ Ajouts · 🔧 Modifications · 🐛 Correctifs · 🏗️ Build 
 
 ---
 
-## beta13
+## beta-0.0.13
 
 **Hero centré, marge après l'engrenage, éditeur qui garde sa position** (ex-v1.4.1) — commit `a5dafce` · 17 oct. 2026
 
@@ -100,7 +100,7 @@ Légende : ✨ Ajouts · 🔧 Modifications · 🐛 Correctifs · 🏗️ Build 
 
 ---
 
-## beta12
+## beta-0.0.12
 
 **Multi-comptes, profil réorganisé** (ex-v1.4.0) — commit `a3ed518` · 17 oct. 2026
 
@@ -119,7 +119,7 @@ Légende : ✨ Ajouts · 🔧 Modifications · 🐛 Correctifs · 🏗️ Build 
 
 ---
 
-## beta11
+## beta-0.0.11
 
 **Langues, infobulles, plein écran** (ex-v1.3.0) — commit `59fc5d1` · 17 oct. 2026
 
@@ -136,7 +136,7 @@ Légende : ✨ Ajouts · 🔧 Modifications · 🐛 Correctifs · 🏗️ Build 
 
 ---
 
-## beta10
+## beta-0.0.10
 
 **Page d'accueil animée, aperçu flottant** (ex-v1.2.0) — commit `937a5d1` · 16 oct. 2026
 
@@ -154,7 +154,7 @@ Légende : ✨ Ajouts · 🔧 Modifications · 🐛 Correctifs · 🏗️ Build 
 
 ---
 
-## beta9
+## beta-0.0.9
 
 **Démarrage du bot, serveurs administrés** (ex-v1.1.7) — commits `afa62b4`, `123ea4e` · 16 oct. 2026
 
@@ -168,7 +168,7 @@ Légende : ✨ Ajouts · 🔧 Modifications · 🐛 Correctifs · 🏗️ Build 
 
 ---
 
-## beta8
+## beta-0.0.8
 
 **« Styles personnalisés (CSS) » sous « Thème et couleur »** (ex-v1.1.6) — commits `3b78b6f`, `05e56bb`, `aa50e7e` · 16 oct. 2026
 
@@ -181,7 +181,7 @@ Légende : ✨ Ajouts · 🔧 Modifications · 🐛 Correctifs · 🏗️ Build 
 
 ---
 
-## beta7
+## beta-0.0.7
 
 **Envoi direct par le bot, éditeur de thème façon Fluxer** (ex-v1.1.5) — commits `d7b0055`, `8bb6e0f` · 16 oct. 2026
 
@@ -199,7 +199,7 @@ Légende : ✨ Ajouts · 🔧 Modifications · 🐛 Correctifs · 🏗️ Build 
 
 ---
 
-## beta6
+## beta-0.0.6
 
 **Profil, markdown de bio, libellés accessibles** (ex-v1.1.4) — commit `afeb3db` · 16 oct. 2026
 
@@ -214,7 +214,7 @@ Légende : ✨ Ajouts · 🔧 Modifications · 🐛 Correctifs · 🏗️ Build 
 
 ---
 
-## beta5
+## beta-0.0.5
 
 **Boutons thémés, token du bot à côté des webhooks** (ex-v1.1.3) — commits `af27259`, `9405d17` · 16 oct. 2026
 
@@ -230,7 +230,7 @@ Légende : ✨ Ajouts · 🔧 Modifications · 🐛 Correctifs · 🏗️ Build 
 
 ---
 
-## beta4
+## beta-0.0.4
 
 **Images d'embed à leur place, compositeur en modale** (ex-v1.1.2) — commit `0b126ac` · 16 oct. 2026
 
@@ -241,7 +241,7 @@ Légende : ✨ Ajouts · 🔧 Modifications · 🐛 Correctifs · 🏗️ Build 
 
 ---
 
-## beta3
+## beta-0.0.3
 
 **Correction du chargement infini à la connexion** (ex-v1.1.1) — commit `d148c0e` · 16 oct. 2026
 
@@ -250,7 +250,7 @@ Légende : ✨ Ajouts · 🔧 Modifications · 🐛 Correctifs · 🏗️ Build 
 
 ---
 
-## beta2
+## beta-0.0.2
 
 **Compte Fluxer, menus de salons, sélecteur de couleur…** (ex-v1.1.0) — commits `048cbd5`, `d07e126`, `df3db56`, `d4052b0`, `119a97f` · 16 oct. 2026
 
@@ -274,7 +274,7 @@ Légende : ✨ Ajouts · 🔧 Modifications · 🐛 Correctifs · 🏗️ Build 
 
 ---
 
-## beta1
+## beta-0.0.1
 
 **Première version** (ex-v1.0.0) — commits `d196337`, `67c99aa`, `549a240`, `afb8085`, `6588060` · 16 oct. 2026
 

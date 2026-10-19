@@ -2,7 +2,7 @@
   "expo": {
     "name": "FluxerHooks",
     "slug": "fluxerhooks",
-    "version": "beta15",
+    "version": "beta-0.0.15",
     "orientation": "default",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",

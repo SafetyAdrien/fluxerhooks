@@ -16,7 +16,7 @@ export interface DesktopAltchaOptions {
 
 export interface DesktopBridge {
   platform: string;
-  /** Version Desktop (« beta1 »), numérotée séparément de l'app Mobile. */
+  /** Version Desktop (« beta-0.0.1 »), numérotée séparément de l'app Mobile. */
   version: string;
   /** Stockage chiffré (trousseau du système via safeStorage), équivalent du Keystore Android. */
   secret: {
