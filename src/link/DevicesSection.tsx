@@ -5,12 +5,13 @@ import * as Clipboard from 'expo-clipboard';
 import qrcode from 'qrcode-generator';
 import { currentLocale, tr } from '../i18n';
 import { listAuthSessions, type AuthSession } from '../api/fluxer';
+import { APP_CREATED_AT } from '../config';
 import { useSettings } from '../state/settings';
 import { useSession } from '../state/session';
 import { useEndpoints } from '../state/useEndpoints';
 import { Badge, Box, Button, Dialog, IconBtn, Input, ListRow, SectionLabel, Stack, useToast } from '../components/ui';
 import { Alert } from 'react-native';
-import { canHost } from './transport';
+import { canHost, deviceName } from './transport';
 import {
   currentAccount,
   getLinks,
@@ -18,6 +19,7 @@ import {
   pairWithCode,
   removeLink,
   setAccount,
+  setSessionId,
   startPairing,
   statusOf,
   stopPairing,
@@ -27,19 +29,41 @@ import {
   type StartMode,
 } from './engine';
 
+/* ---------- Sessions du compte Fluxer (appareils connectés) ---------- */
+
+let sessionsCache: { token: string; list: AuthSession[] } | null = null;
+const sessionListeners = new Set<() => void>();
+
+/** Charge les sessions du compte et mémorise celle de cet appareil (échangée avec les appareils liés). */
+async function refreshSessions(api: string, token: string) {
+  const list = await listAuthSessions({ api } as any, token);
+  sessionsCache = { token, list };
+  setSessionId(list.find((s) => s.current)?.id_hash ?? null);
+  sessionListeners.forEach((l) => l());
+  return list;
+}
+
 /* ---------- Pont avec la session (monté sous SessionProvider) ---------- */
 
 export function LinkBridge() {
   const { userToken } = useSettings();
   const { user } = useSession();
+  const ep = useEndpoints();
   useEffect(() => {
     initLinkServer().catch(() => {});
   }, []);
   useEffect(() => {
-    if (!userToken) setAccount(null);
+    if (!userToken) {
+      setAccount(null);
+      setSessionId(null);
+      sessionsCache = null;
+      return;
+    }
     // Compte connu avec certitude seulement quand le profil a répondu pour ce token.
-    else if (user?.id) setAccount(user.id);
-  }, [userToken, user?.id]);
+    if (!user?.id) return;
+    setAccount(user.id);
+    refreshSessions(ep.api, userToken).catch(() => {});
+  }, [userToken, user?.id, ep.api]);
   useEffect(() => {
     const id = setInterval(() => AppState.currentState === 'active' && syncAll(), 20_000);
     const sub = AppState.addEventListener('change', (s) => s === 'active' && syncAll());
@@ -158,13 +182,108 @@ function statusLine(l: Link) {
   }
 }
 
+/**
+ * Liste unique et réelle des appareils du compte :
+ * - seules les sessions Fluxer actives depuis la création de FluxerHooks sont prises en compte ;
+ * - cet appareil et les appareils liés sont reconnus par leur session (échangée à la liaison) ;
+ * - les sessions identiques (même type, système, client et lieu) sont regroupées : une reconnexion
+ *   crée une nouvelle session pour le même appareil, sans en faire un appareil de plus.
+ */
+interface DeviceRow {
+  key: string;
+  kind: 'this' | 'linked' | 'other';
+  title: string;
+  subtitle: string;
+  mobile: boolean;
+  link?: Link;
+}
+
+const signature = (s: AuthSession) => {
+  const c = s.client_info ?? {};
+  return [c.device, c.platform, c.os, c.browser, c.location?.city, c.location?.region, c.location?.country].map((x) => String(x ?? '').toLowerCase()).join('|');
+};
+const isMobile = (s?: AuthSession, platform?: string) =>
+  platform === 'android' || platform === 'ios' || (!!s && (s.client_info?.device === 'mobile' || /android|ios|iphone/i.test(`${s.client_info?.os ?? ''} ${s.client_info?.platform ?? ''}`)));
+const lastUsed = (s: AuthSession) => (s.approx_last_used_at ? Date.parse(s.approx_last_used_at) : 0);
+
+function sessionLine(s: AuthSession | undefined, count: number) {
+  if (!s) return '';
+  const c = s.client_info ?? {};
+  const label = [c.platform || c.os, c.browser].filter(Boolean).join(' · ');
+  const place = [c.location?.city, c.location?.country].filter(Boolean).join(', ');
+  return [label, c.os && c.os !== label && c.os !== c.platform ? c.os : '', place, ago(s.approx_last_used_at), count > 1 ? tr('{n} sessions', { n: count }) : '']
+    .filter(Boolean)
+    .join(' · ');
+}
+
+function deviceRows(all: AuthSession[], links: Link[]): DeviceRow[] {
+  const sessions = all.filter((s) => s.current || lastUsed(s) >= APP_CREATED_AT);
+  const used = new Set<string>();
+  // Groupes ancrés : cet appareil, puis les appareils liés (reconnus par leur session).
+  const anchors: { kind: 'this' | 'linked'; session?: AuthSession; link?: Link; members: AuthSession[] }[] = [];
+  const current = sessions.find((s) => s.current);
+  if (current) {
+    anchors.push({ kind: 'this', session: current, members: [current] });
+    used.add(current.id_hash);
+  }
+  for (const l of links) {
+    const s = sessions.find((x) => x.id_hash === l.sessionId && !used.has(x.id_hash));
+    if (s) used.add(s.id_hash);
+    anchors.push({ kind: 'linked', session: s, link: l, members: s ? [s] : [] });
+  }
+  // Anciennes sessions d'un appareil déjà affiché : rattachées à cet appareil.
+  for (const s of sessions) {
+    if (used.has(s.id_hash)) continue;
+    const a = anchors.find((x) => x.session && signature(x.session) === signature(s));
+    if (a) {
+      a.members.push(s);
+      used.add(s.id_hash);
+    }
+  }
+  // Autres appareils connectés au compte : une ligne par appareil distinct.
+  const others = new Map<string, AuthSession[]>();
+  for (const s of sessions) {
+    if (used.has(s.id_hash)) continue;
+    const k = signature(s);
+    others.set(k, [...(others.get(k) ?? []), s]);
+  }
+  const rows: DeviceRow[] = anchors.map((a) => {
+    const latest = a.members.slice().sort((x, y) => lastUsed(y) - lastUsed(x))[0] ?? a.session;
+    if (a.kind === 'this') return { key: 'this', kind: 'this', title: deviceName(), subtitle: sessionLine(latest, a.members.length), mobile: isMobile(latest, Platform.OS) };
+    const l = a.link!;
+    return {
+      key: `link:${l.peerId}`,
+      kind: 'linked',
+      title: l.name,
+      subtitle: [statusLine(l), sessionLine(latest, a.members.length)].filter(Boolean).join(' · '),
+      mobile: isMobile(latest, l.platform),
+      link: l,
+    };
+  });
+  const rest = [...others.values()]
+    .map((g) => g.sort((x, y) => lastUsed(y) - lastUsed(x)))
+    .sort((x, y) => lastUsed(y[0]) - lastUsed(x[0]))
+    .map((g) => {
+      const s = g[0];
+      const c = s.client_info ?? {};
+      return {
+        key: `s:${s.id_hash}`,
+        kind: 'other' as const,
+        title: [c.platform || c.os, c.browser].filter(Boolean).join(' · ') || tr('Appareil inconnu'),
+        subtitle: sessionLine({ ...s, client_info: { ...c, platform: null, browser: null } }, g.length),
+        mobile: isMobile(s),
+      };
+    });
+  return [...rows, ...rest];
+}
+
 export function DevicesSection() {
   const { theme: t } = useSettings();
   const session = useSession();
   const ep = useEndpoints();
   const toast = useToast();
   const links = useLinks();
-  const [sessions, setSessions] = useState<AuthSession[] | null>(null);
+  const [sessions, setSessions] = useState<AuthSession[] | null>(sessionsCache?.list ?? null);
   const [sessionsError, setSessionsError] = useState('');
   const [showCode, setShowCode] = useState<{ code: string; expiresAt: number } | null>(null);
   const [paired, setPaired] = useState<Link | null>(null);
@@ -175,22 +294,30 @@ export function DevicesSection() {
   const [busy, setBusy] = useState(false);
   const cred = session.credential('user');
 
+  useEffect(() => {
+    const l = () => sessionsCache && cred && sessionsCache.token === cred.token && setSessions(sessionsCache.list);
+    sessionListeners.add(l);
+    return () => {
+      sessionListeners.delete(l);
+    };
+  }, [cred?.token]);
   const seq = React.useRef(0);
   const loadSessions = useCallback(async () => {
     if (!cred) return setSessions(null);
     const mine = ++seq.current;
     try {
-      const list = await listAuthSessions(ep, cred.token);
-      if (mine !== seq.current) return;
-      setSessions(list);
-      setSessionsError('');
+      await refreshSessions(ep.api, cred.token);
+      if (mine === seq.current) setSessionsError('');
     } catch (e) {
+      // Seule la dernière demande compte (l'adresse de l'instance a pu changer entre-temps).
       if (mine === seq.current) setSessionsError(e instanceof Error ? e.message : String(e));
     }
   }, [cred?.token, ep.api]);
   useEffect(() => {
     loadSessions();
   }, [loadSessions]);
+  const account = currentAccount();
+  const rows = useMemo(() => deviceRows(sessions ?? [], links.filter((l) => l.accountId === account)), [sessions, links, account]);
 
   if (!session.hasUser) {
     return (
@@ -238,26 +365,30 @@ export function DevicesSection() {
         {tr('Connecte FluxerHooks sur tes autres appareils connectés au même compte Fluxer : leurs données se synchronisent automatiquement dès qu’ils sont sur le même Wi-Fi.')}
       </Text>
 
-      <SectionLabel>{tr('Appareils liés à FluxerHooks')}</SectionLabel>
-      {links.length === 0 && <Text style={{ color: t.textFaint, fontSize: t.font(13) }}>{tr('Aucun appareil lié pour l’instant.')}</Text>}
-      {links.map((l) => (
+      <SectionLabel right={<IconBtn icon="refresh-outline" label="Actualiser" size={16} onPress={loadSessions} />}>{tr('Appareils de ton compte')}</SectionLabel>
+      {!!sessionsError && <Text style={{ color: t.danger, fontSize: t.font(12) }}>{tr(sessionsError)}</Text>}
+      {rows.map((r) => (
         <ListRow
-          key={l.peerId}
-          icon={l.platform === 'android' || l.platform === 'ios' ? 'phone-portrait-outline' : 'desktop-outline'}
-          title={l.name}
-          subtitle={statusLine(l)}
+          key={r.key}
+          icon={r.mobile ? 'phone-portrait-outline' : 'desktop-outline'}
+          title={r.title}
+          subtitle={r.subtitle}
           right={
-            <IconBtn
-              icon="trash-outline"
-              label="Délier cet appareil"
-              size={18}
-              onPress={() =>
-                Alert.alert(tr('Délier {name} ?', { name: l.name }), 'Les données ne seront plus synchronisées avec cet appareil. Rien n’est supprimé.', [
-                  { text: 'Annuler', style: 'cancel' },
-                  { text: 'Délier', style: 'destructive', onPress: () => removeLink(l.peerId) },
-                ])
-              }
-            />
+            r.kind === 'this' ? (
+              <Badge text="Cet appareil" />
+            ) : r.link ? (
+              <IconBtn
+                icon="trash-outline"
+                label="Délier cet appareil"
+                size={18}
+                onPress={() =>
+                  Alert.alert(tr('Délier {name} ?', { name: r.link!.name }), 'Les données ne seront plus synchronisées avec cet appareil. Rien n’est supprimé.', [
+                    { text: 'Annuler', style: 'cancel' },
+                    { text: 'Délier', style: 'destructive', onPress: () => removeLink(r.link!.peerId) },
+                  ])
+                }
+              />
+            ) : undefined
           }
         />
       ))}
@@ -271,24 +402,6 @@ export function DevicesSection() {
         <Button flex icon="keypad-outline" label="Saisir un code" onPress={() => setEnter(true)} />
       </Stack>
       {links.length > 0 && <Button icon="sync-outline" label="Synchroniser maintenant" onPress={() => syncAll()} />}
-
-      <SectionLabel right={<IconBtn icon="refresh-outline" label="Actualiser" size={16} onPress={loadSessions} />}>{tr('Connectés à ton compte Fluxer')}</SectionLabel>
-      {!!sessionsError && <Text style={{ color: t.danger, fontSize: t.font(12) }}>{tr(sessionsError)}</Text>}
-      {(sessions ?? []).map((s) => {
-        const ci = s.client_info ?? {};
-        const mobile = ci.device === 'mobile' || /android|ios|iphone/i.test(`${ci.os ?? ''} ${ci.platform ?? ''}`);
-        const title = [ci.platform || ci.os, ci.browser].filter(Boolean).join(' · ') || tr('Appareil inconnu');
-        const place = [ci.location?.city, ci.location?.country].filter(Boolean).join(', ');
-        return (
-          <ListRow
-            key={s.id_hash}
-            icon={mobile ? 'phone-portrait-outline' : 'desktop-outline'}
-            title={title}
-            subtitle={[ci.os && ci.os !== title ? ci.os : '', place, ago(s.approx_last_used_at)].filter(Boolean).join(' · ')}
-            right={s.current ? <Badge text="Cet appareil" /> : undefined}
-          />
-        );
-      })}
 
       {/* Code de connexion (Desktop) */}
       <Dialog visible={!!showCode} onClose={() => { stopPairing(); setShowCode(null); }} title="Connecter un appareil" icon="qr-code-outline" maxWidth={440}>

@@ -598,6 +598,8 @@ const dict: Record<string, string> = {
  "Appareil introuvable sur le réseau. Vérifie que les deux appareils sont sur le même Wi-Fi.": "ネットワーク上にデバイスが見つかりません。両方が同じ Wi-Fi にあるか確認してください。",
  "La connexion a été refusée par l’autre appareil.": "もう一方のデバイスが接続を拒否しました。",
  "Appareil injoignable.": "デバイスに接続できません。",
- "Cet appareil": "このデバイス"
+ "Cet appareil": "このデバイス",
+ "Appareils de ton compte": "アカウントのデバイス",
+ "{n} sessions": "{n} セッション"
 };
 export default dict;

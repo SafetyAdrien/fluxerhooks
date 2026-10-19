@@ -28,6 +28,9 @@ Légende : ✨ Ajouts · 🔧 Modifications · 🐛 Correctifs · 🏗️ Build 
 ### 🏗️ Build / technique
 - Serveur local sur le port **47321** (TCP, réseau local), actif seulement quand un appareil est lié ou en cours de liaison ; les requêtes vers les autres appareils passent par le processus principal.
 
+### 🐛 Correctifs
+- **Appareils** : seules les sessions du compte actives depuis la création de FluxerHooks (16 oct. 2026) sont affichées ; chaque appareil n'apparaît qu'une fois (les reconnexions du même appareil sont regroupées) ; cet appareil et les appareils liés sont reconnus par leur session Fluxer et réunis dans une seule liste, sans doublon ni appareil d'exemple.
+
 ## beta2
 
 **Transfert des données vers une autre plateforme depuis les Paramètres** — branche `desktop` · 18 oct. 2026

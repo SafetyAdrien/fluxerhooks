@@ -29,6 +29,8 @@ export interface Link {
   addrs: string[]; // http://ip:port
   createdAt: number;
   lastSync?: number;
+  /** Session Fluxer de l'appareil lié (id_hash), pour le reconnaître dans la liste des sessions du compte. */
+  sessionId?: string;
 }
 
 export type LinkState = 'idle' | 'syncing' | 'ok' | 'offline' | 'other-account' | 'error';
@@ -56,6 +58,11 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 /* ---------- État ---------- */
 
 let accountId: string | null = null;
+/** Session Fluxer de cet appareil (id_hash de la session « current »), échangée avec les appareils liés. */
+let sessionId: string | null = null;
+export function setSessionId(id: string | null) {
+  sessionId = id;
+}
 let remount: (() => void) | null = null;
 let queue: Promise<unknown> = Promise.resolve();
 const statuses = new Map<string, LinkStatus>();
@@ -288,11 +295,11 @@ export async function handleRequest(req: { method: string; path: string; headers
     if (!accountId || hi.a !== accountId) return json(409, { error: 'other_account' });
     const key = randomKey();
     const addrs = Array.isArray(hi.h) ? hi.h.filter((a: unknown) => typeof a === 'string' && /^http:\/\/[\d.]+:\d+$/.test(a)).slice(0, 4) : [];
-    const link: Link = { peerId: String(hi.d), name: String(hi.n || 'Appareil'), platform: String(hi.p || ''), accountId, key: toB64url(key), addrs, createdAt: Date.now() };
+    const link: Link = { peerId: String(hi.d), name: String(hi.n || 'Appareil'), platform: String(hi.p || ''), accountId, key: toB64url(key), addrs, createdAt: Date.now(), sessionId: typeof hi.s === 'string' ? hi.s : undefined };
     await saveLinks([...(await getLinks()).filter((l) => l.peerId !== link.peerId), link]);
     pairing = null;
     p.done?.(link);
-    return json(200, { c: seal(p.secret, { d: await deviceId(), n: deviceName(), p: devicePlatform(), a: accountId, key: link.key, ts: Date.now() }, 'pair-ok') });
+    return json(200, { c: seal(p.secret, { d: await deviceId(), n: deviceName(), p: devicePlatform(), a: accountId, s: sessionId, key: link.key, ts: Date.now() }, 'pair-ok') });
   }
   if ((path === '/fluxerhooks/sync/index' || path === '/fluxerhooks/sync/push') && req.method === 'POST') {
     const peer = String(body.d ?? '');
@@ -309,6 +316,7 @@ export async function handleRequest(req: { method: string; path: string; headers
     if (!accountId || accountId !== link.accountId || msg.a !== link.accountId) return json(409, { error: 'other_account' });
     return enqueue(async () => {
       if (path === '/fluxerhooks/sync/index') {
+        if (typeof msg.s === 'string' && msg.s !== link.sessionId) await patchLink(link.peerId, { sessionId: msg.s });
         const { idx, values } = await buildIndex();
         const theirs: Index = msg.idx ?? {};
         const send: WireEntry[] = [];
@@ -317,7 +325,7 @@ export async function handleRequest(req: { method: string; path: string; headers
           if (newer(idx[k], theirs[k])) send.push({ key: k, ...idx[k], value: idx[k].del ? undefined : values[k] });
           else if (newer(theirs[k], idx[k])) want.push(k);
         }
-        return json(200, { c: seal(key, { entries: send, want, ts: Date.now() }, `${path}:reply`) });
+        return json(200, { c: seal(key, { entries: send, want, s: sessionId, ts: Date.now() }, `${path}:reply`) });
       }
       await applyRemote((msg.entries ?? []) as WireEntry[]);
       await patchLink(link.peerId, { lastSync: Date.now() });
@@ -358,7 +366,7 @@ export async function pairWithCode(code: string, mode: StartMode): Promise<Link>
   // Un autre ordinateur ouvre aussi son serveur local et donne ses adresses (synchro dans les deux sens).
   if (canHost()) await desktop!.link!.serve(true);
   const mine = canHost() ? await myAddresses() : [];
-  const hello = seal(secret, { d: await deviceId(), n: deviceName(), p: devicePlatform(), a: accountId, h: mine, ts: Date.now() }, 'pair');
+  const hello = seal(secret, { d: await deviceId(), n: deviceName(), p: devicePlatform(), a: accountId, h: mine, s: sessionId, ts: Date.now() }, 'pair');
   let lastErr = 'Appareil introuvable sur le réseau. Vérifie que les deux appareils sont sur le même Wi-Fi.';
   for (const addr of (p.h as string[]) ?? []) {
     const r = await lanRequest(`${addr}/fluxerhooks/pair`, 'POST', JSON.stringify({ c: hello }), 8000);
@@ -377,7 +385,7 @@ export async function pairWithCode(code: string, mode: StartMode): Promise<Link>
     }
     const ok = open(secret, b.c, 'pair-ok');
     if (ok.a !== accountId) throw new Error('L’autre appareil est connecté à un autre compte Fluxer.');
-    const link: Link = { peerId: String(ok.d), name: String(ok.n || 'FluxerHooks Desktop'), platform: String(ok.p || ''), accountId, key: String(ok.key), addrs: [addr], createdAt: Date.now() };
+    const link: Link = { peerId: String(ok.d), name: String(ok.n || 'FluxerHooks Desktop'), platform: String(ok.p || ''), accountId, key: String(ok.key), addrs: [addr], createdAt: Date.now(), sessionId: typeof ok.s === 'string' ? ok.s : undefined };
     await saveLinks([...(await getLinks()).filter((l) => l.peerId !== link.peerId), link]);
     await enqueue(() => prepareStart(mode));
     syncWith(link);
@@ -445,7 +453,8 @@ export function syncWith(link: Link) {
       if (!addr) return setStatus(link.peerId, { state: 'offline' });
       const { idx, values } = await buildIndex();
       const me = await deviceId();
-      const r1 = await post(addr, link, '/fluxerhooks/sync/index', { idx, from: me });
+      const r1 = await post(addr, link, '/fluxerhooks/sync/index', { idx, from: me, s: sessionId });
+      if (typeof r1.s === 'string' && r1.s !== link.sessionId) await patchLink(link.peerId, { sessionId: r1.s });
       const want: string[] = r1.want ?? [];
       await applyRemote((r1.entries ?? []) as WireEntry[]);
       const fresh = want.length ? await buildIndex() : { idx, values };

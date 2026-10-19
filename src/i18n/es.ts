@@ -598,6 +598,8 @@ const dict: Record<string, string> = {
  "Appareil introuvable sur le réseau. Vérifie que les deux appareils sont sur le même Wi-Fi.": "Dispositivo no encontrado en la red. Comprueba que ambos estén en la misma Wi-Fi.",
  "La connexion a été refusée par l’autre appareil.": "El otro dispositivo rechazó la conexión.",
  "Appareil injoignable.": "Dispositivo inaccesible.",
- "Cet appareil": "Este dispositivo"
+ "Cet appareil": "Este dispositivo",
+ "Appareils de ton compte": "Dispositivos de tu cuenta",
+ "{n} sessions": "{n} sesiones"
 };
 export default dict;
