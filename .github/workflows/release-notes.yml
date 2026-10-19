@@ -2,7 +2,7 @@ name: Sync release notes
 
 # Réécrit la description de chaque release « beta<N> » à partir de CHANGELOG.md (audit log).
 # Se lance à la main (Actions → Sync release notes → Run workflow) ou quand CHANGELOG.md change.
-# La release « latest » est régénérée par « Build Android APK » à chaque push sur la branche mobile.
+# La release « mobile-latest » est régénérée par « Build Android APK » à chaque push sur la branche mobile.
 on:
   workflow_dispatch:
   push:

@@ -98,20 +98,20 @@ jobs:
           files: dist/*
           body_path: release-notes-tag.md
 
-      # Dernier APK de la branche mobile, toujours disponible au même endroit.
-      - name: Publier la pré-release « latest »
+      # Dernière version Mobile : une seule release « FluxerHooks-beta<N> », tag mobile-latest.
+      - name: Publier la release « mobile-latest »
         if: github.ref == 'refs/heads/mobile'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release delete latest --yes --cleanup-tag 2>/dev/null || true
+          gh release delete mobile-latest --yes --cleanup-tag 2>/dev/null || true
           V=$(node -p "require('./app.json').expo.version")
           {
             echo "APK généré depuis ${GITHUB_SHA::7}. Prends **-arm64** pour la plupart des téléphones (plus léger), **-armv7** pour les anciens, **-universel** en cas de doute."
             echo
             node scripts/release-notes.js "$V" || echo "_Pas d'entrée dans CHANGELOG.md pour $V._"
           } > release-notes.md
-          gh release create latest dist/* --prerelease --title "FluxerHooks-$V (dernier build)" --notes-file release-notes.md --target "$GITHUB_SHA"
+          gh release create mobile-latest dist/* --prerelease --title "FluxerHooks-$V" --notes-file release-notes.md --target "$GITHUB_SHA"
 
       # En cas d'échec, le journal est publié sur la branche ci-logs pour diagnostic.
       - name: Publier le journal d'échec

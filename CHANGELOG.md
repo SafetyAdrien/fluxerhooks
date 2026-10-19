@@ -47,7 +47,7 @@ Légende : ✨ Ajouts · 🔧 Modifications · 🐛 Correctifs · 🏗️ Build 
 - Android : lecteur de QR code (`expo-camera`), adresse IP locale (`expo-network`), trafic local autorisé (`expo-build-properties`) ; le contenu reste chiffré.
 - Route Fluxer `GET /v1/auth/sessions` pour la liste des appareils du compte.
 - Dépendances : `@noble/ciphers`, `expo-crypto`, `qrcode-generator`.
-- CI : builds et release « dernier build » depuis la branche `mobile`.
+- CI : builds depuis la branche `mobile` ; la dernière version est publiée sous le tag `mobile-latest`, au nom « FluxerHooks-beta<N> ».
 
 ### 🐛 Correctifs
 - **Changement de compte impossible après l'ajout d'un deuxième compte** : le profil du nouveau compte était affiché avant que son token soit pris en compte, ce qui enregistrait l'ancien token sous le nouveau compte ; le sélecteur revenait donc toujours au même compte.
