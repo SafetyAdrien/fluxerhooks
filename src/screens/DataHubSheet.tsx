@@ -2,13 +2,11 @@ import React, { useMemo, useState } from 'react';
 import { tr } from '../i18n';
 import { Alert, Switch, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import * as DocumentPicker from 'expo-document-picker';
-import * as FS from 'expo-file-system/legacy';
 import { useEditor } from '../state/editor';
 import { useSettings } from '../state/settings';
 import { useLibrary } from '../state/library';
 import { VARIABLES, describeSchedule, WEEKDAYS } from '../state/automation';
-import { exportFullBackup, importFullBackup } from '../utils/fullBackup';
+import { DataTransfer } from '../components/DataTransfer';
 import { cloneMessage, uid } from '../utils/factory';
 import { isSendableUrl } from '../utils/parse';
 import { Box, Button, Chip, EmptyState, IconBtn, Input, ListRow, Segmented, Sheet, Stack, ToggleRow, useToast, type IconName } from '../components/ui';
@@ -287,68 +285,6 @@ function Automations() {
   );
 }
 
-/* ---------- Backup complet ---------- */
-
-function FullBackup({ onRestored }: { onRestored: () => void }) {
-  const { theme: t } = useSettings();
-  const toast = useToast();
-  const [busy, setBusy] = useState(false);
-  return (
-    <>
-      <Box title="Backup complet" icon="cloud-download-outline" collapsible={false}>
-        <Text style={{ color: t.textMuted, fontSize: t.font(13), lineHeight: t.font(19) }}>
-          {tr("Un seul fichier contenant le brouillon, toutes les sauvegardes, modèles, automatisations et paramètres (thème, zoom, styles…). Les tokens de compte et de bot ne sont jamais inclus.")}
-        </Text>
-        <Button
-          variant="primary"
-          icon="share-outline"
-          label="Exporter un backup"
-          loading={busy}
-          onPress={async () => {
-            setBusy(true);
-            try {
-              await exportFullBackup();
-            } catch {
-              toast('Échec de l’export.', 'error');
-            } finally {
-              setBusy(false);
-            }
-          }}
-        />
-        <Button
-          icon="download-outline"
-          label="Restaurer un backup"
-          onPress={async () => {
-            try {
-              const res = await DocumentPicker.getDocumentAsync({ type: ['application/json', '*/*'], copyToCacheDirectory: true });
-              if (res.canceled) return;
-              const text = await FS.readAsStringAsync(res.assets[0].uri);
-              Alert.alert('Restaurer ce backup ?', 'Tes données actuelles seront remplacées.', [
-                { text: 'Annuler', style: 'cancel' },
-                {
-                  text: 'Restaurer',
-                  style: 'destructive',
-                  onPress: async () => {
-                    try {
-                      const n = await importFullBackup(text);
-                      toast(`Backup restauré (${n} éléments).`, 'success');
-                      onRestored();
-                    } catch (e) {
-                      toast(e instanceof Error ? e.message : 'Backup invalide.', 'error');
-                    }
-                  },
-                },
-              ]);
-            } catch {
-              toast('Impossible de lire ce fichier.', 'error');
-            }
-          }}
-        />
-      </Box>
-    </>
-  );
-}
-
 export function DataHubSheet({ visible, onClose, onRestored, initialTab = 'saves' }: { visible: boolean; onClose: () => void; onRestored: () => void; initialTab?: Tab }) {
   const [tab, setTab] = useState<Tab>(initialTab);
   return (
@@ -366,7 +302,7 @@ export function DataHubSheet({ visible, onClose, onRestored, initialTab = 'saves
       {tab === 'saves' && <Saves close={onClose} />}
       {tab === 'templates' && <Templates close={onClose} />}
       {tab === 'automations' && <Automations />}
-      {tab === 'backup' && <FullBackup onRestored={() => { onClose(); onRestored(); }} />}
+      {tab === 'backup' && <DataTransfer onRestored={() => { onClose(); onRestored(); }} />}
     </Sheet>
   );
 }

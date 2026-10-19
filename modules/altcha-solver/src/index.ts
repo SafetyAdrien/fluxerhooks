@@ -16,5 +16,16 @@ interface NativeSolver {
   addListener(event: 'onProgress', cb: (e: { tries: number }) => void): { remove(): void };
 }
 
-/** Module natif Android (null sur le web / Expo Go : repli JavaScript). */
-export const AltchaSolver = requireOptionalNativeModule<NativeSolver>('AltchaSolver');
+/** Solveur du bureau (Electron) : PBKDF2 natif d'OpenSSL réparti sur tous les cœurs. */
+function desktopSolver(): NativeSolver | null {
+  const d = typeof window !== 'undefined' ? (window as any).fluxerDesktop : null;
+  if (!d?.altcha) return null;
+  return {
+    solve: (opts) => d.altcha.solve(opts),
+    cancel: () => d.altcha.cancel(),
+    addListener: (_event, cb) => ({ remove: d.altcha.onProgress(cb) }),
+  };
+}
+
+/** Module natif Android, solveur du bureau, sinon null (web / Expo Go : repli JavaScript). */
+export const AltchaSolver = requireOptionalNativeModule<NativeSolver>('AltchaSolver') ?? desktopSolver();

@@ -1,7 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { useColorScheme } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as SecureStore from 'expo-secure-store';
+import * as SecureStore from '../platform/secureStore';
 import * as Haptics from 'expo-haptics';
 import type { AppSettings, MessageStyle, WallpaperSettings } from '../types';
 import { PALETTES, type Palette } from '../theme/themes';

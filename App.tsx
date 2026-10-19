@@ -1,3 +1,5 @@
+// Doit précéder tout accès au stockage : date les modifications pour la synchro entre appareils liés.
+import './src/link/storageHook';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
@@ -10,6 +12,9 @@ import { SessionProvider } from './src/state/session';
 import { BotGatewayProvider } from './src/state/botGateway';
 import { LibraryProvider } from './src/state/library';
 import { HomeScreen } from './src/screens/HomeScreen';
+import { AlertHost } from './src/components/AlertHost';
+import { LinkBridge } from './src/link/DevicesSection';
+import { setRemount } from './src/link/engine';
 
 function AutoRunToast({ children }: { children: React.ReactNode }) {
   const toast = useToast();
@@ -39,6 +44,8 @@ function Root({ onRestored }: { onRestored: () => void }) {
           <AutoRunToast>
             <StatusBar style={theme.dark ? 'light' : 'dark'} />
             <HomeScreen onRestored={onRestored} />
+            <AlertHost />
+            <LinkBridge />
           </AutoRunToast>
         </BotGatewayProvider>
       </SessionProvider>
@@ -49,6 +56,11 @@ function Root({ onRestored }: { onRestored: () => void }) {
 export default function App() {
   // Changer la clé remonte tous les providers : ils relisent le stockage (après restauration d'un backup).
   const [generation, setGeneration] = useState(0);
+  // Données reçues d'un appareil lié : tout est relu depuis le stockage.
+  useEffect(() => {
+    setRemount(() => setGeneration((g) => g + 1));
+    return () => setRemount(null);
+  }, []);
   return (
     <SafeAreaProvider>
       <SettingsProvider key={`s${generation}`}>

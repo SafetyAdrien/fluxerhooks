@@ -14,4 +14,6 @@ let end = lines.findIndex((l, i) => i > start && /^(## |---\s*$)/.test(l));
 if (end < 0) end = lines.length;
 const body = lines.slice(start + 1, end).join('\n').trim();
 const repo = process.env.GITHUB_REPOSITORY || 'SafetyAdrien/fluxerhooks';
-console.log(`## Audit log — FluxerHooks-beta${arg}\n\n${body}\n\n---\nJournal complet de toutes les versions : [CHANGELOG.md](https://github.com/${repo}/blob/main/CHANGELOG.md)`);
+const branch = process.env.NOTES_BRANCH || 'mobile';
+const label = process.env.NOTES_LABEL ? ` ${process.env.NOTES_LABEL}` : '';
+console.log(`## Audit log — FluxerHooks-beta${arg}${label}\n\n${body}\n\n---\nJournal complet de toutes les versions : [${file}](https://github.com/${repo}/blob/${branch}/${file})`);

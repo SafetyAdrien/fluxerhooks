@@ -14,6 +14,7 @@ import { messageLink, isForumType } from '../api/fluxer';
 import { LIMITS } from '../utils/limits';
 import { formatBytes, isHttpUrl, isSnowflake, parseMessageRef, withAlpha } from '../utils/parse';
 import { uid } from '../utils/factory';
+import { persistFile } from '../platform/files';
 import { Box, Button, Chip, IconBtn, Input, SectionLabel, Segmented, Stack, ToggleRow, useToast } from './ui';
 import { RichInput } from './RichInput';
 import { EmbedEditor } from './EmbedEditor';
@@ -104,15 +105,15 @@ export function MessageEditor({
       const res = await DocumentPicker.getDocumentAsync({ multiple: true, copyToCacheDirectory: true });
       if (res.canceled) return;
       const room = LIMITS.attachments - m.attachments.length;
-      const picked = res.assets.slice(0, room).map((a) => ({
+      const picked = await Promise.all(res.assets.slice(0, room).map(async (a) => ({
         id: uid(),
-        uri: a.uri,
+        uri: await persistFile(a.uri, a.name, a.file),
         name: a.name.replace(/[^\w.\-]+/g, '_'),
         mimeType: a.mimeType ?? 'application/octet-stream',
         size: a.size ?? 0,
         spoiler: false,
         description: '',
-      }));
+      })));
       if (res.assets.length > room) toast(`Maximum ${LIMITS.attachments} fichiers par message.`, 'error');
       set({ attachments: [...m.attachments, ...picked] });
     } catch (e) {

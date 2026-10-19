@@ -4,7 +4,7 @@ import { apiFor, logout as apiLogout, type Credential } from '../api/fluxer';
 import { useSettings } from './settings';
 import { useEndpoints } from './useEndpoints';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as SecureStore from 'expo-secure-store';
+import * as SecureStore from '../platform/secureStore';
 import type { ApiChannel, ApiEmoji, ApiGuild, ApiRole, FluxerUser } from '../types';
 
 /** Compte enregistré pour le changement rapide (le token est à part, chiffré). */

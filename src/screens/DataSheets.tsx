@@ -3,8 +3,7 @@ import React, { useState } from 'react';
 import { Alert, Text, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import * as DocumentPicker from 'expo-document-picker';
-import * as Sharing from 'expo-sharing';
-import * as FS from 'expo-file-system/legacy';
+import { readPickedText, shareTextFile } from '../platform/files';
 import { useEditor } from '../state/editor';
 import { useSettings } from '../state/settings';
 import { exportState, importState } from '../utils/payload';
@@ -32,10 +31,9 @@ export function JsonSheet({ visible, onClose }: { visible: boolean; onClose: () 
 
   const share = async () => {
     try {
-      const path = `${FS.cacheDirectory}fluxerhooks-${Date.now()}.json`;
-      await FS.writeAsStringAsync(path, json);
-      if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(path, { mimeType: 'application/json', dialogTitle: 'Exporter le JSON' });
-      else toast('Partage indisponible sur cet appareil.', 'error');
+      const r = await shareTextFile(`fluxerhooks-${Date.now()}.json`, json, 'Exporter le JSON');
+      if (r === 'unavailable') toast('Partage indisponible sur cet appareil.', 'error');
+      else if (r === 'saved') toast('Fichier enregistré.', 'success');
     } catch {
       toast('Échec de l’export.', 'error');
     }
@@ -45,7 +43,7 @@ export function JsonSheet({ visible, onClose }: { visible: boolean; onClose: () 
     try {
       const res = await DocumentPicker.getDocumentAsync({ type: ['application/json', 'text/*', '*/*'], copyToCacheDirectory: true });
       if (res.canceled) return;
-      doImport(await FS.readAsStringAsync(res.assets[0].uri));
+      doImport(await readPickedText(res.assets[0]));
     } catch {
       toast('Impossible de lire ce fichier.', 'error');
     }

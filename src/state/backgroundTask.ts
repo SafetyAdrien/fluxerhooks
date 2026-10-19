@@ -1,6 +1,7 @@
 import * as TaskManager from 'expo-task-manager';
 import * as BackgroundTask from 'expo-background-task';
 import { runDueAutomations } from './automation';
+import { desktop } from '../platform/desktop';
 
 /**
  * Tâche de fond Android (WorkManager) : vérifie les automatisations échues.
@@ -23,6 +24,8 @@ try {
 }
 
 export async function setBackgroundAutomations(enabled: boolean) {
+  // Bureau : l'app reste dans la zone de notification à la fermeture et continue d'exécuter les automatisations.
+  if (desktop) return desktop.setBackground(enabled).catch(() => {});
   try {
     const registered = await TaskManager.isTaskRegisteredAsync(AUTOMATION_TASK);
     if (enabled && !registered) await BackgroundTask.registerTaskAsync(AUTOMATION_TASK, { minimumInterval: 15 });

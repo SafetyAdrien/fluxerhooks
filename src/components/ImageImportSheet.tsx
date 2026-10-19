@@ -4,7 +4,7 @@ import { Image, Pressable, ScrollView, Text, View, useWindowDimensions } from 'r
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { manipulateAsync, FlipType, SaveFormat, type Action } from 'expo-image-manipulator';
-import * as FS from 'expo-file-system/legacy';
+import { fileSize, persistFile } from '../platform/files';
 import { useSettings } from '../state/settings';
 import { uid } from '../utils/factory';
 import { Button, Chip, EmptyState, IconBtn, Input, SectionLabel, Segmented, Sheet, Stack, useToast } from './ui';
@@ -99,13 +99,14 @@ export function ImageImportSheet({
         }
         const format = it.format === 'png' ? SaveFormat.PNG : it.format === 'webp' ? SaveFormat.WEBP : SaveFormat.JPEG;
         const r = await manipulateAsync(it.uri, actions, { compress: it.quality, format });
-        const info = await FS.getInfoAsync(r.uri);
+        const name = `${it.name}.${it.format === 'jpeg' ? 'jpg' : it.format}`;
+        const uri = await persistFile(r.uri, name);
         out.push({
           id: uid(),
-          uri: r.uri,
-          name: `${it.name}.${it.format === 'jpeg' ? 'jpg' : it.format}`,
+          uri,
+          name,
           mimeType: `image/${it.format}`,
-          size: info.exists && 'size' in info ? (info.size ?? 0) : 0,
+          size: await fileSize(uri),
           spoiler: false,
           description: '',
         });

@@ -20,6 +20,8 @@ Android app (React Native + Expo) for composing and sending webhook messages on 
 - **Image import** with editing: ±90° rotation, horizontal/vertical flip, resizing, format and quality.
 - **Composer** on every text field: full markdown toolbar and insertion of #channels, @roles, @members, server emojis, `<t:…>` timestamps and navigation links.
 - **Data**: saves, templates (8 built-in + your own), automations (once, interval, daily, weekly, with variables) and an exportable full backup.
+- **Transfer to another platform** (Settings): export all data to a file and import it into FluxerHooks on another device, Fluxer accounts included (encrypted with a password).
+- **Devices** (Settings): your account's real devices (since FluxerHooks was created), and **device linking** with FluxerHooks Desktop by scanning its QR code — linked devices signed in to the same Fluxer account sync their data automatically on the same Wi-Fi, end-to-end encrypted, without any server.
 - **Settings** (gear icon): remembered interface zoom, dimmed wallpaper (DIM, blur, opacity), message appearance (avatars, sizes, bubbles, spacing, embeds), CSS-style style editor by category: 6 themes (Dark, Light, AMOLED, Indigo, Midnight, System), accent color, text size, container rounding, density, compact preview, split screen on tablet/landscape, send confirmation, vibrations, self-hosted instance.
 
 ## Android compatibility
@@ -30,7 +32,7 @@ Android **7.0 (API 24) and later**, which covers nearly every device in use. Thi
 
 ### GitHub Actions (automatic)
 1. Push this folder to a GitHub repository.
-2. Every push to `main` runs **Build Android APK**; the APK is in the run's *Artifacts*.
+2. Every push to the `mobile` branch runs **Build Android APK**; the APK is in the run's *Artifacts*.
 3. A `v1.0.0` tag also creates a *Release* with the APK attached.
 
 Without any configuration, the APK is signed with the debug key (installable directly). For the Play Store, add these repository secrets: `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`.

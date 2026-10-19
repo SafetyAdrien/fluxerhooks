@@ -6,7 +6,7 @@ import { LANGUAGES, resolveLanguage, tr } from '../i18n';
 import { LanguagePicker } from '../components/LanguagePicker';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
-import * as FS from 'expo-file-system/legacy';
+import { persistImage, removePersisted } from '../platform/files';
 import Constants from 'expo-constants';
 import { DEFAULT_MESSAGE_STYLE, DEFAULT_WALLPAPER, useSettings } from '../state/settings';
 import { useEditor } from '../state/editor';
@@ -19,6 +19,8 @@ import { ColorPickerModal } from '../components/ColorPicker';
 import { MessagePreview } from '../components/Preview';
 import { newEmbed, newMessage } from '../utils/factory';
 import type { MessageStyle, ThemeName, WallpaperSettings } from '../types';
+import { DataTransfer } from '../components/DataTransfer';
+import { DevicesSection } from '../link/DevicesSection';
 
 function ThemeCard({ name, label, selected, onPress }: { name: ThemeName; label: string; selected: boolean; onPress: () => void }) {
   const { theme: t } = useSettings();
@@ -74,6 +76,7 @@ export function SettingsSheet({
   onOpenJson,
   onOpenData,
   onOpenCss,
+  onRestored,
 }: {
   visible: boolean;
   onClose: () => void;
@@ -82,6 +85,7 @@ export function SettingsSheet({
   onOpenJson: () => void;
   onOpenData: () => void;
   onOpenCss: () => void;
+  onRestored: () => void;
 }) {
   const { theme: t, settings, update, reset } = useSettings();
   const { clearAll } = useEditor();
@@ -113,9 +117,8 @@ export function SettingsSheet({
       const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.9 });
       if (res.canceled) return;
       // On copie l'image dans le stockage de l'app pour qu'elle survive au nettoyage du cache.
-      const dest = `${FS.documentDirectory}wallpaper-${Date.now()}.jpg`;
-      await FS.copyAsync({ from: res.assets[0].uri, to: dest });
-      if (wp.uri?.startsWith(FS.documentDirectory ?? '§')) FS.deleteAsync(wp.uri, { idempotent: true }).catch(() => {});
+      const dest = await persistImage(res.assets[0].uri, 'wallpaper', (res.assets[0] as any).file);
+      removePersisted(wp.uri);
       setWp({ uri: dest });
       toast('Fond d’écran appliqué.', 'success');
     } catch {
@@ -338,6 +341,8 @@ export function SettingsSheet({
         />
       </Box>
 
+      <DevicesSection />
+
       <Box title="Instance Fluxer" icon="globe-outline" defaultCollapsed>
         <Input
           value={instance}
@@ -349,6 +354,20 @@ export function SettingsSheet({
         />
         <Button icon="pulse-outline" label="Tester et enregistrer" loading={testing} onPress={testInstance} />
       </Box>
+
+      {/* ---------- Transfert entre plateformes ---------- */}
+      <DataTransfer
+        title="Transférer vers une autre plateforme"
+        icon="swap-horizontal-outline"
+        intro="Exporte toutes tes données dans un fichier, puis importe-le dans FluxerHooks sur un autre appareil (Mobile ⇄ Desktop) : brouillon, historique, sauvegardes, modèles, automatisations et paramètres, avec tes comptes Fluxer si tu le souhaites."
+        exportLabel="Exporter mes données"
+        importLabel="Importer des données"
+        accountsByDefault
+        onRestored={() => {
+          onClose();
+          onRestored();
+        }}
+      />
 
       {/* ---------- Données ---------- */}
       <Box title="Données" icon="folder-open-outline" collapsible={false}>

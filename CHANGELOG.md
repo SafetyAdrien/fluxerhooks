@@ -12,7 +12,7 @@ Légende : ✨ Ajouts · 🔧 Modifications · 🐛 Correctifs · 🏗️ Build 
 
 ## beta15
 
-**Historique d'édition avancé, changement de compte corrigé** — commits `8f34f2b` et suivants · 18 oct. 2026
+**Historique d'édition avancé, changement de compte corrigé, transfert des données et connexion d'appareils** — commits `8f34f2b` et suivants · 18–19 oct. 2026
 
 ### ✨ Ajouts
 - **Historique d'édition** : chaque modification de l'éditeur devient une étape (les frappes consécutives sont regroupées).
@@ -23,14 +23,31 @@ Légende : ✨ Ajouts · 🔧 Modifications · 🐛 Correctifs · 🏗️ Build 
 - **Reprise de l'existant** : les sauvegardes et le brouillon d'avant la mise à jour sont importés dans l'historique (« Point de départ », « Brouillon retrouvé »).
 - Traductions de tout l'historique dans les **10 langues**.
 - **Écran de chargement lors du changement de compte** : avatar, nom et « Changement de compte… » pendant la transition, puis retour au même endroit du profil qu'avant d'ouvrir le sélecteur.
+- **Transfert des comptes** : option « Inclure mes comptes » dans le backup complet. Les tokens des comptes enregistrés (et du bot) sont chiffrés en AES-256-GCM avec un mot de passe (PBKDF2-SHA256) ; à la restauration sur un autre appareil, le mot de passe les replace dans le stockage chiffré.
+- Restauration d'un backup avec comptes : boîte de mot de passe, erreur affichée directement en cas de mot de passe incorrect, possibilité de restaurer sans les comptes.
+- Nouvelle section **« Transférer vers une autre plateforme »** dans les Paramètres : **Exporter mes données** dans un fichier, puis **Importer des données** dans FluxerHooks sur un autre appareil (Mobile ⇄ Desktop). Brouillon, historique, sauvegardes, modèles, automatisations et paramètres ; les **comptes Fluxer** sont inclus par défaut, chiffrés par un mot de passe (option désactivable).
+- **Connexion d'appareils** (Paramètres → **Appareils**) : « Scanner le QR code » affiché par FluxerHooks Desktop, ou « Saisir un code ». Les deux appareils doivent être **connectés au même compte Fluxer** : sinon la liaison est refusée, et la synchro s'arrête si l'un d'eux passe sur un autre compte.
+- **Synchro automatique** entre appareils liés dès qu'ils sont sur le **même Wi-Fi** avec l'app ouverte : brouillon, historique, sauvegardes, modèles, automatisations et paramètres. Pour chaque élément, la modification la plus récente gagne ; un modèle ajouté sur un appareil et un autre sur le second sont tous deux gardés, et une suppression se propage.
+- Au moment de la liaison, choix des **données de départ** : fusionner, garder celles de cet appareil ou prendre celles de l'autre.
+- Liste des **appareils de ton compte** : cet appareil, les appareils liés à FluxerHooks (avec leur état de synchro, possibilité de les délier) et les autres appareils connectés à ton compte Fluxer (type, système, lieu approximatif, dernière activité).
+- Aucun serveur ni note personnelle Fluxer : les données passent directement d'un appareil à l'autre, **chiffrées en AES-256-GCM** avec une clé propre à chaque liaison.
+- Automatisations : avec des appareils liés, chacune n'est envoyée que par un seul appareil (celui qui l'a exécutée en premier).
 
 ### 🔧 Modifications
 - `state/editor` : gestion de l'historique intégrée à l'état de l'éditeur ; l'écran d'accueil expose les nouvelles actions.
 - README traduit en anglais (commit `ad5f4d3`).
+- Les boîtes de confirmation (supprimer, vider, restaurer…) sont traduites dans les 10 langues.
+- L'instance Fluxer et l'image de fond restent propres à chaque appareil.
 
 ### 🏗️ Build / technique
 - Nouveau module `src/state/history.ts` et écran `HistorySheet`.
 - Workflow « Rebuild old beta » ajusté.
+- Nouvelle couche `src/platform/` (secrets, fichiers) et module `src/link/` (index des données, fusion, chiffrement, liaison, découverte sur le réseau local).
+- Pièces jointes envoyées via un formulaire construit à l'envoi ; export / import regroupés dans le composant `DataTransfer`.
+- Android : lecteur de QR code (`expo-camera`), adresse IP locale (`expo-network`), trafic local autorisé (`expo-build-properties`) ; le contenu reste chiffré.
+- Route Fluxer `GET /v1/auth/sessions` pour la liste des appareils du compte.
+- Dépendances : `@noble/ciphers`, `expo-crypto`, `qrcode-generator`.
+- CI : builds et release « dernier build » depuis la branche `mobile`.
 
 ### 🐛 Correctifs
 - **Changement de compte impossible après l'ajout d'un deuxième compte** : le profil du nouveau compte était affiché avant que son token soit pris en compte, ce qui enregistrait l'ancien token sous le nouveau compte ; le sélecteur revenait donc toujours au même compte.
@@ -38,6 +55,7 @@ Légende : ✨ Ajouts · 🔧 Modifications · 🐛 Correctifs · 🏗️ Build 
 - Un compte enregistré avec un mauvais token par une version précédente, ou dont la session a expiré, ouvre directement un **formulaire de reconnexion prérempli** pour ce compte (au lieu d'un simple message d'erreur) ; après connexion, l'app bascule automatiquement dessus.
 - Une coupure réseau pendant le changement de compte n'est plus prise pour une session invalide : la bascule se fait avec le profil enregistré.
 - Déconnexion avec bascule vers le compte suivant : même correction de l'ordre token / profil.
+- **Appareils** : seules les sessions du compte actives depuis la création de FluxerHooks (16 oct. 2026) sont affichées ; chaque appareil n'apparaît qu'une fois (les reconnexions du même appareil sont regroupées) ; cet appareil et les appareils liés sont reconnus par leur session Fluxer, sans doublon ni appareil d'exemple.
 
 ---
 

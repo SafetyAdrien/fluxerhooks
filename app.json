@@ -43,6 +43,21 @@
           "photosPermission": "FluxerHooks accède à tes photos pour les joindre aux messages et choisir un fond d’écran.",
           "cameraPermission": "FluxerHooks utilise l’appareil photo pour prendre une image à joindre."
         }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "FluxerHooks utilise l’appareil photo pour scanner le QR code de connexion d’un appareil et pour prendre des images à joindre.",
+          "recordAudioAndroid": false
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
       ]
     ],
     "backgroundColor": "#16171B",

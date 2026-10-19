@@ -1,3 +1,4 @@
+import { UploadForm } from '../platform/files';
 import type {
   FluxerProfile,
   ApiChannel,
@@ -131,7 +132,7 @@ interface ReqOpts {
   headers?: Record<string, string>;
   timeoutMs?: number;
   json?: unknown;
-  form?: FormData;
+  form?: UploadForm;
   query?: Record<string, string | undefined>;
 }
 
@@ -152,7 +153,7 @@ async function request<T>(ep: Endpoints, path: string, opts: ReqOpts = {}, attem
   }
   if (opts.headers) Object.assign(headers, opts.headers);
   let body: any;
-  if (opts.form) body = opts.form;
+  if (opts.form) body = await opts.form.build();
   else if (opts.json !== undefined) {
     headers['Content-Type'] = 'application/json';
     body = JSON.stringify(opts.json);
@@ -202,16 +203,15 @@ export async function getWebhook(ep: Endpoints, url: string): Promise<WebhookInf
   return { id: w.id, token: p.token, name: w.name, avatar: w.avatar, channel_id: w.channel_id, guild_id: w.guild_id };
 }
 
-function buildBody(m: DraftMessage, forEdit: boolean): { json?: unknown; form?: FormData } {
+function buildBody(m: DraftMessage, forEdit: boolean): { json?: unknown; form?: UploadForm } {
   const payload = messageToPayload(m, forEdit);
   const files = effectiveAttachments(m);
   if (forEdit || !files.length) return { json: payload };
-  const form = new FormData();
+  const form = new UploadForm();
   form.append('payload_json', JSON.stringify(payload));
   files.forEach((a, i) => {
     const name = a.spoiler && !a.name.startsWith('SPOILER_') ? `SPOILER_${a.name}` : a.name;
-    // React Native accepte un objet { uri, name, type } comme fichier multipart.
-    form.append(`files[${i}]`, { uri: a.uri, name, type: a.mimeType || 'application/octet-stream' } as any);
+    form.append(`files[${i}]`, { uri: a.uri, name, type: a.mimeType || 'application/octet-stream' });
   });
   return { form };
 }
@@ -281,11 +281,11 @@ function botBody(m: DraftMessage, forEdit: boolean, wrap?: (p: Record<string, un
   const json = wrap ? wrap(payload) : payload;
   const files = effectiveAttachments(m);
   if (forEdit || !files.length) return { json };
-  const form = new FormData();
+  const form = new UploadForm();
   form.append('payload_json', JSON.stringify(json));
   files.forEach((a, i) => {
     const name = a.spoiler && !a.name.startsWith('SPOILER_') ? `SPOILER_${a.name}` : a.name;
-    form.append(`files[${i}]`, { uri: a.uri, name, type: a.mimeType || 'application/octet-stream' } as any);
+    form.append(`files[${i}]`, { uri: a.uri, name, type: a.mimeType || 'application/octet-stream' });
   });
   return { form };
 }
@@ -545,3 +545,22 @@ export const CHANNEL_TYPES = {
 export const WEBHOOK_CHANNEL_TYPES: number[] = [0, 2, 5, 15, 16];
 export const isForumType = (t: number) => t === 15 || t === 16;
 export const isThreadType = (t: number) => t === 10 || t === 11 || t === 12;
+
+/* ---------- Sessions du compte (appareils connectés) ---------- */
+
+export interface AuthSession {
+  id_hash: string;
+  current: boolean;
+  client_info?: {
+    platform?: string | null;
+    os?: string | null;
+    browser?: string | null;
+    device?: string | null;
+    location?: { city?: string | null; region?: string | null; country?: string | null } | null;
+  } | null;
+  masked_ip?: string | null;
+  approx_last_used_at?: string | null;
+}
+
+/** GET /v1/auth/sessions : appareils connectés au compte, du plus récemment actif au plus ancien. */
+export const listAuthSessions = (ep: Endpoints, token: string) => request<AuthSession[]>(ep, '/auth/sessions', { user: token });

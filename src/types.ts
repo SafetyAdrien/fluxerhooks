@@ -193,6 +193,8 @@ export interface Automation {
     weekdays?: number[]; // weekly : 0 = dimanche
   };
   nextRun: string | null;
+  /** Appareil qui exécute l'automatisation (appareils liés : un seul l'envoie). */
+  device?: string;
   lastRun?: string;
   lastResult?: string;
   runs: number;

@@ -2,7 +2,7 @@ name: Build Android APK
 
 on:
   push:
-    branches: [main, master]
+    branches: [mobile]
     tags: ['v*']
   pull_request:
   workflow_dispatch:
@@ -98,9 +98,9 @@ jobs:
           files: dist/*
           body_path: release-notes-tag.md
 
-      # Dernier APK de main, toujours disponible au même endroit.
+      # Dernier APK de la branche mobile, toujours disponible au même endroit.
       - name: Publier la pré-release « latest »
-        if: github.ref == 'refs/heads/main'
+        if: github.ref == 'refs/heads/mobile'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
