@@ -9,8 +9,8 @@ This branch (`desktop`) contains only FluxerHooks Desktop. The Mobile app lives 
 Get `FluxerHooks-<version>-x86_64.AppImage` from the **desktop-latest** pre-release, make it executable and run it:
 
 ```bash
-chmod +x FluxerHooks-beta3-x86_64.AppImage
-./FluxerHooks-beta3-x86_64.AppImage
+chmod +x FluxerHooks-beta-0.0.3-x86_64.AppImage
+./FluxerHooks-beta-0.0.3-x86_64.AppImage
 ```
 
 AppImages need FUSE 2 (`sudo pacman -S fuse2` on Arch / CachyOS).

@@ -12,7 +12,7 @@ const { Worker } = require('node:worker_threads');
 const http = require('node:http');
 
 const ORIGIN = 'app://fluxerhooks';
-// Numérotation propre à la version Desktop (« beta1 »…), distincte de celle de l'app Mobile.
+// Numérotation propre à la version Desktop (« beta-0.0.1 »…), distincte de celle de l'app Mobile.
 const DESKTOP_VERSION = require('./package.json').fluxerhooksVersion;
 const WEB_DIR = path.join(__dirname, 'web');
 const ICON = path.join(__dirname, 'build', 'icon.png');

@@ -1,15 +1,15 @@
 # Journal des modifications (audit log) — FluxerHooks Desktop
 
-Historique de chaque version de **FluxerHooks Desktop** (Linux), numérotée séparément de l'app Mobile : **ajouts**, **modifications** et **correctifs**.
+Historique de chaque version de **FluxerHooks Desktop** (Linux), numérotée séparément de l'app Mobile (`beta-0.0.<N>`, branche `desktop-beta-0.0.<N>`) : **ajouts**, **modifications** et **correctifs**.
 
-> Ce fichier est la source des descriptions des releases Desktop (`desktop-latest`) : chaque section `## beta<N>` est reprise telle quelle (`scripts/release-notes.js`).
-> **À chaque nouvelle version Desktop, ajouter une section `## beta<N>` en haut de ce fichier** et mettre à jour `fluxerhooksVersion` dans `desktop/package.json`.
+> Ce fichier est la source des descriptions des releases Desktop (tags `desktop-b0.0.<N>`, dernière version sur `desktop-latest`) : chaque section `## beta-0.0.<N>` est reprise telle quelle (`scripts/release-notes.js`).
+> **À chaque nouvelle version Desktop, ajouter une section `## beta-0.0.<N>` en haut de ce fichier** et mettre à jour `fluxerhooksVersion` dans `desktop/package.json`.
 
 Légende : ✨ Ajouts · 🔧 Modifications · 🐛 Correctifs · 🏗️ Build / technique
 
 ---
 
-## beta3
+## beta-0.0.3
 
 **Connexion d'appareils et synchro automatique sur le même Wi-Fi** — branche `desktop` · 18 oct. 2026
 
@@ -31,7 +31,7 @@ Légende : ✨ Ajouts · 🔧 Modifications · 🐛 Correctifs · 🏗️ Build 
 ### 🐛 Correctifs
 - **Appareils** : seules les sessions du compte actives depuis la création de FluxerHooks (16 oct. 2026) sont affichées ; chaque appareil n'apparaît qu'une fois (les reconnexions du même appareil sont regroupées) ; cet appareil et les appareils liés sont reconnus par leur session Fluxer et réunis dans une seule liste, sans doublon ni appareil d'exemple.
 
-## beta2
+## beta-0.0.2
 
 **Transfert des données vers une autre plateforme depuis les Paramètres** — branche `desktop` · 18 oct. 2026
 
@@ -39,7 +39,7 @@ Légende : ✨ Ajouts · 🔧 Modifications · 🐛 Correctifs · 🏗️ Build 
 - Nouvelle section **« Transférer vers une autre plateforme »** dans les Paramètres : **Exporter mes données** (« Enregistrer sous ») puis **Importer des données** dans FluxerHooks sur un autre appareil (Desktop ⇄ Mobile).
 - Le fichier contient le brouillon, l'historique, les sauvegardes, les modèles, les automatisations et les paramètres ; les **comptes Fluxer** sont inclus par défaut, chiffrés par un mot de passe (option désactivable).
 
-## beta1
+## beta-0.0.1
 
 **Première version de FluxerHooks pour Linux** — branche `desktop` · 18 oct. 2026
 

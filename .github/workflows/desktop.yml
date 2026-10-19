@@ -2,7 +2,7 @@ name: Build Linux AppImage
 
 # FluxerHooks Desktop (branche « desktop ») : même interface que l'app Mobile (export web d'Expo)
 # dans Electron, empaquetée en AppImage x86_64. Publie la dernière version sous le tag « desktop-latest »,
-# au nom exact « FluxerHooks-beta<N> ».
+# au nom exact « FluxerHooks-beta-0.0.<N> » (anciennes versions : tags desktop-b0.0.<N>).
 on:
   push:
     branches: [desktop]
