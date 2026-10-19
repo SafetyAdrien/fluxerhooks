@@ -98,20 +98,12 @@ export function EditorProvider({ children }: { children: React.ReactNode }) {
     })();
   }, []);
 
-  // Brouillon, sauvegardes ou historique modifiés sur un appareil lié : appliqués tout de suite, sans
-  // créer d'étape d'historique (l'historique de l'autre appareil arrive avec).
+  // Sauvegardes ou historique modifiés sur un appareil lié : affichés tout de suite. Le brouillon en
+  // cours (éditeur et aperçu) n'est pas synchronisé : chaque appareil garde le sien.
   useEffect(
     () =>
       onExternalChange(async (keys) => {
         try {
-          if (keys.includes(KEY)) {
-            const raw = await AsyncStorage.getItem(KEY);
-            const parsed = raw ? (JSON.parse(raw) as EditorState) : null;
-            if (parsed?.messages?.length) {
-              recorded.current = { state: parsed, sig: contentSignature(parsed) };
-              setState(parsed);
-            }
-          }
           if (keys.includes(BACKUPS_KEY)) {
             const b = await AsyncStorage.getItem(BACKUPS_KEY);
             setBackups(b ? JSON.parse(b) : []);

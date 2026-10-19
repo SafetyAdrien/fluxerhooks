@@ -180,10 +180,16 @@ async function buildIndex(): Promise<{ idx: Index; values: Record<string, unknow
     }
   }
   for (const ek of Object.keys(idx)) {
-    if (ek in values || idx[ek].del) continue;
+    if (ek in values) continue;
+    if (idx[ek].del && storageKeyOf(ek)) continue;
     const sk = storageKeyOf(ek);
+    // Entrée d'une donnée qui n'est plus synchronisée (ancien brouillon, ancien historique en bloc).
+    if (!sk) {
+      delete idx[ek];
+      continue;
+    }
     // Seuls des éléments de liste peuvent être supprimés, et seulement si la liste existe ici.
-    if (!sk || sk in WHOLE_KEYS || ek.endsWith('#order') || local[sk] == null) continue;
+    if (sk in WHOLE_KEYS || ek.endsWith('#order') || local[sk] == null) continue;
     idx[ek] = { h: '', t: times[sk] ?? now, del: true };
   }
   await saveIndex(idx);
