@@ -11,7 +11,7 @@ Légende : ✨ Ajouts · 🔧 Modifications · 🐛 Correctifs · 🏗️ Build 
 
 ## beta-0.0.3
 
-**Connexion d'appareils et synchro automatique sur le même Wi-Fi** — branche `desktop` · 18 oct. 2026
+**Connexion d'appareils et synchro en temps réel sur le même Wi-Fi** — branche `desktop` · 18–19 oct. 2026
 
 ### ✨ Ajouts
 - **Connexion d'appareils** (Paramètres → **Appareils**) : FluxerHooks Desktop affiche un **QR code** (« Connecter un appareil »), le téléphone le scanne (« Scanner le QR code ») ; entre deux ordinateurs, le code se copie et se colle (« Saisir un code »).
@@ -21,15 +21,20 @@ Légende : ✨ Ajouts · 🔧 Modifications · 🐛 Correctifs · 🏗️ Build 
 - Liste des **appareils connectés au compte Fluxer** (type, système, lieu approximatif, dernière activité, « Cet appareil »), et des appareils liés à FluxerHooks avec leur état (« Synchronisé à… », « Introuvable sur le réseau »…), possibilité de les délier.
 - Aucun serveur ni note personnelle Fluxer : les données passent directement d'un appareil à l'autre, **chiffrées en AES-256-GCM** avec une clé propre à chaque liaison.
 - Automatisations : avec des appareils liés, chacune n'est envoyée que par un seul appareil (celui qui l'a exécutée en premier).
+- **Synchronisation en temps réel** entre appareils liés : connexion directe permanente (WebSocket chiffrée avec la clé de la liaison) ; chaque modification est envoyée et affichée sur l'autre appareil en moins d'une seconde, sans redémarrer l'app.
+- Rattrapage automatique à la reconnexion (app rouverte, retour du Wi-Fi) ; statut « Connecté en direct » dans Paramètres → Appareils.
 
 ### 🔧 Modifications
 - L'instance Fluxer et l'image de fond restent propres à chaque appareil.
 
 ### 🏗️ Build / technique
 - Serveur local sur le port **47321** (TCP, réseau local), actif seulement quand un appareil est lié ou en cours de liaison ; les requêtes vers les autres appareils passent par le processus principal.
+- Le serveur local (port 47321) accepte aussi les connexions en direct (WebSocket, bibliothèque `ws`), relayées vers l'interface.
 
 ### 🐛 Correctifs
 - **Appareils** : seules les sessions du compte actives depuis la création de FluxerHooks (16 oct. 2026) sont affichées ; chaque appareil n'apparaît qu'une fois (les reconnexions du même appareil sont regroupées) ; cet appareil et les appareils liés sont reconnus par leur session Fluxer et réunis dans une seule liste, sans doublon ni appareil d'exemple.
+- Les données reçues d'un appareil lié ne s'affichaient qu'après un arrêt forcé de l'app : paramètres, éditeur, historique, sauvegardes, modèles et automatisations se mettent maintenant à jour à l'écran, sans fermer l'écran ouvert.
+- Une modification faite juste après en avoir reçu une pouvait être ignorée.
 
 ## beta-0.0.2
 

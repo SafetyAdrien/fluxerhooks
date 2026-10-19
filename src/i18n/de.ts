@@ -600,6 +600,7 @@ const dict: Record<string, string> = {
  "Appareil injoignable.": "Gerät nicht erreichbar.",
  "Cet appareil": "Dieses Gerät",
  "Appareils de ton compte": "Geräte deines Kontos",
- "{n} sessions": "{n} Sitzungen"
+ "{n} sessions": "{n} Sitzungen",
+ "Connecté en direct · synchronisé à {h}": "Live verbunden · synchronisiert um {h}"
 };
 export default dict;

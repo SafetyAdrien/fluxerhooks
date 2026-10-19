@@ -54,6 +54,20 @@ export function onLocalChange(cb: ((keys: string[]) => void) | null) {
   listener = cb;
 }
 
+/* ---------- Données reçues d'un appareil lié ---------- */
+
+const external = new Set<(keys: string[]) => void>();
+/** Les écrans relisent leurs données sur place quand un appareil lié les a modifiées (sans redémarrer). */
+export function onExternalChange(cb: (keys: string[]) => void): () => void {
+  external.add(cb);
+  return () => {
+    external.delete(cb);
+  };
+}
+export function emitExternalChange(keys: string[]) {
+  if (keys.length) external.forEach((l) => l(keys));
+}
+
 export function freeze(keys: string[]) {
   keys.forEach((k) => frozen.add(k));
 }

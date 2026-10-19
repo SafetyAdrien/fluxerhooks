@@ -30,6 +30,14 @@ contextBridge.exposeInMainWorld('fluxerDesktop', {
     request: (url, method, body, timeoutMs) => ipcRenderer.invoke('link:request', url, method, body, timeoutMs),
     serve: (on) => ipcRenderer.invoke('link:serve', !!on),
     port: () => ipcRenderer.invoke('link:port'),
+    liveConnect: (url) => ipcRenderer.invoke('link:live-connect', url),
+    liveSend: (id, data) => ipcRenderer.send('link:live-send', id, data),
+    liveClose: (id) => ipcRenderer.send('link:live-close', id),
+    onLive: (cb) => {
+      const listener = (_e, msg) => cb(msg);
+      ipcRenderer.on('link:live', listener);
+      return () => ipcRenderer.removeListener('link:live', listener);
+    },
     onRequest: (handler) => {
       const listener = async (_e, req) => {
         let res;

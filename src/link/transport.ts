@@ -48,3 +48,74 @@ export function deviceName(): string {
 
 export const devicePlatform = (): string => (desktop ? desktop.platform : Platform.OS);
 export const canHost = () => !!desktop?.link;
+
+/* ---------- Connexion en direct (WebSocket) ---------- */
+
+export interface LiveSocket {
+  send(data: string): void;
+  close(): void;
+}
+export interface LiveHandlers {
+  onOpen(): void;
+  onMessage(data: string): void;
+  onClose(): void;
+}
+
+type DesktopLiveListener = (msg: { type: 'open' | 'message' | 'close'; id: string; data?: string; incoming?: boolean }) => void;
+const desktopLive = new Map<string, LiveHandlers>();
+let desktopIncoming: ((id: string) => LiveHandlers | null) | null = null;
+let desktopHooked = false;
+function hookDesktop() {
+  if (desktopHooked || !desktop?.link?.onLive) return;
+  desktopHooked = true;
+  const listener: DesktopLiveListener = (msg) => {
+    let h = desktopLive.get(msg.id);
+    if (!h && msg.type === 'open' && msg.incoming && desktopIncoming) {
+      const created = desktopIncoming(msg.id);
+      if (!created) return desktop!.link!.liveClose?.(msg.id);
+      desktopLive.set(msg.id, created);
+      h = created;
+    }
+    if (!h) return;
+    if (msg.type === 'open') h.onOpen();
+    else if (msg.type === 'message') h.onMessage(msg.data ?? '');
+    else {
+      desktopLive.delete(msg.id);
+      h.onClose();
+    }
+  };
+  desktop.link.onLive(listener);
+}
+
+/** Bureau : connexions entrantes (un autre appareil lié se connecte au serveur local). */
+export function onIncomingLive(factory: (send: (data: string) => void, close: () => void) => LiveHandlers | null) {
+  if (!desktop?.link?.onLive) return;
+  desktopIncoming = (id) =>
+    factory(
+      (data) => desktop!.link!.liveSend?.(id, data),
+      () => desktop!.link!.liveClose?.(id),
+    );
+  hookDesktop();
+}
+
+/** Ouvre une connexion en direct vers un appareil lié (ws://ip:port/fluxerhooks/live). */
+export async function openLive(url: string, h: LiveHandlers): Promise<LiveSocket | null> {
+  if (desktop?.link?.liveConnect) {
+    hookDesktop();
+    const id = await desktop.link.liveConnect(url);
+    if (!id) return null;
+    desktopLive.set(id, h);
+    return { send: (d) => desktop!.link!.liveSend?.(id, d), close: () => desktop!.link!.liveClose?.(id) };
+  }
+  if (typeof WebSocket === 'undefined') return null;
+  try {
+    const ws = new WebSocket(url);
+    ws.onopen = () => h.onOpen();
+    ws.onmessage = (e: any) => h.onMessage(String(e.data));
+    ws.onclose = () => h.onClose();
+    ws.onerror = () => {};
+    return { send: (d) => ws.readyState === 1 && ws.send(d), close: () => ws.close() };
+  } catch {
+    return null;
+  }
+}

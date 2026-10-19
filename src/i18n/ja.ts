@@ -600,6 +600,7 @@ const dict: Record<string, string> = {
  "Appareil injoignable.": "デバイスに接続できません。",
  "Cet appareil": "このデバイス",
  "Appareils de ton compte": "アカウントのデバイス",
- "{n} sessions": "{n} セッション"
+ "{n} sessions": "{n} セッション",
+ "Connecté en direct · synchronisé à {h}": "リアルタイム接続中 · {h} に同期"
 };
 export default dict;

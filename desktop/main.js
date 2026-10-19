@@ -10,6 +10,7 @@ const crypto = require('node:crypto');
 const os = require('node:os');
 const { Worker } = require('node:worker_threads');
 const http = require('node:http');
+const { WebSocket, WebSocketServer } = require('ws');
 
 const ORIGIN = 'app://fluxerhooks';
 // Numérotation propre à la version Desktop (« beta-0.0.1 »…), distincte de celle de l'app Mobile.
@@ -315,6 +316,7 @@ function startLinkServer() {
       if (i >= LINK_PORTS.length) return resolve(null);
       const srv = http.createServer(onLinkHttp);
       srv.once('error', () => tryPort(i + 1));
+      srv.on('upgrade', onLiveUpgrade);
       srv.listen(LINK_PORTS[i], '0.0.0.0', () => {
         linkServer = srv;
         linkPort = LINK_PORTS[i];
@@ -326,11 +328,60 @@ function startLinkServer() {
 }
 function stopLinkServer() {
   if (!linkServer) return;
+  for (const [id, c] of liveConns) if (c.incoming) (c.ws.terminate(), liveConns.delete(id));
   linkServer.close();
   linkServer = null;
   linkPort = 0;
 }
 ipcMain.handle('link:serve', async (_e, on) => (on ? startLinkServer() : (stopLinkServer(), null)));
+
+/* ---------- Connexion en direct (WebSocket) entre appareils liés ---------- */
+// Le contenu est chiffré par l'interface avec la clé de la liaison ; ici, on ne fait que relayer.
+
+const liveWss = new WebSocketServer({ noServer: true, maxPayload: MAX_LINK_BODY });
+const liveConns = new Map();
+let liveSeq = 0;
+const toRenderer = (msg) => win && !win.isDestroyed() && win.webContents.send('link:live', msg);
+
+function trackLive(ws, incoming) {
+  const id = `c${++liveSeq}`;
+  liveConns.set(id, { ws, incoming });
+  ws.on('message', (data) => toRenderer({ type: 'message', id, data: String(data) }));
+  ws.on('close', () => {
+    liveConns.delete(id);
+    toRenderer({ type: 'close', id });
+  });
+  ws.on('error', () => {});
+  return id;
+}
+function onLiveUpgrade(req, socket, head) {
+  if (!String(req.url || '').startsWith('/fluxerhooks/live')) return socket.destroy();
+  liveWss.handleUpgrade(req, socket, head, (ws) => {
+    const id = trackLive(ws, true);
+    toRenderer({ type: 'open', id, incoming: true });
+  });
+}
+ipcMain.handle('link:live-connect', (_e, url) => {
+  let u;
+  try {
+    u = new URL(String(url));
+  } catch {
+    return null;
+  }
+  if (u.protocol !== 'ws:' || !isLocalHost(u.hostname)) return null;
+  const ws = new WebSocket(u.toString(), { handshakeTimeout: 4000, maxPayload: MAX_LINK_BODY });
+  const id = trackLive(ws, false);
+  ws.on('open', () => toRenderer({ type: 'open', id, incoming: false }));
+  return id;
+});
+ipcMain.on('link:live-send', (_e, id, data) => {
+  const c = liveConns.get(id);
+  if (c && c.ws.readyState === WebSocket.OPEN) c.ws.send(String(data));
+});
+ipcMain.on('link:live-close', (_e, id) => {
+  const c = liveConns.get(id);
+  if (c) c.ws.close();
+});
 ipcMain.handle('link:port', () => linkPort);
 function lanAddresses() {
   const out = [];

@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { onExternalChange } from '../link/storageHook';
 import type { Automation, DraftMessage, Template } from '../types';
 import { AUTOMATIONS_KEY, RUNLOG_KEY, TEMPLATES_KEY, computeNextRun, runAutomation, runDueAutomations } from './automation';
 import { builtinTemplates } from './templates';
@@ -55,6 +56,15 @@ export function LibraryProvider({ children, onAutoRun }: { children: React.React
   useEffect(() => {
     reload();
   }, [reload]);
+
+  // Modèles, automatisations ou journal modifiés sur un appareil lié : relus tout de suite.
+  useEffect(
+    () =>
+      onExternalChange((keys) => {
+        if (keys.some((k) => k === TEMPLATES_KEY || k === AUTOMATIONS_KEY || k === RUNLOG_KEY)) reload();
+      }),
+    [reload],
+  );
 
   // Rattrapage des envois programmés tant que l'app est ouverte (et à chaque retour au premier plan).
   const tick = useCallback(async () => {

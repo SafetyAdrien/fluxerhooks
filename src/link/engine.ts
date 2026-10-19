@@ -1,10 +1,11 @@
 import { randomUUID } from 'expo-crypto';
+import { AppState, Platform } from 'react-native';
 import { desktop } from '../platform/desktop';
 import { LINK_PORT, META, SYNCED_KEYS, WHOLE_KEYS } from './config';
 import { fromB64url, fromUtf8, open, randomKey, seal, toB64url, utf8 } from './crypto';
 import { entriesOf, hashOf, storageKeyOf, valueOf } from './model';
-import { editTimes, freeze, onLocalChange, raw, unfreeze } from './storageHook';
-import { canHost, devicePlatform, deviceName, lanRequest, localAddresses } from './transport';
+import { editTimes, emitExternalChange, freeze, onLocalChange, raw, unfreeze } from './storageHook';
+import { canHost, devicePlatform, deviceName, lanRequest, localAddresses, onIncomingLive, openLive, type LiveHandlers } from './transport';
 
 /**
  * Connexion d'appareils.
@@ -33,7 +34,7 @@ export interface Link {
   sessionId?: string;
 }
 
-export type LinkState = 'idle' | 'syncing' | 'ok' | 'offline' | 'other-account' | 'error';
+export type LinkState = 'idle' | 'syncing' | 'ok' | 'live' | 'offline' | 'other-account' | 'error';
 export interface LinkStatus {
   state: LinkState;
   error?: string;
@@ -120,6 +121,8 @@ async function saveLinks(list: Link[]) {
   await raw.setItem(META.links, JSON.stringify(list));
   emit();
   updateServer();
+  for (const [peer, c] of live) if (!list.some((l) => l.peerId === peer)) c.socketClose();
+  setTimeout(() => maintainLive(), 50);
 }
 async function patchLink(peerId: string, patch: Partial<Link>) {
   const list = await getLinks();
@@ -136,7 +139,11 @@ export function setAccount(id: string | null) {
   accountId = id;
   emit();
   updateServer();
-  if (id) syncAll();
+  closeAllLive();
+  if (id) {
+    syncAll();
+    maintainLive();
+  }
 }
 export const currentAccount = () => accountId;
 
@@ -202,7 +209,7 @@ async function applyRemote(entries: WireEntry[]) {
   }
   const keys = [...bySk.keys()];
   freeze(keys);
-  let changed = false;
+  const changed: string[] = [];
   try {
     const local = await readLocal();
     for (const [sk, list] of bySk) {
@@ -214,17 +221,19 @@ async function applyRemote(entries: WireEntry[]) {
       const next = valueOf(sk, cur, local[sk]);
       if (next != null && next !== local[sk]) {
         await raw.setItem(sk, next);
-        changed = true;
+        changed.push(sk);
       }
     }
     const idx = await readIndex();
     for (const e of entries) idx[e.key] = e.del ? { h: '', t: e.t, del: true } : { h: hashOf(e.value), t: e.t };
     await saveIndex(idx);
   } finally {
-    if (changed && remount) {
-      remount();
-      setTimeout(() => unfreeze(keys), 1500);
-    } else unfreeze(keys);
+    // Les écrans concernés relisent leurs données tout de suite. Le verrou ne dure que le temps du
+    // rafraîchissement (une écriture différée de l'ancien état est ignorée), pas plus : une modification
+    // faite juste après par l'utilisateur est bien enregistrée et envoyée.
+    emitExternalChange(changed);
+    if (changed.length) setTimeout(() => unfreeze(keys), 150);
+    else unfreeze(keys);
   }
 }
 
@@ -447,6 +456,7 @@ export function syncWith(link: Link) {
   return enqueue(async () => {
     if (!accountId || accountId !== link.accountId) return setStatus(link.peerId, { state: 'other-account' });
     if (!(await initiates(link))) return;
+    if (live.get(link.peerId)?.ready) return;
     setStatus(link.peerId, { state: 'syncing' });
     try {
       const addr = await locate(link);
@@ -475,9 +485,168 @@ export async function syncAll() {
 }
 
 let changeTimer: ReturnType<typeof setTimeout> | null = null;
+let liveTimer: ReturnType<typeof setTimeout> | null = null;
 onLocalChange(() => {
+  // Appareils connectés en direct : envoi quasi instantané. Les autres : synchro classique.
+  if (liveTimer) clearTimeout(liveTimer);
+  liveTimer = setTimeout(() => pushLive(), 120);
   if (changeTimer) clearTimeout(changeTimer);
   changeTimer = setTimeout(() => syncAll(), 3000);
+});
+
+/* ---------- Connexion en direct (temps réel) ---------- */
+
+/**
+ * Chaque paire d'appareils liés garde une connexion WebSocket ouverte (le téléphone, ou le bureau qui
+ * « initie », se connecte au serveur local de l'autre). À la connexion, chacun envoie l'index de ses
+ * données et reçoit ce qui est plus récent chez l'autre ; ensuite, chaque modification est envoyée
+ * dans l'instant et appliquée à l'écran sans redémarrage. Tout est chiffré avec la clé de la liaison.
+ */
+interface LiveConn {
+  link: Link;
+  key: Uint8Array;
+  socketSend: (data: string) => void;
+  socketClose: () => void;
+  peerIdx: Index;
+  ready: boolean;
+  lastSeen: number;
+}
+const LIVE_PATH = '/fluxerhooks/live';
+const live = new Map<string, LiveConn>();
+const connecting = new Set<string>();
+let myId = '';
+
+function liveSend(c: LiveConn, t: string, payload: object) {
+  try {
+    c.socketSend(JSON.stringify({ d: myId, t, c: seal(c.key, { ...payload, a: c.link.accountId, ts: Date.now() }, `live:${t}`) }));
+  } catch {
+    // connexion fermée entre-temps
+  }
+}
+
+/** Envoie à l'appareil lié tout ce qui est plus récent ici que ce qu'il a. */
+async function sendNewer(c: LiveConn) {
+  const { idx, values } = await buildIndex();
+  const out: WireEntry[] = [];
+  for (const k of Object.keys(idx)) {
+    if (!newer(idx[k], c.peerIdx[k])) continue;
+    out.push({ key: k, ...idx[k], value: idx[k].del ? undefined : values[k] });
+    c.peerIdx[k] = idx[k];
+  }
+  if (out.length) liveSend(c, 'entries', { entries: out });
+  await patchLink(c.link.peerId, { lastSync: Date.now() });
+  setStatus(c.link.peerId, { state: 'live' });
+}
+
+function pushLive() {
+  for (const c of live.values()) if (c.ready) enqueue(() => sendNewer(c));
+}
+
+function handleLive(c: LiveConn, raw: string, incoming: boolean) {
+  let m: any;
+  try {
+    m = JSON.parse(raw);
+  } catch {
+    return;
+  }
+  c.lastSeen = Date.now();
+  let p: any;
+  try {
+    p = open(c.key, m.c, `live:${m.t}`);
+  } catch {
+    return c.socketClose();
+  }
+  if (Math.abs(Date.now() - Number(p.ts)) > FRESH_MS) return;
+  if (!accountId || p.a !== accountId || c.link.accountId !== accountId) {
+    setStatus(c.link.peerId, { state: 'other-account' });
+    return c.socketClose();
+  }
+  if (m.t === 'hello') {
+    c.peerIdx = p.idx ?? {};
+    if (typeof p.s === 'string' && p.s !== c.link.sessionId) patchLink(c.link.peerId, { sessionId: p.s });
+    if (incoming) {
+      enqueue(async () => {
+        const { idx } = await buildIndex();
+        liveSend(c, 'hello', { idx, s: sessionId });
+      });
+    }
+    c.ready = true;
+    enqueue(() => sendNewer(c));
+  } else if (m.t === 'entries') {
+    const entries = (p.entries ?? []) as WireEntry[];
+    enqueue(async () => {
+      await applyRemote(entries);
+      for (const e of entries) c.peerIdx[e.key] = { h: e.del ? '' : hashOf(e.value), t: e.t, ...(e.del ? { del: true } : {}) };
+      await patchLink(c.link.peerId, { lastSync: Date.now() });
+      setStatus(c.link.peerId, { state: 'live' });
+    });
+  } else if (m.t === 'ping') liveSend(c, 'pong', {});
+}
+
+function attach(link: Link, socketSend: (d: string) => void, socketClose: () => void): LiveConn {
+  live.get(link.peerId)?.socketClose();
+  const c: LiveConn = { link, key: fromB64url(link.key), socketSend, socketClose, peerIdx: {}, ready: false, lastSeen: Date.now() };
+  live.set(link.peerId, c);
+  return c;
+}
+function detach(c: LiveConn) {
+  if (live.get(c.link.peerId) !== c) return;
+  live.delete(c.link.peerId);
+  if (statusOf(c.link.peerId).state === 'live') setStatus(c.link.peerId, { state: 'idle' });
+  setTimeout(() => maintainLive(), 2000);
+}
+function closeAllLive() {
+  for (const c of live.values()) c.socketClose();
+  live.clear();
+}
+
+/** Ouvre la connexion en direct vers chaque appareil lié du compte (côté qui initie). */
+export async function maintainLive() {
+  if (!accountId) return;
+  if (Platform.OS !== 'web' && AppState.currentState !== 'active') return;
+  myId = await deviceId();
+  for (const link of await getLinks()) {
+    if (link.accountId !== accountId || live.has(link.peerId) || connecting.has(link.peerId)) continue;
+    if (!(await initiates(link))) continue;
+    connecting.add(link.peerId);
+    (async () => {
+      try {
+        const addr = await locate(link);
+        if (!addr) return setStatus(link.peerId, { state: 'offline' });
+        let c: LiveConn | null = null;
+        const h: LiveHandlers = {
+          onOpen: () => {
+            enqueue(async () => {
+              const { idx } = await buildIndex();
+              if (c) liveSend(c, 'hello', { idx, s: sessionId });
+            });
+          },
+          onMessage: (d) => c && handleLive(c, d, false),
+          onClose: () => c && detach(c),
+        };
+        const sock = await openLive(addr.replace(/^http:/, 'ws:') + LIVE_PATH, h);
+        if (sock) c = attach(link, sock.send, sock.close);
+      } finally {
+        connecting.delete(link.peerId);
+      }
+    })();
+  }
+}
+
+// Battement de cœur : détecte une connexion coupée (Wi-Fi perdu, veille) et la rouvre.
+setInterval(() => {
+  const now = Date.now();
+  for (const c of live.values()) {
+    if (now - c.lastSeen > 45_000) c.socketClose();
+    else if (c.ready) liveSend(c, 'ping', {});
+  }
+  maintainLive();
+}, 15_000);
+AppState.addEventListener('change', (s) => {
+  if (Platform.OS === 'web') return;
+  // Téléphone : connexion fermée en arrière-plan, rouverte (avec rattrapage) au retour dans l'app.
+  if (s === 'active') maintainLive();
+  else if (s === 'background') closeAllLive();
 });
 
 /* ---------- Automatisations : un seul appareil les exécute ---------- */
@@ -495,7 +664,32 @@ export async function automationRunner(current?: string): Promise<{ run: boolean
 
 export async function initLinkServer() {
   if (!canHost()) return;
+  myId = await deviceId();
   desktop!.link!.onRequest((req) => handleRequest(req));
+  // Connexions en direct entrantes : l'appareil se présente (« hello ») avec son identifiant.
+  onIncomingLive((send, close) => {
+    let c: LiveConn | null = null;
+    const h: LiveHandlers = {
+      onOpen: () => {},
+      onMessage: (d) => {
+        if (!c) {
+          let m: any;
+          try {
+            m = JSON.parse(d);
+          } catch {
+            return close();
+          }
+          const link = (linksCache ?? []).find((l) => l.peerId === m?.d);
+          if (!link || m.t !== 'hello') return close();
+          c = attach(link, send, close);
+        }
+        handleLive(c, d, true);
+      },
+      onClose: () => c && detach(c),
+    };
+    return h;
+  });
+  await getLinks();
   await updateServer();
 }
 

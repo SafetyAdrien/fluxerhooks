@@ -169,6 +169,8 @@ function statusLine(l: Link) {
   switch (s.state) {
     case 'syncing':
       return tr('Synchronisation…');
+    case 'live':
+      return tr('Connecté en direct · synchronisé à {h}', { h: time(l.lastSync ?? s.at) });
     case 'ok':
       return tr('Synchronisé à {h}', { h: time(l.lastSync ?? s.at) });
     case 'offline':
