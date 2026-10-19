@@ -1,7 +1,8 @@
 name: Build Linux AppImage
 
 # FluxerHooks Desktop (branche « desktop ») : même interface que l'app Mobile (export web d'Expo)
-# dans Electron, empaquetée en AppImage x86_64. Publie la pré-release « desktop-latest ».
+# dans Electron, empaquetée en AppImage x86_64. Publie la dernière version sous le tag « desktop-latest »,
+# au nom exact « FluxerHooks-beta<N> ».
 on:
   push:
     branches: [desktop]
@@ -79,4 +80,4 @@ jobs:
             NOTES_BRANCH=desktop NOTES_LABEL=Desktop node scripts/release-notes.js "$V" CHANGELOG.md || echo "_Pas d'entrée dans CHANGELOG.md pour $V._"
           } > notes.md
           gh release delete desktop-latest --yes --cleanup-tag 2>/dev/null || true
-          gh release create desktop-latest out/* --prerelease --title "FluxerHooks-$V Desktop · Linux (dernier build)" --notes-file notes.md --target "$GITHUB_SHA"
+          gh release create desktop-latest out/* --prerelease --title "FluxerHooks-$V" --notes-file notes.md --target "$GITHUB_SHA"
