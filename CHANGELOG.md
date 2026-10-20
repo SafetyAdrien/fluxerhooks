@@ -28,6 +28,8 @@ Légende : ✨ Ajouts · 🔧 Modifications · 🐛 Correctifs · 🏗️ Build 
 - Profil : le titre « Mon profil Fluxer » est retiré du header pour gagner de la place.
 - L'engrenage des **Paramètres** passe du header de l'éditeur au header du profil ; fermer les Paramètres (ou Données) ouvert depuis le profil ramène au profil.
 - Les dossiers, étiquettes et épingles se synchronisent en temps réel entre appareils liés, comme les sauvegardes et les modèles.
+- Données : icônes fines dans des boutons carrés arrondis, même style que le bouton retour (importer, enregistrer, filtrer, trier, sélectionner, renommer, épingler).
+- Données : les étiquettes se choisissent dans un petit panneau ouvert par l'icône **filtre** (au lieu de la rangée de puces et de la liste de la barre latérale) ; l'étiquette active s'affiche en pastille, avec « Retirer cette étiquette partout ».
 - Les modèles intégrés s'affichent dans la langue de l'app ; nouveaux textes traduits dans les 9 langues (dont « Mentions autorisées », qui ne l'était pas).
 
 ## beta-0.0.3

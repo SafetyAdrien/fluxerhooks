@@ -125,6 +125,130 @@ function SearchField({ value, onChange, placeholder, inRow = true }: { value: st
   );
 }
 
+type McIcon = React.ComponentProps<typeof MaterialCommunityIcons>['name'];
+
+/**
+ * Bouton carré arrondi, même style que le bouton retour du header (fond discret, icône fine).
+ * `label` : texte affiché à côté de l'icône (grand écran) ; `active` : état activé (accent) ;
+ * `dot` : pastille d'indication (filtre actif).
+ */
+const SquareBtn = React.forwardRef<View, { icon: McIcon; label: string; onPress: () => void; showLabel?: boolean; active?: boolean; primary?: boolean; dot?: boolean; danger?: boolean; small?: boolean; disabled?: boolean }>(
+  function SquareBtn({ icon, label, onPress, showLabel, active, primary, dot, danger, small, disabled }, ref) {
+    const { theme: t, haptic } = useSettings();
+    const size = t.z(small ? 34 : 40);
+    const on = active || primary;
+    const fg = on ? t.onAccent : danger ? t.danger : t.text;
+    return (
+      <Pressable
+        ref={ref}
+        onPress={() => {
+          haptic('light');
+          onPress();
+        }}
+        disabled={disabled}
+        accessibilityRole="button"
+        accessibilityLabel={tr(label)}
+        accessibilityState={{ selected: !!active, disabled: !!disabled }}
+        hitSlop={4}
+        style={({ pressed, hovered }: any) => ({
+          height: size,
+          minWidth: size,
+          paddingHorizontal: showLabel ? 12 : 0,
+          flexDirection: 'row',
+          gap: 6,
+          borderRadius: t.z(small ? 12 : 14),
+          alignItems: 'center',
+          justifyContent: 'center',
+          opacity: disabled ? 0.4 : 1,
+          backgroundColor: on ? (pressed ? t.accentPressed : t.accent) : pressed ? t.accentSoft : hovered ? t.accentSoft : t.surface2,
+          transform: [{ scale: pressed ? 0.94 : 1 }],
+        })}
+      >
+        <MaterialCommunityIcons name={icon} size={t.z(small ? 19 : 22)} color={fg} />
+        {showLabel && <Text style={{ color: fg, fontSize: t.font(13), fontWeight: '700' }}>{tr(label)}</Text>}
+        {dot && <View style={{ position: 'absolute', top: 6, right: 6, width: 8, height: 8, borderRadius: 4, backgroundColor: t.accent, borderWidth: 1.5, borderColor: t.surface2 }} />}
+      </Pressable>
+    );
+  },
+);
+
+/** Filtre par étiquette : petit conteneur ouvert sous l'icône « filtre ». */
+function TagFilter({ tags, value, onChange, small }: { tags: { tag: string; count: number }[]; value: string | null; onChange: (tag: string | null) => void; small?: boolean }) {
+  const { theme: t, base } = useSettings();
+  const { width: winW, height: winH } = useWindowDimensions();
+  const btn = useRef<View>(null);
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+  const [q, setQ] = useState('');
+  const W = Math.min(280, winW - 24);
+  const open = () =>
+    btn.current?.measureInWindow((x, y, w, h) => {
+      setQ('');
+      setPos({ x: Math.max(12, Math.min(x + w - W, winW - W - 12)), y: y + h + 6 });
+    });
+  const pick = (tag: string | null) => {
+    onChange(tag);
+    setPos(null);
+  };
+  const shown = tags.filter((x) => !q || x.tag.toLowerCase().includes(q.trim().replace(/^#/, '').toLowerCase()));
+  const Row = ({ label, count, on, onPress }: { label: string; count?: number; on: boolean; onPress: () => void }) => (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityState={{ selected: on }}
+      style={({ pressed, hovered }: any) => ({ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 10, paddingVertical: t.z(8), borderRadius: t.radiusSm, backgroundColor: on ? t.accentSoft : pressed || hovered ? t.surface2 : 'transparent' })}
+    >
+      <MaterialCommunityIcons name={on ? 'check' : 'pound'} size={t.z(16)} color={on ? t.accent : t.textFaint} />
+      <Text numberOfLines={1} style={{ flex: 1, color: on ? t.text : t.textMuted, fontWeight: on ? '800' : '600', fontSize: t.font(14) }}>{label}</Text>
+      {count != null && <Text style={{ color: t.textFaint, fontSize: t.font(12), fontWeight: '700' }}>{count}</Text>}
+    </Pressable>
+  );
+  return (
+    <>
+      <SquareBtn ref={btn} icon="filter-variant" label={value ? tr('Étiquette : #{tag}', { tag: value }) : 'Filtrer par étiquette'} active={!!value} small={small} onPress={open} />
+      <Modal visible={!!pos} transparent animationType="fade" onRequestClose={() => setPos(null)} statusBarTranslucent>
+        <Pressable style={{ flex: 1 }} onPress={() => setPos(null)} accessibilityLabel={tr('Fermer')} />
+        {pos && (
+          <View
+            style={{
+              position: 'absolute',
+              left: pos.x,
+              top: Math.min(pos.y, winH - 200),
+              width: W,
+              maxHeight: Math.max(200, Math.min(380, winH - pos.y - 24)),
+              padding: 8,
+              gap: 6,
+              borderRadius: t.radius,
+              backgroundColor: base.bgAlt,
+              borderWidth: 1,
+              borderColor: t.border,
+              elevation: 16,
+              shadowColor: '#000',
+              shadowOpacity: 0.35,
+              shadowRadius: 18,
+              shadowOffset: { width: 0, height: 8 },
+            }}
+          >
+            <Text style={{ color: t.textFaint, fontSize: t.font(11), fontWeight: '800', letterSpacing: 0.7, paddingHorizontal: 6, paddingTop: 2 }}>{tr('Étiquettes').toUpperCase()}</Text>
+            {tags.length > 8 && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, height: t.z(36), paddingHorizontal: 10, borderRadius: t.radiusSm, backgroundColor: t.surface2 }}>
+                <Ionicons name="search" size={t.z(15)} color={t.textFaint} />
+                <TextInput value={q} onChangeText={setQ} placeholder={tr('Rechercher…')} placeholderTextColor={t.textFaint} autoFocus style={[{ flex: 1, minWidth: 0, color: t.text, fontSize: t.font(13), paddingVertical: 0 }, Platform.OS === 'web' ? ({ outlineStyle: 'none' } as any) : null]} />
+              </View>
+            )}
+            <ScrollView style={{ flexGrow: 0 }} keyboardShouldPersistTaps="handled">
+              <Row label={tr('Toutes les étiquettes')} on={!value} onPress={() => pick(null)} />
+              {shown.map((x) => (
+                <Row key={x.tag} label={x.tag} count={x.count} on={value === x.tag} onPress={() => pick(value === x.tag ? null : x.tag)} />
+              ))}
+              {!tags.length && <Text style={{ color: t.textFaint, fontSize: t.font(12), padding: 10 }}>{tr('Aucune étiquette pour le moment : ajoute-en depuis le détail d’un élément.')}</Text>}
+            </ScrollView>
+          </View>
+        )}
+      </Modal>
+    </>
+  );
+}
+
 /* ---------- Ligne d'élément ---------- */
 
 function ItemRow({
@@ -566,9 +690,9 @@ function ItemDetail({
           )}
         </View>
         {!renaming && editable && (
-          <View style={{ flexDirection: 'row' }}>
-            <IconBtn icon="pencil-outline" label="Renommer" onPress={() => setRenaming(true)} />
-            <IconBtn icon={item.pinned ? 'pin' : 'pin-outline'} label={item.pinned ? 'Désépingler' : 'Épingler'} color={item.pinned ? t.accent : undefined} onPress={() => update({ pinned: !item.pinned })} />
+          <View style={{ flexDirection: 'row', gap: 6 }}>
+            <SquareBtn icon="pencil-outline" label="Renommer" onPress={() => setRenaming(true)} />
+            <SquareBtn icon={item.pinned ? 'pin' : 'pin-outline'} label={item.pinned ? 'Désépingler' : 'Épingler'} active={item.pinned} onPress={() => update({ pinned: !item.pinned })} />
           </View>
         )}
       </View>
@@ -867,7 +991,7 @@ export function DataScreen({
   const scopeLabel: Record<Scope, string> = { all: 'Tout', backup: 'Sauvegardes', template: 'Modèles', pinned: 'Épinglés' };
   const sortLabel: Record<SortKey, string> = { updated: 'Modifiés récemment', created: 'Créés récemment', name: 'Nom (A → Z)', messages: 'Nombre de messages' };
   const currentFolder = filters.folder && filters.folder !== 'none' ? folderById.get(filters.folder) : undefined;
-  const listTitle = currentFolder ? currentFolder.name : filters.folder === 'none' ? tr('Non classés') : filters.tag ? `#${filters.tag}` : tr(scopeLabel[filters.scope]);
+  const listTitle = currentFolder ? currentFolder.name : filters.folder === 'none' ? tr('Non classés') : tr(scopeLabel[filters.scope]);
 
   const sidebar = (
     <View style={{ width: wide ? 250 : 220, flexGrow: 0, flexShrink: 0, borderRightWidth: 1, borderRightColor: t.border, backgroundColor: base.bgAlt }}>
@@ -879,27 +1003,23 @@ export function DataScreen({
           icon={s === 'all' ? 'albums-outline' : s === 'backup' ? 'archive-outline' : s === 'template' ? 'bookmark-outline' : 'pin-outline'}
           label={tr(scopeLabel[s])}
           count={s === 'all' ? items.length : s === 'pinned' ? items.filter((i) => i.pinned).length : items.filter((i) => i.kind === s).length}
-          active={section === 'library' && filters.scope === s && !filters.folder && !filters.tag}
+          active={section === 'library' && filters.scope === s && !filters.folder}
           onPress={() => {
             setSection('library');
-            setF({ scope: s, folder: null, tag: null });
+            setF({ scope: s, folder: null });
           }}
         />
       ))}
       <GroupLabel right={<IconBtn icon="add" label="Nouveau dossier" size={17} onPress={() => openFolderDialog(null)} />}>Dossiers</GroupLabel>
-      <NavRow icon="file-tray-outline" label={tr('Non classés')} count={folderCount(null)} active={section === 'library' && filters.folder === 'none'} onPress={() => { setSection('library'); setF({ folder: 'none', tag: null, scope: 'all' }); }} />
+      <NavRow icon="file-tray-outline" label={tr('Non classés')} count={folderCount(null)} active={section === 'library' && filters.folder === 'none'} onPress={() => { setSection('library'); setF({ folder: 'none', scope: 'all' }); }} />
       {folders.map((f) => (
-        <NavRow key={f.id} color={f.color} label={f.name} count={folderCount(f.id)} active={section === 'library' && filters.folder === f.id} onPress={() => { setSection('library'); setF({ folder: f.id, tag: null, scope: 'all' }); }} />
+        <NavRow key={f.id} color={f.color} label={f.name} count={folderCount(f.id)} active={section === 'library' && filters.folder === f.id} onPress={() => { setSection('library'); setF({ folder: f.id, scope: 'all' }); }} />
       ))}
       {!folders.length && (
         <Pressable onPress={() => openFolderDialog(null)} style={{ paddingHorizontal: 10, paddingVertical: 6 }}>
           <Text style={{ color: t.textFaint, fontSize: t.font(12) }}>{tr('Crée des dossiers pour ranger tes messages.')}</Text>
         </Pressable>
       )}
-      {tagList.length > 0 && <GroupLabel>Étiquettes</GroupLabel>}
-      {tagList.slice(0, 30).map(({ tag, count }) => (
-        <NavRow key={tag} icon="pricetag-outline" label={`#${tag}`} count={count} active={section === 'library' && filters.tag === tag} onPress={() => { setSection('library'); setF({ tag, folder: null, scope: 'all' }); }} />
-      ))}
       <GroupLabel>Outils</GroupLabel>
       <NavRow icon="timer-outline" label={tr('Automatisations')} count={automations.length} active={section === 'automations'} onPress={() => setSection('automations')} />
       <NavRow icon="swap-vertical-outline" label={tr('Transfert et backup')} active={section === 'transfer'} onPress={() => setSection('transfer')} />
@@ -923,13 +1043,6 @@ export function DataScreen({
         ))}
         <Chip label="Dossier" icon="add" onPress={() => openFolderDialog(null)} />
       </ScrollView>
-      {tagList.length > 0 && (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingRight: 8 }}>
-          {tagList.slice(0, 20).map(({ tag }) => (
-            <Chip key={tag} label={`#${tag}`} selected={filters.tag === tag} onPress={() => setF({ tag: filters.tag === tag ? null : tag })} />
-          ))}
-        </ScrollView>
-      )}
     </View>
   );
 
@@ -942,37 +1055,35 @@ export function DataScreen({
       <Text style={{ color: t.textFaint, fontSize: t.font(13), fontWeight: '700' }}>{visibleItems.length}</Text>
       {currentFolder && (
         <>
-          <IconBtn icon="create-outline" label="Modifier le dossier" size={17} onPress={() => openFolderDialog(currentFolder)} />
-          <IconBtn icon="trash-outline" label="Supprimer le dossier" size={17} color={t.danger} onPress={() => removeFolder(currentFolder)} />
+          <SquareBtn small icon="pencil-outline" label="Modifier le dossier" onPress={() => openFolderDialog(currentFolder)} />
+          <SquareBtn small danger icon="trash-can-outline" label="Supprimer le dossier" onPress={() => removeFolder(currentFolder)} />
         </>
       )}
-      {filters.tag && <IconBtn icon="trash-outline" label="Retirer cette étiquette partout" size={17} color={t.danger} onPress={() => removeTag(filters.tag!)} />}
       <View style={{ flex: 1 }} />
-      <Pressable
-        onPress={() => setDialog('sort')}
-        accessibilityRole="button"
-        accessibilityLabel={tr('Trier : {s}', { s: tr(sortLabel[filters.sort]) })}
-        style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, height: t.z(34), borderRadius: 999, backgroundColor: pressed ? t.accentSoft : t.surface2, borderWidth: 1, borderColor: t.border })}
-      >
-        <MaterialCommunityIcons name="sort" size={t.z(16)} color={t.textMuted} />
-        {medium && <Text style={{ color: t.textMuted, fontSize: t.font(12), fontWeight: '700' }}>{tr(sortLabel[filters.sort])}</Text>}
-      </Pressable>
-      <Pressable
-        onPress={() => (selecting ? endSelection() : setSelecting(true))}
-        accessibilityRole="button"
-        accessibilityLabel={tr(selecting ? 'Terminer la sélection' : 'Sélectionner')}
-        style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, height: t.z(34), borderRadius: 999, backgroundColor: selecting ? t.accent : pressed ? t.accentSoft : t.surface2, borderWidth: 1, borderColor: selecting ? t.accent : t.border })}
-      >
-        <MaterialCommunityIcons name={selecting ? 'close' : 'checkbox-multiple-marked-outline'} size={t.z(16)} color={selecting ? t.onAccent : t.textMuted} />
-        {medium && <Text style={{ color: selecting ? t.onAccent : t.textMuted, fontSize: t.font(12), fontWeight: '700' }}>{tr(selecting ? 'Terminer' : 'Sélectionner')}</Text>}
-      </Pressable>
+      <TagFilter tags={tagList} value={filters.tag} onChange={(tag) => setF({ tag })} />
+      <SquareBtn icon="sort-variant" label={medium ? sortLabel[filters.sort] : tr('Trier : {s}', { s: tr(sortLabel[filters.sort]) })} showLabel={medium} onPress={() => setDialog('sort')} />
+      <SquareBtn icon={selecting ? 'close' : 'checkbox-multiple-outline'} label={selecting ? (medium ? 'Terminer' : 'Terminer la sélection') : 'Sélectionner'} showLabel={medium} active={selecting} onPress={() => (selecting ? endSelection() : setSelecting(true))} />
     </View>
   );
+  // Étiquette choisie dans le filtre : rappel sous la barre d'outils, pour la retirer ou la supprimer partout.
+  const tagBar = filters.tag ? (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+      <Pressable onPress={() => setF({ tag: null })} accessibilityRole="button" accessibilityLabel={tr('Retirer le filtre #{tag}', { tag: filters.tag })} style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 10, paddingRight: 8, height: t.z(30), borderRadius: 999, backgroundColor: pressed ? t.accentPressed : t.accent })}>
+        <Text style={{ color: t.onAccent, fontWeight: '800', fontSize: t.font(13) }}>#{filters.tag}</Text>
+        <MaterialCommunityIcons name="close" size={t.z(15)} color={t.onAccent} />
+      </Pressable>
+      <View style={{ flex: 1 }} />
+      <Pressable onPress={() => removeTag(filters.tag!)} accessibilityRole="button" hitSlop={6}>
+        <Text style={{ color: t.danger, fontWeight: '700', fontSize: t.font(12) }}>{tr('Retirer cette étiquette partout')}</Text>
+      </Pressable>
+    </View>
+  ) : null;
 
   const list = (
     <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 14, gap: 8, paddingBottom: selecting ? 120 : insets.bottom + 32 }}>
       {!medium && mobileFilters}
       {toolbar}
+      {tagBar}
       {selecting && (
         <Pressable onPress={() => setSelected(allVisibleSelected ? new Set() : new Set([...selected, ...visibleItems.map((i) => i.key)]))} accessibilityRole="button" style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4 }}>
           <Check on={allVisibleSelected} />
@@ -1082,15 +1193,7 @@ export function DataScreen({
   const header = (
     <View style={[{ paddingTop: insets.top + 6, paddingBottom: 8, paddingHorizontal: 10, backgroundColor: base.bgAlt, borderBottomWidth: 1, borderBottomColor: t.border, gap: 8 }, t.css.header]}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-        <Pressable
-          onPress={() => (mobileDetail ? setMobileDetail(false) : onClose())}
-          accessibilityRole="button"
-          accessibilityLabel={tr('Retour')}
-          hitSlop={6}
-          style={({ pressed }) => ({ width: t.z(40), height: t.z(40), borderRadius: t.z(14), alignItems: 'center', justifyContent: 'center', backgroundColor: pressed ? t.accentSoft : t.surface2 })}
-        >
-          <MaterialCommunityIcons name="arrow-left" size={t.z(22)} color={t.text} />
-        </Pressable>
+        <SquareBtn icon="arrow-left" label="Retour" onPress={() => (mobileDetail ? setMobileDetail(false) : onClose())} />
         <View style={{ flexShrink: 1, minWidth: 0, marginRight: 4 }}>
           <Text numberOfLines={1} style={{ color: t.text, fontSize: t.font(18), fontWeight: '900' }}>
             {mobileDetail && active ? active.name : tr('Données')}
@@ -1104,15 +1207,8 @@ export function DataScreen({
         {medium && section === 'library' && !mobileDetail && <SearchField value={filters.query} onChange={(q) => setF({ query: q })} placeholder="Rechercher dans les noms, étiquettes et messages" />}
         {medium && section === 'automations' && <SearchField value={filters.query} onChange={(q) => setF({ query: q })} placeholder="Rechercher une automatisation" />}
         {(!medium || section === 'transfer') && <View style={{ flex: 1 }} />}
-        {!mobileDetail && <IconBtn icon="download-outline" label="Importer un fichier" onPress={importFile} />}
-        {!mobileDetail &&
-          (medium ? (
-            <Button variant="primary" small icon="save-outline" label="Enregistrer le brouillon" onPress={() => setDialog('save')} />
-          ) : (
-            <Pressable onPress={() => setDialog('save')} accessibilityRole="button" accessibilityLabel={tr('Enregistrer le brouillon')} style={({ pressed }) => ({ width: t.z(40), height: t.z(40), borderRadius: t.z(14), alignItems: 'center', justifyContent: 'center', backgroundColor: pressed ? t.accentPressed : t.accent })}>
-              <Ionicons name="save-outline" size={t.z(20)} color={t.onAccent} />
-            </Pressable>
-          ))}
+        {!mobileDetail && <SquareBtn icon="tray-arrow-down" label="Importer un fichier" onPress={importFile} />}
+        {!mobileDetail && <SquareBtn primary icon="content-save-outline" label="Enregistrer le brouillon" showLabel={medium} onPress={() => setDialog('save')} />}
       </View>
       {!medium && !mobileDetail && (
         <>

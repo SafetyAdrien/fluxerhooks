@@ -848,6 +848,11 @@ const dict: Record<string, string> = {
  "Statut d’un service": "Состояние сервиса",
  "Mentions autorisées": "Разрешённые упоминания",
  "Dossiers": "Папки",
- "Outils": "Инструменты"
+ "Outils": "Инструменты",
+ "Étiquette : #{tag}": "Метка: #{tag}",
+ "Filtrer par étiquette": "Фильтр по метке",
+ "Toutes les étiquettes": "Все метки",
+ "Aucune étiquette pour le moment : ajoute-en depuis le détail d’un élément.": "Меток пока нет: добавьте их в карточке элемента.",
+ "Retirer le filtre #{tag}": "Убрать фильтр #{tag}"
 };
 export default dict;
