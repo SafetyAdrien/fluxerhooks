@@ -94,11 +94,30 @@ export interface EditorState {
   messages: DraftMessage[];
 }
 
-export interface Backup {
+/** Rangement commun aux sauvegardes et aux modèles (page Données). */
+export interface LibraryMeta {
+  /** Dossier (id d'un `Folder`), ou absent : non classé. */
+  folder?: string | null;
+  /** Étiquettes libres. */
+  tags?: string[];
+  /** Épinglé en tête de liste. */
+  pinned?: boolean;
+  /** Dernière modification (renommage, rangement, mise à jour du contenu). */
+  updatedAt?: string;
+}
+
+export interface Backup extends LibraryMeta {
   id: string;
   name: string;
   createdAt: string;
   state: EditorState;
+}
+
+export interface Folder {
+  id: string;
+  name: string;
+  color: string;
+  createdAt: string;
 }
 
 export type ThemeName = 'dark' | 'light' | 'amoled' | 'fluxer' | 'midnight' | 'system';
@@ -167,12 +186,13 @@ export interface MessageStyle {
   groupMessages: boolean;
 }
 
-export interface Template {
+export interface Template extends LibraryMeta {
   id: string;
   name: string;
   icon: string;
   description: string;
   builtin?: boolean;
+  createdAt?: string;
   messages: DraftMessage[];
 }
 

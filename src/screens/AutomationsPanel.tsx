@@ -1,3 +1,6 @@
+/**
+ * Automatisations : liste, édition et journal (affichés dans la page Données).
+ */
 import React, { useMemo, useState } from 'react';
 import { tr } from '../i18n';
 import { Alert, Switch, Text, View } from 'react-native';
@@ -6,123 +9,11 @@ import { useEditor } from '../state/editor';
 import { useSettings } from '../state/settings';
 import { useLibrary } from '../state/library';
 import { VARIABLES, describeSchedule, WEEKDAYS } from '../state/automation';
-import { DataTransfer } from '../components/DataTransfer';
-import { cloneMessage, uid } from '../utils/factory';
+import { uid } from '../utils/factory';
 import { isSendableUrl } from '../utils/parse';
-import { Box, Button, Chip, EmptyState, IconBtn, Input, ListRow, Segmented, Sheet, Stack, ToggleRow, useToast, type IconName } from '../components/ui';
+import { Box, Button, Chip, EmptyState, IconBtn, Input, Segmented, Stack, ToggleRow, useToast, type IconName } from '../components/ui';
 import { Dropdown } from '../components/Dropdown';
 import type { Automation, ScheduleKind } from '../types';
-
-type Tab = 'saves' | 'templates' | 'automations' | 'backup';
-
-const TEMPLATE_ICONS: IconName[] = ['document-text-outline', 'megaphone-outline', 'shield-checkmark-outline', 'sparkles-outline', 'calendar-outline', 'heart-outline', 'rocket-outline', 'game-controller-outline'];
-
-/* ---------- Sauvegardes ---------- */
-
-function Saves({ close }: { close: () => void }) {
-  const { theme: t } = useSettings();
-  const { backups, saveBackup, deleteBackup, renameBackup, replace } = useEditor();
-  const toast = useToast();
-  const [name, setName] = useState('');
-  const [editing, setEditing] = useState<string | null>(null);
-  const [rename, setRename] = useState('');
-  return (
-    <>
-      <Box title="Sauvegarder le brouillon" icon="save-outline" collapsible={false}>
-        <Input value={name} onChangeText={setName} placeholder="Nom (ex : Règlement du serveur)" max={60} />
-        <Button variant="primary" icon="save" label="Sauvegarder" onPress={() => { saveBackup(name); setName(''); toast('Brouillon sauvegardé.', 'success'); }} />
-      </Box>
-      {!backups.length ? (
-        <EmptyState icon="archive-outline" title="Aucune sauvegarde" text="Sauvegarde tes messages pour les retrouver, les automatiser ou les réutiliser." />
-      ) : (
-        backups.map((b) =>
-          editing === b.id ? (
-            <Stack key={b.id} row gap={6}>
-              <View style={{ flex: 1 }}>
-                <Input value={rename} onChangeText={setRename} autoFocus />
-              </View>
-              <IconBtn icon="checkmark" label="Valider" color={t.success} onPress={() => { renameBackup(b.id, rename.trim() || b.name); setEditing(null); }} />
-            </Stack>
-          ) : (
-            <ListRow
-              key={b.id}
-              icon="document-text-outline"
-              title={b.name}
-              subtitle={`${new Date(b.createdAt).toLocaleString('fr-FR')} · ${b.state.messages.length} message(s)`}
-              onPress={() =>
-                Alert.alert(`Charger « ${b.name} » ?`, 'Le brouillon actuel sera remplacé.', [
-                  { text: 'Annuler', style: 'cancel' },
-                  { text: 'Charger', onPress: () => { replace(JSON.parse(JSON.stringify(b.state))); toast('Sauvegarde chargée.', 'success'); close(); } },
-                ])
-              }
-              right={
-                <Stack row gap={0}>
-                  <IconBtn icon="pencil-outline" label="Renommer" onPress={() => { setEditing(b.id); setRename(b.name); }} />
-                  <IconBtn icon="trash-outline" label="Supprimer" color={t.danger} onPress={() => Alert.alert('Supprimer cette sauvegarde ?', undefined, [{ text: 'Annuler', style: 'cancel' }, { text: 'Supprimer', style: 'destructive', onPress: () => deleteBackup(b.id) }])} />
-                </Stack>
-              }
-            />
-          ),
-        )
-      )}
-    </>
-  );
-}
-
-/* ---------- Modèles ---------- */
-
-function Templates({ close }: { close: () => void }) {
-  const { theme: t } = useSettings();
-  const { state, replace } = useEditor();
-  const { templates, saveTemplate, deleteTemplate } = useLibrary();
-  const toast = useToast();
-  const [name, setName] = useState('');
-  const [desc, setDesc] = useState('');
-  const [icon, setIcon] = useState<IconName>(TEMPLATE_ICONS[0]);
-
-  const use = (id: string, mode: 'add' | 'replace') => {
-    const tpl = templates.find((x) => x.id === id)!;
-    const copies = tpl.messages.map(cloneMessage);
-    replace({ ...state, messages: mode === 'replace' ? copies : [...state.messages, ...copies] });
-    toast(`Modèle « ${tpl.name} » ${mode === 'replace' ? 'chargé' : 'ajouté'}.`, 'success');
-    close();
-  };
-
-  return (
-    <>
-      <Box title="Créer un modèle depuis le brouillon" icon="add-circle-outline" defaultCollapsed>
-        <Input value={name} onChangeText={setName} label="Nom" max={50} />
-        <Input value={desc} onChangeText={setDesc} label="Description" max={100} />
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-          {TEMPLATE_ICONS.map((i) => (
-            <Chip key={i} label="" icon={i} selected={icon === i} onPress={() => setIcon(i)} />
-          ))}
-        </View>
-        <Button variant="primary" icon="bookmark-outline" label="Enregistrer comme modèle" disabled={!name.trim()} onPress={() => { saveTemplate(name, desc, icon, state.messages); setName(''); setDesc(''); toast('Modèle enregistré.', 'success'); }} />
-      </Box>
-      {templates.map((tpl) => (
-        <View key={tpl.id} style={{ backgroundColor: t.surface, borderRadius: t.radius, padding: t.pad, gap: 8, borderWidth: 1, borderColor: t.border }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-            <View style={{ width: t.z(40), height: t.z(40), borderRadius: t.radiusSm, backgroundColor: t.accentSoft, alignItems: 'center', justifyContent: 'center' }}>
-              <Ionicons name={tpl.icon as IconName} size={t.z(20)} color={t.accent} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={{ color: t.text, fontWeight: '700', fontSize: t.font(15) }}>{tpl.name}</Text>
-              <Text style={{ color: t.textMuted, fontSize: t.font(12) }}>
-                {tpl.builtin ? 'Intégré' : 'Personnel'} · {tpl.description || `${tpl.messages.length} message(s)`}
-              </Text>
-            </View>
-            {!tpl.builtin && <IconBtn icon="trash-outline" label="Supprimer le modèle" color={t.danger} onPress={() => deleteTemplate(tpl.id)} />}
-          </View>
-          <Stack row gap={8}>
-            <Button flex small icon="add" label="Ajouter" onPress={() => use(tpl.id, 'add')} />
-            <Button flex small variant="primary" icon="swap-horizontal" label="Remplacer" onPress={() => use(tpl.id, 'replace')} />
-          </Stack>
-        </View>
-      ))}
-    </>
-  );
-}
 
 /* ---------- Automatisations ---------- */
 
@@ -135,13 +26,13 @@ function fromLocalInput(s: string): Date | null {
   return isNaN(d.getTime()) ? null : d;
 }
 
-function AutomationEditor({ initial, onDone }: { initial?: Automation; onDone: () => void }) {
+function AutomationEditor({ initial, preset, onDone }: { initial?: Automation; preset?: string; onDone: () => void }) {
   const { theme: t } = useSettings();
   const { backups, state } = useEditor();
   const { templates, upsertAutomation } = useLibrary();
   const toast = useToast();
   const [name, setName] = useState(initial?.name ?? '');
-  const [source, setSource] = useState(initial ? `${initial.source.kind}:${initial.source.id}` : '');
+  const [source, setSource] = useState(initial ? `${initial.source.kind}:${initial.source.id}` : preset ?? '');
   const [useCurrent, setUseCurrent] = useState(initial ? initial.targets.length > 0 : true);
   const [kind, setKind] = useState<ScheduleKind>(initial?.schedule.kind ?? 'daily');
   const [when, setWhen] = useState(toLocalInput(initial ? new Date(initial.schedule.at) : new Date(Date.now() + 3600_000)));
@@ -234,14 +125,27 @@ function AutomationEditor({ initial, onDone }: { initial?: Automation; onDone: (
   );
 }
 
-function Automations() {
+/** Automatisations (page Données). `preset` : source à préremplir (« Programmer » depuis un élément). */
+export function Automations({ preset, onPresetUsed, query = '' }: { preset?: string | null; onPresetUsed?: () => void; query?: string }) {
   const { theme: t } = useSettings();
-  const { automations, toggleAutomation, deleteAutomation, runNow, log } = useLibrary();
+  const { automations: all, toggleAutomation, deleteAutomation, runNow, log } = useLibrary();
   const toast = useToast();
-  const [editing, setEditing] = useState<Automation | 'new' | null>(null);
+  const [editing, setEditing] = useState<Automation | 'new' | null>(preset ? 'new' : null);
   const [busy, setBusy] = useState<string | null>(null);
+  const q = query.trim().toLowerCase();
+  const automations = q ? all.filter((a) => a.name.toLowerCase().includes(q)) : all;
 
-  if (editing) return <AutomationEditor initial={editing === 'new' ? undefined : editing} onDone={() => setEditing(null)} />;
+  if (editing)
+    return (
+      <AutomationEditor
+        initial={editing === 'new' ? undefined : editing}
+        preset={editing === 'new' ? preset ?? undefined : undefined}
+        onDone={() => {
+          setEditing(null);
+          onPresetUsed?.();
+        }}
+      />
+    );
   return (
     <>
       <View style={{ flexDirection: 'row', gap: 8, padding: 10, borderRadius: t.radiusSm, backgroundColor: t.accentSoft }}>
@@ -251,7 +155,7 @@ function Automations() {
         </Text>
       </View>
       <Button variant="primary" icon="add" label="Nouvelle automatisation" onPress={() => setEditing('new')} />
-      {!automations.length && <EmptyState icon="timer-outline" title="Aucune automatisation" text="Programme l’envoi d’une sauvegarde ou d’un modèle : une fois, chaque jour, chaque semaine ou à intervalle." />}
+      {!automations.length && !q && <EmptyState icon="timer-outline" title="Aucune automatisation" text="Programme l’envoi d’une sauvegarde ou d’un modèle : une fois, chaque jour, chaque semaine ou à intervalle." />}
       {automations.map((a) => (
         <View key={a.id} style={{ backgroundColor: t.surface, borderRadius: t.radius, padding: t.pad, gap: 6, borderWidth: 1, borderColor: a.enabled ? t.accent : t.border }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -282,27 +186,5 @@ function Automations() {
         </Box>
       )}
     </>
-  );
-}
-
-export function DataHubSheet({ visible, onClose, onRestored, initialTab = 'saves' }: { visible: boolean; onClose: () => void; onRestored: () => void; initialTab?: Tab }) {
-  const [tab, setTab] = useState<Tab>(initialTab);
-  return (
-    <Sheet visible={visible} onClose={onClose} title="Données" full>
-      <Segmented
-        value={tab}
-        onChange={setTab}
-        options={[
-          { value: 'saves', label: 'Sauvegardes' },
-          { value: 'templates', label: 'Modèles' },
-          { value: 'automations', label: 'Auto.' },
-          { value: 'backup', label: 'Backup' },
-        ]}
-      />
-      {tab === 'saves' && <Saves close={onClose} />}
-      {tab === 'templates' && <Templates close={onClose} />}
-      {tab === 'automations' && <Automations />}
-      {tab === 'backup' && <DataTransfer onRestored={() => { onClose(); onRestored(); }} />}
-    </Sheet>
   );
 }

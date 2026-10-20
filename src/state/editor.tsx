@@ -41,9 +41,15 @@ interface EditorApi {
   moveField: (mid: string, eid: string, fid: string, delta: number) => void;
   // sauvegardes
   backups: Backup[];
-  saveBackup: (name: string) => void;
+  /** Sauvegarde le brouillon (ou l'état donné) ; renvoie l'id créé. */
+  saveBackup: (name: string, extra?: Partial<Backup> & { state?: EditorState }) => string;
   deleteBackup: (id: string) => void;
   renameBackup: (id: string, name: string) => void;
+  /** Modifie plusieurs sauvegardes d'un coup (dossier, étiquettes, épingle…). */
+  updateBackups: (ids: string[], patch: (b: Backup) => Partial<Backup>) => void;
+  deleteBackups: (ids: string[]) => void;
+  /** Ajoute des sauvegardes déjà construites (import, duplication). */
+  addBackups: (list: Backup[]) => void;
   // historique d'édition
   history: HistoryData;
   canUndo: boolean;
@@ -165,7 +171,12 @@ export function EditorProvider({ children }: { children: React.ReactNode }) {
     saveHistory(n);
   }, []);
 
-  const persistBackups = (b: Backup[]) => {
+  // Toujours à partir de la dernière liste connue : plusieurs actions de suite ne s'écrasent pas.
+  const backupsRef = useRef<Backup[]>([]);
+  backupsRef.current = backups;
+  const persistBackups = (f: (prev: Backup[]) => Backup[]) => {
+    const b = f(backupsRef.current);
+    backupsRef.current = b;
     setBackups(b);
     AsyncStorage.setItem(BACKUPS_KEY, JSON.stringify(b)).catch(() => {});
   };
@@ -238,9 +249,12 @@ export function EditorProvider({ children }: { children: React.ReactNode }) {
         mapEmbed(mid, eid, (e) => ({ ...e, fields: e.fields.filter((f) => f.id !== fid) })),
       moveField: (mid, eid, fid, delta) =>
         mapEmbed(mid, eid, (e) => ({ ...e, fields: moveItem(e.fields, e.fields.findIndex((f) => f.id === fid), delta) })),
-      saveBackup: () => {},
+      saveBackup: () => '',
       deleteBackup: () => {},
       renameBackup: () => {},
+      updateBackups: () => {},
+      deleteBackups: () => {},
+      addBackups: () => {},
     }),
     [mapMsg, mapEmbed],
   );
@@ -250,13 +264,28 @@ export function EditorProvider({ children }: { children: React.ReactNode }) {
     state,
     ready,
     backups,
-    saveBackup: (name) =>
-      persistBackups([
-        { id: uid(), name: name.trim() || `Sauvegarde ${backups.length + 1}`, createdAt: new Date().toISOString(), state },
-        ...backups,
-      ]),
-    deleteBackup: (id) => persistBackups(backups.filter((b) => b.id !== id)),
-    renameBackup: (id, name) => persistBackups(backups.map((b) => (b.id === id ? { ...b, name } : b))),
+    saveBackup: (name, extra) => {
+      const id = uid();
+      const now = new Date().toISOString();
+      const { state: st, ...meta } = extra ?? {};
+      persistBackups((prev) => [
+        { id, name: name.trim() || `Sauvegarde ${prev.length + 1}`, createdAt: now, updatedAt: now, ...meta, state: JSON.parse(JSON.stringify(st ?? state)) },
+        ...prev,
+      ]);
+      return id;
+    },
+    deleteBackup: (id) => persistBackups((prev) => prev.filter((b) => b.id !== id)),
+    renameBackup: (id, name) => persistBackups((prev) => prev.map((b) => (b.id === id ? { ...b, name, updatedAt: new Date().toISOString() } : b))),
+    updateBackups: (ids, patch) => {
+      const set = new Set(ids);
+      const now = new Date().toISOString();
+      persistBackups((prev) => prev.map((b) => (set.has(b.id) ? { ...b, ...patch(b), updatedAt: now } : b)));
+    },
+    deleteBackups: (ids) => {
+      const set = new Set(ids);
+      persistBackups((prev) => prev.filter((b) => !set.has(b.id)));
+    },
+    addBackups: (list) => persistBackups((prev) => [...list, ...prev]),
     history,
     canUndo: !!undoTarget(history),
     canRedo: !!redoTarget(history),
