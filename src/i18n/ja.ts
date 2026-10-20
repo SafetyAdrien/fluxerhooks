@@ -853,6 +853,7 @@ const dict: Record<string, string> = {
  "Filtrer par étiquette": "タグで絞り込む",
  "Toutes les étiquettes": "すべてのタグ",
  "Aucune étiquette pour le moment : ajoute-en depuis le détail d’un élément.": "まだタグはありません。項目の詳細から追加できます。",
- "Retirer le filtre #{tag}": "フィルター #{tag} を解除"
+ "Retirer le filtre #{tag}": "フィルター #{tag} を解除",
+ "Serveur Fluxer Support": "Fluxer サポートサーバー"
 };
 export default dict;
