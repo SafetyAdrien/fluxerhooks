@@ -848,6 +848,11 @@ const dict: Record<string, string> = {
  "Statut d’un service": "Service status",
  "Mentions autorisées": "Allowed mentions",
  "Dossiers": "Folders",
- "Outils": "Tools"
+ "Outils": "Tools",
+ "Étiquette : #{tag}": "Tag: #{tag}",
+ "Filtrer par étiquette": "Filter by tag",
+ "Toutes les étiquettes": "All tags",
+ "Aucune étiquette pour le moment : ajoute-en depuis le détail d’un élément.": "No tags yet: add some from an item’s details.",
+ "Retirer le filtre #{tag}": "Remove the #{tag} filter"
 };
 export default dict;
