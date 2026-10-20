@@ -394,6 +394,7 @@ export function SettingsSheet({
         <Text style={{ color: t.textMuted, fontSize: t.font(13) }}>
           FluxerHooks-{APP_VERSION} — éditeur de messages webhook pour Fluxer. Projet indépendant, non affilié à Fluxer.
         </Text>
+        <ListRow icon="chatbubbles-outline" title="Serveur Fluxer Support" subtitle="fluxer.gg/eN5mYfx1" onPress={() => Linking.openURL('https://fluxer.gg/eN5mYfx1')} />
         <ListRow icon="book-outline" title="Documentation API Fluxer" onPress={() => Linking.openURL('https://docs.fluxer.app')} />
         <ListRow icon="logo-github" title="Fluxer sur GitHub" onPress={() => Linking.openURL('https://github.com/fluxerapp/fluxer')} />
       </Box>

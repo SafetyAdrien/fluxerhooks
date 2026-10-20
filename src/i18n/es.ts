@@ -853,6 +853,7 @@ const dict: Record<string, string> = {
  "Filtrer par étiquette": "Filtrar por etiqueta",
  "Toutes les étiquettes": "Todas las etiquetas",
  "Aucune étiquette pour le moment : ajoute-en depuis le détail d’un élément.": "Aún no hay etiquetas: añádelas desde el detalle de un elemento.",
- "Retirer le filtre #{tag}": "Quitar el filtro #{tag}"
+ "Retirer le filtre #{tag}": "Quitar el filtro #{tag}",
+ "Serveur Fluxer Support": "Servidor de soporte en Fluxer"
 };
 export default dict;
