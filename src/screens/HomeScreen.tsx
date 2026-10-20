@@ -16,7 +16,7 @@ import { Button, IconBtn, Stack } from '../components/ui';
 import { SettingsSheet } from './SettingsSheet';
 import { BotBrowser } from './BotBrowser';
 import { JsonSheet } from './DataSheets';
-import { DataHubSheet } from './DataHubSheet';
+import { DataScreen } from './DataScreen';
 import { AccountSheet } from './AccountSheet';
 import { CssEditorSheet } from './CssEditorSheet';
 import { useSession } from '../state/session';
@@ -36,7 +36,20 @@ export function HomeScreen({ onRestored }: { onRestored: () => void }) {
   const { busy, sendAll, activeTargets } = useSender();
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
-  const [sheet, setSheet] = useState<null | 'settings' | 'bot' | 'json' | 'data' | 'account' | 'css' | 'history'>(null);
+  type SheetName = 'settings' | 'bot' | 'json' | 'data' | 'account' | 'css' | 'history';
+  const [sheet, setSheetState] = useState<null | SheetName>(null);
+  // Page ouverte depuis le profil (paramètres, données) : à sa fermeture, on revient au profil.
+  const backTo = useRef<SheetName | null>(null);
+  const setSheet = (s: null | SheetName) => {
+    if (s === null && backTo.current && sheet !== backTo.current) {
+      const b = backTo.current;
+      backTo.current = null;
+      setSheetState(b);
+      return;
+    }
+    if (s === null) backTo.current = null;
+    setSheetState(s);
+  };
   const [tab, setTab] = useState<Tab>('editor');
   const [page, setPage] = useState<'home' | 'editor'>('home');
   // Transition douce entre l'accueil et l'éditeur.
@@ -205,7 +218,7 @@ export function HomeScreen({ onRestored }: { onRestored: () => void }) {
               <Pressable
                 onPress={() => setSheet('data')}
                 accessibilityRole="button"
-                accessibilityLabel={tr('Sauvegardes, modèles et automatisations')}
+                accessibilityLabel={tr('Données : sauvegardes, modèles et automatisations')}
                 style={({ pressed }) => ({ flex: 1, minWidth: 0, marginLeft: 4, paddingVertical: 2, paddingHorizontal: 6, borderRadius: t.radiusSm, backgroundColor: pressed ? t.surface2 : 'transparent' })}
               >
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
@@ -226,7 +239,6 @@ export function HomeScreen({ onRestored }: { onRestored: () => void }) {
                   <Ionicons name="person-circle-outline" size={t.z(25)} color={t.text} />
                 )}
               </Pressable>
-              <IconBtn icon="settings-sharp" label="Paramètres" color={t.text} size={21} onPress={() => setSheet('settings')} />
               <View style={{ width: 6 }} />
               {/* Envoyer : déplacé dans la barre supérieure */}
               <Pressable
@@ -371,16 +383,33 @@ export function HomeScreen({ onRestored }: { onRestored: () => void }) {
       {sheet === 'bot' && <BotBrowser visible onClose={() => setSheet(null)} onOpenAccount={() => setSheet('account')} />}
       {sheet === 'json' && <JsonSheet visible onClose={() => setSheet(null)} />}
       {sheet === 'history' && <HistorySheet visible onClose={() => setSheet(null)} />}
-      {sheet === 'data' && <DataHubSheet visible onClose={() => setSheet(null)} onRestored={onRestored} />}
+      {sheet === 'data' && (
+        <DataScreen
+          visible
+          onClose={() => setSheet(null)}
+          onRestored={onRestored}
+          onOpenEditor={() => {
+            backTo.current = null;
+            setSheetState(null);
+            if (page !== 'editor') go('editor');
+            setTab('editor');
+          }}
+        />
+      )}
       {sheet === 'account' && (
         <AccountSheet
           visible
           onClose={() => setSheet(null)}
           onBrowse={() => setSheet('bot')}
-          onAction={(a: LandingAction) => setSheet(a)}
+          onAction={(a: LandingAction) => {
+            backTo.current = 'account';
+            setSheetState(a);
+          }}
           onOpenEditor={() => {
-            setSheet(null);
+            backTo.current = null;
+            setSheetState(null);
             if (page !== 'editor') go('editor');
+            setTab('editor');
           }}
         />
       )}

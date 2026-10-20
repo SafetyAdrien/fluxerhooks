@@ -10,6 +10,27 @@ Légende : ✨ Ajouts · 🔧 Modifications · 🐛 Correctifs · 🏗️ Build 
 
 ---
 
+## beta-0.0.16
+
+**Nouvelle page Données, panneau du profil et Guides** — branche `mobile` · 20 oct. 2026
+
+### ✨ Ajouts
+- **Page Données refaite en écran complet** (ouverte en touchant « Éditeur ») : **Grand écran** (tablette, paysage) : barre latérale (Bibliothèque, Dossiers, Étiquettes, Outils), liste et panneau de détail côte à côte. **Téléphone** : onglets Bibliothèque / Automatisations / Transfert, filtres en puces et détail en plein écran.
+- **Bibliothèque unifiée** des sauvegardes et des modèles : recherche dans les noms, étiquettes, dossiers et même le texte des messages ; tri (modifiés récemment, créés récemment, nom, nombre de messages) ; filtres par type, épinglés, dossier ou étiquette.
+- **Dossiers** colorés (créer, renommer, changer la couleur, supprimer sans perdre leur contenu), **étiquettes** libres et **épingles** (toujours en tête de liste).
+- **Détail d'un élément** : aperçu du message, nombre de messages, embeds, webhooks et fichiers, dates de création et de modification ; actions **Ouvrir dans l'éditeur**, **Ajouter au brouillon**, **Dupliquer**, **Enregistrer comme modèle / comme sauvegarde**, **Remplacer par le brouillon**, **Programmer un envoi**, **Exporter le JSON**, renommer, épingler, supprimer.
+- **Sélection multiple** (appui long ou « Sélectionner ») : déplacer vers un dossier, étiqueter, épingler, exporter ou supprimer plusieurs éléments d'un coup.
+- **Enregistrer le brouillon** en sauvegarde ou en modèle, directement avec un dossier et des étiquettes.
+- **Export / import de la bibliothèque** (sauvegardes, modèles, dossiers et étiquettes dans un seul fichier) ; un JSON de message (FluxerHooks, Discohook) s'importe en nouvelle sauvegarde. Un import ajoute toujours, sans rien remplacer.
+- **Profil : panneau à droite**, ouvert par le nouveau bouton à droite du changement de compte : onglet **Sauvegardes** (enregistrer le brouillon, rechercher, ouvrir, accès à Données) et onglet **Guides**.
+- **Guides** : bien démarrer, mettre en forme le texte, mentions et dates dynamiques, embeds, nom/avatar/fichiers, threads et forums, modifier un message envoyé, bien rédiger, sauvegardes et dossiers, automatisations, historique et appareils. Chaque exemple se copie ou s'ajoute au brouillon, avec son rendu.
+
+### 🔧 Modifications
+- Profil : le titre « Mon profil Fluxer » est retiré du header pour gagner de la place.
+- L'engrenage des **Paramètres** passe du header de l'éditeur au header du profil ; fermer les Paramètres (ou Données) ouvert depuis le profil ramène au profil.
+- Les dossiers, étiquettes et épingles se synchronisent en temps réel entre appareils liés, comme les sauvegardes et les modèles.
+- Les modèles intégrés s'affichent dans la langue de l'app ; nouveaux textes traduits dans les 9 langues (dont « Mentions autorisées », qui ne l'était pas).
+
 ## beta-0.0.15
 
 **Historique d'édition avancé, changement de compte corrigé, transfert des données, connexion d'appareils et synchro en temps réel** — commits `8f34f2b` et suivants · 18–19 oct. 2026

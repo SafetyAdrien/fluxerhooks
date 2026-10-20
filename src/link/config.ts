@@ -9,7 +9,7 @@ export const LINK_PORT = 47321;
 /**
  * Clés de stockage synchronisées. Les listes sont fusionnées élément par élément (par `id`).
  * Le brouillon en cours de l'éditeur (et donc l'aperçu) reste propre à chaque appareil : seules les
- * données créées depuis « Données » (sauvegardes, modèles, automatisations) et l'historique sont partagés.
+ * données créées depuis « Données » (sauvegardes, modèles, dossiers, automatisations) et l'historique sont partagés.
  */
 export const WHOLE_KEYS: Record<string, string> = {
   'fluxerhooks:settings:v1': 'settings',
@@ -19,6 +19,7 @@ export const LIST_KEYS: Record<string, string> = {
   'fluxerhooks:backups:v1': 'backups',
   'fluxerhooks:templates:v1': 'templates',
   'fluxerhooks:automations:v1': 'automations',
+  'fluxerhooks:folders:v1': 'folders',
   'fluxerhooks:history:v1': 'history',
 };
 /**

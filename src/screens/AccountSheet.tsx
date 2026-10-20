@@ -14,6 +14,7 @@ import { useEndpoints } from '../state/useEndpoints';
 import { Avatar, Badge, Box, Button, Dialog, FieldButton, Grid, Input, Segmented, Sheet, Stack, Tip, useToast } from '../components/ui';
 import { Markdown, MentionContext } from '../components/Markdown';
 import { type LandingAction } from './LandingPage';
+import { ProfilePanel } from './ProfilePanel';
 import { type SavedAccount } from '../state/session';
 import type { FluxerProfile } from '../types';
 import { intToHex } from '../utils/parse';
@@ -449,7 +450,6 @@ function AccountSwitcher({ onAdd, onReauth }: { onAdd: () => void; onReauth: (a:
           paddingLeft: 4,
           paddingRight: 10,
           height: t.z(40),
-          marginRight: 6,
           borderRadius: 999,
           backgroundColor: pressed ? t.accentSoft : t.surface2,
           borderWidth: 1,
@@ -504,6 +504,35 @@ function AccountSwitcher({ onAdd, onReauth }: { onAdd: () => void; onReauth: (a:
   );
 }
 
+/** Bouton rond de la barre du profil (panneau latéral, paramètres). */
+function HeaderButton({ icon, label, onPress, active }: { icon: React.ComponentProps<typeof MaterialCommunityIcons>['name']; label: string; onPress: () => void; active?: boolean }) {
+  const { theme: t, haptic } = useSettings();
+  return (
+    <Pressable
+      onPress={() => {
+        haptic('light');
+        onPress();
+      }}
+      accessibilityRole="button"
+      accessibilityLabel={tr(label)}
+      hitSlop={6}
+      style={({ pressed }) => ({
+        width: t.z(40),
+        height: t.z(40),
+        borderRadius: t.z(14),
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: active ? t.accentSoft : pressed ? t.accentSoft : t.surface2,
+        borderWidth: 1,
+        borderColor: active ? t.accent : t.border,
+        transform: [{ scale: pressed ? 0.94 : 1 }],
+      })}
+    >
+      <MaterialCommunityIcons name={icon} size={t.z(21)} color={active ? t.accent : t.text} />
+    </Pressable>
+  );
+}
+
 export function AccountSheet({
   visible,
   onClose,
@@ -514,24 +543,46 @@ export function AccountSheet({
   visible: boolean;
   onClose: () => void;
   onBrowse: () => void;
+  /** Ouvre une autre page (paramètres, données…) à la place du profil. */
   onAction: (a: LandingAction) => void;
   onOpenEditor: () => void;
 }) {
   const { hasUser } = useSession();
   const [adding, setAdding] = useState(false);
   const [reauth, setReauth] = useState<SavedAccount | null>(null);
+  const [panel, setPanel] = useState(false);
   const done = () => {
     setAdding(false);
     setReauth(null);
   };
+  const profile = hasUser && !adding;
   return (
     <Sheet
       visible={visible}
       onClose={onClose}
-      title={reauth ? 'Reconnecter le compte' : adding ? 'Ajouter un compte' : hasUser ? 'Mon profil Fluxer' : 'Compte Fluxer'}
+      // Profil : pas de titre (plus de place pour le contenu) ; connexion : titre explicite.
+      title={reauth ? 'Reconnecter le compte' : adding ? 'Ajouter un compte' : hasUser ? '' : 'Compte Fluxer'}
       fullscreen
-      headerRight={hasUser && !adding ? <AccountSwitcher onAdd={() => setAdding(true)} onReauth={(a) => { setReauth(a); setAdding(true); }} /> : undefined}
+      headerRight={
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          {profile && <AccountSwitcher onAdd={() => setAdding(true)} onReauth={(a) => { setReauth(a); setAdding(true); }} />}
+          {profile && <HeaderButton icon="dock-right" label="Sauvegardes et guides" active={panel} onPress={() => setPanel(true)} />}
+          {!adding && <HeaderButton icon="cog" label="Paramètres" onPress={() => onAction('settings')} />}
+        </View>
+      }
     >
+      <ProfilePanel
+        visible={panel}
+        onClose={() => setPanel(false)}
+        onOpenEditor={() => {
+          setPanel(false);
+          onOpenEditor();
+        }}
+        onManage={() => {
+          setPanel(false);
+          onAction('data');
+        }}
+      />
       {hasUser && !adding ? (
         <Profile
           onBrowse={() => {
