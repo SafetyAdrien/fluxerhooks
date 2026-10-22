@@ -31,6 +31,8 @@ export interface DesktopBridge {
     store(name: string, data: ArrayBuffer): Promise<string>;
     /** Supprime un fichier copié par `store`. */
     remove(url: string): Promise<void>;
+    /** Télécharge une image (processus principal) et la copie dans les données de l'app. Absent avant beta-0.0.5. */
+    download?(url: string, maxBytes: number): Promise<{ uri: string; mimeType: string; size: number } | null>;
   };
   altcha: {
     solve(opts: DesktopAltchaOptions): Promise<{ counter: number; derivedKey: string; tries: number }>;

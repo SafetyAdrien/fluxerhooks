@@ -106,3 +106,39 @@ export class UploadForm {
     return form;
   }
 }
+
+/* ---------- Images des liens d'embed ---------- */
+
+const IMAGE_EXT: Record<string, string> = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/jpg': 'jpg', 'image/gif': 'gif', 'image/webp': 'webp' };
+export const imageExtension = (mime: string) => IMAGE_EXT[mime.toLowerCase().split(';')[0].trim()];
+
+/**
+ * Télécharge l'image d'un lien sur l'appareil (fichier local prêt à joindre au message).
+ * null si le lien n'est pas une image accessible ou dépasse `maxBytes`.
+ */
+export async function downloadImage(url: string, maxBytes: number): Promise<{ uri: string; mimeType: string; size: number } | null> {
+  try {
+    if (desktop) return desktop.files.download ? await desktop.files.download(url, maxBytes) : null;
+    if (Platform.OS === 'web') {
+      const res = await fetch(url);
+      const mimeType = (res.headers.get('content-type') ?? '').split(';')[0].trim();
+      if (!res.ok || !imageExtension(mimeType)) return null;
+      const blob = await res.blob();
+      if (blob.size > maxBytes) return null;
+      return { uri: URL.createObjectURL(blob), mimeType, size: blob.size };
+    }
+    const dest = `${FS.cacheDirectory}link-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    const r = await FS.downloadAsync(url, dest);
+    const header = Object.entries(r.headers ?? {}).find(([k]) => k.toLowerCase() === 'content-type')?.[1] ?? '';
+    const mimeType = String(header).split(';')[0].trim();
+    const info = await FS.getInfoAsync(dest);
+    const size = info.exists && 'size' in info ? (info.size ?? 0) : 0;
+    if (r.status < 200 || r.status >= 300 || !imageExtension(mimeType) || !size || size > maxBytes) {
+      FS.deleteAsync(dest, { idempotent: true }).catch(() => {});
+      return null;
+    }
+    return { uri: dest, mimeType, size };
+  } catch {
+    return null;
+  }
+}
