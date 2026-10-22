@@ -776,7 +776,13 @@ type MenuEntry = { key: string; label: string; icon: McIcon; danger?: boolean; o
  * Menu contextuel : à l'emplacement du pointeur (clic droit, bouton ⋯) ou, sans position
  * (appui long sur téléphone), en panneau ancré en bas de l'écran avec un titre.
  */
-function ContextMenu({ visible, anchor, title, subtitle, entries, onClose }: { visible: boolean; anchor: Anchor; title?: string; subtitle?: string; entries: MenuEntry[]; onClose: () => void }) {
+function ContextMenu(props: { visible: boolean; anchor: Anchor; title?: string; subtitle?: string; entries: MenuEntry[]; onClose: () => void }) {
+  // Pendant le fondu de fermeture, le menu garde son dernier contenu et sa position : sans cela,
+  // il basculerait un instant en panneau du bas (fond assombri), d'où un scintillement de l'écran.
+  const last = useRef(props);
+  if (props.visible) last.current = props;
+  const { anchor, title, subtitle, entries } = props.visible ? props : last.current;
+  const { visible, onClose } = props;
   const { theme: t, base, haptic } = useSettings();
   const insets = useSafeAreaInsets();
   const { width: W, height: H } = useWindowDimensions();
