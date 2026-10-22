@@ -31,6 +31,10 @@ Légende : ✨ Ajouts · 🔧 Modifications · 🐛 Correctifs · 🏗️ Build 
 - **Barres de défilement** au style de l'app : fines, arrondies, aux couleurs du thème (Desktop) ; arrondies et discrètes (Android).
 - Guides mis à jour (menus contextuels, systèmes du bot) ; nouveaux textes traduits dans les 9 langues.
 
+### 🐛 Correctifs
+- Menu contextuel ouvert par le bouton ⋯ : plus de scintillement de l'écran en le fermant (toucher en dehors) ; il gardait sa position pendant le fondu au lieu de basculer un instant en panneau du bas assombri.
+
+
 ## beta-0.0.16
 
 **Nouvelle page Données, panneau du profil et Guides** — branche `mobile` · 20 oct. 2026
