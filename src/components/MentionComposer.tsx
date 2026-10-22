@@ -1,7 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { tr } from '../i18n';
-import { Image, Pressable, Text, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Image, Pressable, ScrollView, Text, View } from 'react-native';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { EMOJI_GROUPS, searchEmojis } from '../content/emojis';
+import { getUi, setUi } from '../state/uiMemory';
 import { useSettings } from '../state/settings';
 import { useSession } from '../state/session';
 import { useEditor } from '../state/editor';
@@ -57,7 +59,9 @@ export function MentionComposer({ visible, onClose, onInsert }: { visible: boole
   const ep = useEndpoints();
   const session = useSession();
   const { state } = useEditor();
-  const [tab, setTab] = useState<Tab>('channels');
+  // Les émojis s'ouvrent par défaut (les plus utilisés) ; mentions et horodatages juste à côté.
+  const [tab, setTab] = useState<Tab>('emojis');
+  const [emojiGroup, setEmojiGroup] = useState<string>('recent');
   const [manualId, setManualId] = useState('');
   const [q, setQ] = useState('');
   const [when, setWhen] = useState(() => {
@@ -92,6 +96,10 @@ export function MentionComposer({ visible, onClose, onInsert }: { visible: boole
     onInsert(s);
     onClose();
   };
+  const insertEmoji = (e: string) => {
+    setUi('emoji:recent', [e, ...getUi<string[]>('emoji:recent', []).filter((x) => x !== e)].slice(0, 24));
+    insert(e);
+  };
 
   const unix = useMemo(() => {
     const m = when.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2})$/);
@@ -105,7 +113,7 @@ export function MentionComposer({ visible, onClose, onInsert }: { visible: boole
   const needGuild = ['channels', 'roles', 'emojis'].includes(tab);
   let body: React.ReactNode = null;
 
-  if (needGuild && !source) {
+  if (needGuild && !source && tab !== 'emojis') {
     body = (
       <EmptyState
         icon="person-circle-outline"
@@ -152,17 +160,49 @@ export function MentionComposer({ visible, onClose, onInsert }: { visible: boole
       </>
     );
   } else if (tab === 'emojis') {
+    const recent = getUi<string[]>('emoji:recent', []);
+    const found = ql ? searchEmojis(ql) : null;
+    const group = EMOJI_GROUPS.find((g) => g.key === emojiGroup);
+    // Sans historique, « Récents » propose les émojis les plus courants.
+    const list = found ?? (emojiGroup === 'recent' ? (recent.length ? recent : QUICK_EMOJIS) : group?.items.map((x) => x.e) ?? []);
+    const cell = t.z(42);
     body = (
       <>
-        <SectionLabel>Émojis courants</SectionLabel>
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-          {QUICK_EMOJIS.map((e) => (
-            <Pressable key={e} onPress={() => insert(e)} style={{ width: t.z(42), height: t.z(42), borderRadius: t.radiusSm, backgroundColor: t.surface2, alignItems: 'center', justifyContent: 'center' }}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 4 }}>
+          {[{ key: 'recent', label: 'Récents', icon: 'history' }, ...EMOJI_GROUPS].map((g) => {
+            const on = !found && emojiGroup === g.key;
+            return (
+              <Pressable
+                key={g.key}
+                onPress={() => {
+                  setQ('');
+                  setEmojiGroup(g.key);
+                }}
+                accessibilityRole="button"
+                accessibilityLabel={tr(g.label)}
+                accessibilityState={{ selected: on }}
+                style={({ pressed }) => ({ width: t.z(38), height: t.z(38), borderRadius: t.z(12), alignItems: 'center', justifyContent: 'center', backgroundColor: on ? t.accent : pressed ? t.accentSoft : t.surface2 })}
+              >
+                <MaterialCommunityIcons name={g.icon as any} size={t.z(20)} color={on ? t.onAccent : t.textMuted} />
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+        <SectionLabel>{found ? tr('Résultats ({n})', { n: found.length }) : emojiGroup === 'recent' ? (recent.length ? 'Récents' : 'Populaires') : group?.label ?? ''}</SectionLabel>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>
+          {list.map((e) => (
+            <Pressable
+              key={e}
+              onPress={() => insertEmoji(e)}
+              accessibilityLabel={e}
+              style={({ pressed, hovered }: any) => ({ width: cell, height: cell, borderRadius: t.radiusSm, backgroundColor: pressed || hovered ? t.accentSoft : t.surface2, alignItems: 'center', justifyContent: 'center' })}
+            >
               <Text style={{ fontSize: t.font(22) }}>{e}</Text>
             </Pressable>
           ))}
         </View>
-        {data && (
+        {!list.length && <Text style={{ color: t.textMuted, fontSize: t.font(13) }}>{found ? tr('Aucun émoji trouvé.') : tr('Les émojis utilisés apparaîtront ici.')}</Text>}
+        {data && data.emojis.filter((e) => match(e.name)).length > 0 && (
           <>
             <SectionLabel>Émojis du serveur ({data.emojis.length})</SectionLabel>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
@@ -230,10 +270,10 @@ export function MentionComposer({ visible, onClose, onInsert }: { visible: boole
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
         {(
           [
+            ['emojis', 'Émojis', 'happy-outline'],
             ['channels', 'Salons', 'chatbox-outline'],
             ['roles', 'Rôles', 'shield-outline'],
             ['users', 'Membres', 'person-outline'],
-            ['emojis', 'Émojis', 'happy-outline'],
             ['time', 'Horodatage', 'time-outline'],
             ['special', 'Navigation', 'compass-outline'],
           ] as const
@@ -241,7 +281,7 @@ export function MentionComposer({ visible, onClose, onInsert }: { visible: boole
           <Chip key={k} label={label} icon={icon} selected={tab === k} onPress={() => setTab(k)} />
         ))}
       </View>
-      {needGuild && source && guilds.length > 0 && (
+      {needGuild && source && guilds.length > 0 && (tab !== 'emojis' || data) && (
         <Dropdown
           label="Serveur"
           value={guildId}
@@ -249,7 +289,7 @@ export function MentionComposer({ visible, onClose, onInsert }: { visible: boole
           options={guilds.map((g) => ({ value: g.id, label: g.name, subtitle: g.id === webhookGuild ? 'Serveur du webhook' : undefined }))}
         />
       )}
-      {['channels', 'roles', 'emojis'].includes(tab) && data && (
+      {(tab === 'emojis' || (['channels', 'roles'].includes(tab) && data)) && (
         <Input value={q} onChangeText={setQ} placeholder="Rechercher…" autoCapitalize="none" right={<Ionicons name="search" size={t.z(18)} color={t.textFaint} />} />
       )}
       {body}

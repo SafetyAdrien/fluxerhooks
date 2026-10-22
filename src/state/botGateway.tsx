@@ -1,9 +1,12 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { BOT_ENABLED } from '../config';
 import { BotGatewayNative, type GatewayState } from '../../modules/bot-gateway/src';
-import { apiFor } from '../api/fluxer';
+import { apiFor, type Endpoints } from '../api/fluxer';
 import { useSettings } from './settings';
 import { getEndpoints } from './useEndpoints';
+import { useBotSystems } from './botSystems';
+import { actionsFor, compileRules, neededEvents, type BotAction } from './botEngine';
+import { tr } from '../i18n';
 import type { BotStatus } from '../types';
 
 /**
@@ -23,20 +26,38 @@ interface Ctx {
 
 const BotGatewayContext = createContext<Ctx | null>(null);
 
-/* ---------- Repli JavaScript (web / Expo Go) ---------- */
+/* ---------- Repli JavaScript (Desktop / web / Expo Go) ---------- */
+
+/** Événements lourds ignorés côté serveur ; ceux dont les systèmes du bot ont besoin en sont retirés. */
+const BASE_IGNORED = [
+  'TYPING_START', 'MESSAGE_CREATE', 'MESSAGE_UPDATE', 'PRESENCE_UPDATE', 'PRESENCE_UPDATE_BULK', 'GUILD_MEMBER_LIST_UPDATE',
+  'MESSAGE_REACTION_ADD', 'MESSAGE_REACTION_REMOVE', 'GUILD_MEMBER_ADD', 'GUILD_MEMBER_REMOVE',
+];
 
 class JsGateway {
   private ws: WebSocket | null = null;
   private timer: ReturnType<typeof setInterval> | null = null;
   private seq: number | null = null;
   private stopped = true;
+  private events: string[] = [];
   private opts = { token: '', url: '', status: 'online', text: '' };
-  constructor(private onState: (s: GatewayState) => void) {}
+  constructor(
+    private onState: (s: GatewayState) => void,
+    private onDispatch: (t: string, d: any) => void,
+  ) {}
 
-  start(o: { token: string; url: string; status: string; text: string }) {
+  start(o: { token: string; url: string; status: string; text: string }, events: string[]) {
     this.opts = o;
+    this.events = events;
     this.stopped = false;
     this.open();
+  }
+
+  /** Nouveaux événements à écouter (système activé / désactivé) : nouvelle identification. */
+  setEvents(events: string[]) {
+    const same = events.length === this.events.length && events.every((e) => this.events.includes(e));
+    this.events = events;
+    if (!same && !this.stopped) this.open();
   }
 
   private open() {
@@ -61,7 +82,7 @@ class JsGateway {
               token: this.opts.token,
               properties: { os: 'Web', browser: 'FluxerHooks', device: 'FluxerHooks' },
               presence: { status: this.opts.status, afk: false, mobile: false, ...(this.opts.text ? { custom_status: { text: this.opts.text } } : {}) },
-              ignored_events: ['TYPING_START', 'MESSAGE_CREATE', 'MESSAGE_UPDATE', 'PRESENCE_UPDATE', 'PRESENCE_UPDATE_BULK', 'GUILD_MEMBER_LIST_UPDATE'],
+              ignored_events: BASE_IGNORED.filter((e) => !this.events.includes(e)),
             },
           }),
         );
@@ -69,7 +90,7 @@ class JsGateway {
         this.seq = p.s ?? this.seq;
         if (p.t === 'READY') {
           this.onState({ state: 'online', username: p.d?.user?.username, userId: p.d?.user?.id, guilds: p.d?.guilds?.length ?? 0, since: Date.now() });
-        }
+        } else if (p.t) this.onDispatch(p.t, p.d);
       } else if (p.op === 1) ws.send(JSON.stringify({ op: 1, d: this.seq }));
     };
     ws.onclose = (ev) => {
@@ -111,10 +132,45 @@ class JsGateway {
 
 export function BotGatewayProvider({ children }: { children: React.ReactNode }) {
   const { settings, update, botToken, ready } = useSettings();
+  const { systems, device, log } = useBotSystems();
   const presence = settings.botPresence;
   const [state, setState] = useState<GatewayState>(() => (BotGatewayNative?.getState() as GatewayState) ?? { state: 'offline' });
   const js = useRef<JsGateway | null>(null);
   const lastToken = useRef<string>('');
+  const ctxRef = useRef({ systems, device, botToken, botId: '', log, ep: null as Endpoints | null });
+  ctxRef.current = { ...ctxRef.current, systems, device, botToken, log, botId: state.userId ?? ctxRef.current.botId };
+
+  useEffect(() => {
+    getEndpoints(settings.instance)
+      .then((ep) => (ctxRef.current.ep = ep))
+      .catch(() => {});
+  }, [settings.instance]);
+
+  /** Desktop / web : exécute les actions des systèmes du bot pour un événement du gateway. */
+  const onDispatch = useCallback((t: string, d: any) => {
+    const c = ctxRef.current;
+    if (!c.ep || !c.botToken) return;
+    const actions = actionsFor(t, d, c.systems, { botId: c.botId, device: c.device });
+    if (!actions.length) return;
+    const api = apiFor(c.ep, { kind: 'bot', token: c.botToken });
+    const run = async (a: BotAction) => {
+      try {
+        if (a.type === 'send') await api.sendText(a.channelId, a.content);
+        else if (a.type === 'role-add') await api.addRole(a.guildId, a.userId, a.roleId);
+        else await api.removeRole(a.guildId, a.userId, a.roleId);
+        c.log({
+          system: a.system,
+          ok: true,
+          text: a.type === 'send' ? tr('Message envoyé') : tr(a.type === 'role-add' ? 'Rôle {r} donné à {u}' : 'Rôle {r} retiré à {u}', { r: a.roleName, u: a.userId }),
+        });
+      } catch (e) {
+        c.log({ system: a.system, ok: false, text: e instanceof Error ? e.message : String(e) });
+      }
+    };
+    (async () => {
+      for (const a of actions) await run(a);
+    })();
+  }, []);
 
   useEffect(() => {
     if (!BotGatewayNative) return;
@@ -136,8 +192,8 @@ export function BotGatewayProvider({ children }: { children: React.ReactNode }) 
     if (BotGatewayNative) {
       await BotGatewayNative.start({ ...opts, appName: 'FluxerHooks' });
     } else {
-      if (!js.current) js.current = new JsGateway(setState);
-      js.current.start(opts);
+      if (!js.current) js.current = new JsGateway(setState, (t, d) => onDispatch(t, d));
+      js.current.start(opts, neededEvents(ctxRef.current.systems));
     }
     if (!presence.autoStart) update({ botPresence: { ...presence, autoStart: true } });
   }, [botToken, settings.instance, presence, update]);
@@ -180,6 +236,24 @@ export function BotGatewayProvider({ children }: { children: React.ReactNode }) 
     if (presence.autoStart && (botToken !== prev || !running)) start().catch((e) => setState({ state: 'error', error: String(e?.message ?? e) }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, botToken]);
+
+  // Systèmes du bot : règles transmises au service Android (fonctionne app fermée) ou
+  // événements écoutés par le gateway JavaScript (Desktop, tant que l'app est ouverte).
+  useEffect(() => {
+    if (BotGatewayNative?.setRules) {
+      getEndpoints(settings.instance)
+        .then((ep) => BotGatewayNative!.setRules!({ rules: compileRules(systems, { api: ep.api, botId: state.userId, device }) }))
+        .catch(() => {});
+    } else js.current?.setEvents(neededEvents(systems));
+  }, [systems, device, state.userId, settings.instance]);
+
+  // Un système actif démarre le bot s'il est arrêté.
+  const wantsBot = BOT_ENABLED && !!botToken && systems.some((x) => x.enabled);
+  useEffect(() => {
+    if (!ready || !wantsBot) return;
+    if (state.state === 'offline') start().catch((e) => setState({ state: 'error', error: String(e?.message ?? e) }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, wantsBot]);
 
   const value = useMemo(() => ({ state, start, stop, setPresence, background: !!BotGatewayNative }), [state, start, stop, setPresence]);
   return <BotGatewayContext.Provider value={value}>{children}</BotGatewayContext.Provider>;

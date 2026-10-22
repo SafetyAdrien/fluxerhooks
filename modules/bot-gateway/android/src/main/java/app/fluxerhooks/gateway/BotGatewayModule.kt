@@ -54,6 +54,18 @@ class BotGatewayModule : Module() {
       null
     }
 
+    AsyncFunction("setRules") { opts: Map<String, Any?> ->
+      val ctx = appContext.reactContext ?: return@AsyncFunction null
+      BotGatewayService.saveRules(ctx, opts["rules"] as? String ?: "{}")
+      // Service déjà lancé : il relit les règles tout de suite.
+      if (BotGatewayService.lastState["state"] != "offline") {
+        try {
+          ctx.startService(Intent(ctx, BotGatewayService::class.java).setAction(BotGatewayService.ACTION_RULES))
+        } catch (_: Throwable) {}
+      }
+      null
+    }
+
     AsyncFunction("setPresence") { opts: Map<String, Any?> ->
       val ctx = appContext.reactContext ?: return@AsyncFunction null
       if (BotGatewayService.lastState["state"] == "offline") return@AsyncFunction null

@@ -13,13 +13,18 @@ import android.os.Handler
 import android.os.HandlerThread
 import android.os.IBinder
 import android.os.PowerManager
+import okhttp3.Call
+import okhttp3.Callback
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.IOException
 import java.util.concurrent.TimeUnit
 
 /**
@@ -27,12 +32,23 @@ import java.util.concurrent.TimeUnit
  * connexion au gateway (WebSocket JSON v1), Identify, heartbeats, reprise de session (Resume)
  * et reconnexion automatique. Les événements lourds (messages, présences…) sont ignorés côté
  * serveur via `ignored_events` pour économiser batterie et données.
+ *
+ * Systèmes du bot : les règles (rôles par réaction, bienvenue, départ) sont reçues de l'app
+ * (`saveRules`, JSON de botEngine.compileRules) et appliquées ici, même app fermée : seuls les
+ * événements nécessaires sont alors écoutés, et les rôles / messages passent par l'API HTTP.
  */
 class BotGatewayService : Service() {
   companion object {
     const val ACTION_START = "app.fluxerhooks.gateway.START"
     const val ACTION_STOP = "app.fluxerhooks.gateway.STOP"
     const val ACTION_PRESENCE = "app.fluxerhooks.gateway.PRESENCE"
+    const val ACTION_RULES = "app.fluxerhooks.gateway.RULES"
+    private const val PREFS = "fluxerhooks_bot"
+
+    /** Enregistre les règles des systèmes du bot (relues au démarrage du service). */
+    fun saveRules(ctx: Context, json: String) {
+      ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString("rules", json).apply()
+    }
     private const val CHANNEL_ID = "fluxerhooks_bot"
     private const val NOTIF_ID = 4107
 
@@ -62,6 +78,8 @@ class BotGatewayService : Service() {
     .readTimeout(0, TimeUnit.MILLISECONDS)
     .connectTimeout(20, TimeUnit.SECONDS)
     .build()
+  private val http = client.newBuilder().readTimeout(20, TimeUnit.SECONDS).build()
+  private var rules = JSONObject()
   private lateinit var thread: HandlerThread
   private lateinit var handler: Handler
   private var wakeLock: PowerManager.WakeLock? = null
@@ -90,6 +108,7 @@ class BotGatewayService : Service() {
     super.onCreate()
     thread = HandlerThread("fluxer-gateway").also { it.start() }
     handler = Handler(thread.looper)
+    loadRules()
   }
 
   override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -98,6 +117,15 @@ class BotGatewayService : Service() {
       ACTION_STOP -> {
         handler.post { shutdown("Arrêté") }
         return START_NOT_STICKY
+      }
+      ACTION_RULES -> {
+        handler.post {
+          val before = ruleEvents()
+          loadRules()
+          // Nouveaux événements à écouter : nouvelle identification auprès du gateway.
+          if (before != ruleEvents() && ws != null) reconnect(resume = false)
+        }
+        return START_REDELIVER_INTENT
       }
       ACTION_PRESENCE -> {
         status = intent?.getStringExtra("status") ?: status
@@ -200,6 +228,10 @@ class BotGatewayService : Service() {
             attempts = 0
             emitState("online")
           }
+          "MESSAGE_REACTION_ADD" -> d?.let { onReaction(true, it) }
+          "MESSAGE_REACTION_REMOVE" -> d?.let { onReaction(false, it) }
+          "GUILD_MEMBER_ADD" -> d?.let { onMember(true, it) }
+          "GUILD_MEMBER_REMOVE" -> d?.let { onMember(false, it) }
           "GUILD_CREATE" -> if (since > 0) { guilds += 1; emitState("online") }
           "GUILD_DELETE" -> if (d?.optBoolean("unavailable") != true && guilds > 0) { guilds -= 1; emitState("online") }
         }
@@ -223,7 +255,7 @@ class BotGatewayService : Service() {
       .put("token", token)
       .put("properties", JSONObject().put("os", "Android").put("browser", appName).put("device", appName).put("mobile", true))
       .put("presence", presence)
-      .put("ignored_events", JSONArray(IGNORED))
+      .put("ignored_events", JSONArray(IGNORED.filter { it !in ruleEvents() }))
     send(JSONObject().put("op", 2).put("d", d))
   }
 
@@ -312,6 +344,101 @@ class BotGatewayService : Service() {
       ),
     )
     updateNotification()
+  }
+
+  /* ---------- Systèmes du bot ---------- */
+
+  private fun loadRules() {
+    rules = try {
+      JSONObject(getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString("rules", null) ?: "{}")
+    } catch (_: Throwable) {
+      JSONObject()
+    }
+  }
+
+  private fun ruleEvents(): Set<String> {
+    val a = rules.optJSONArray("events") ?: return emptySet()
+    return (0 until a.length()).map { a.optString(it) }.toSet()
+  }
+
+  private fun str(o: JSONObject?, k: String): String = if (o == null || !o.has(k) || o.isNull(k)) "" else o.optString(k)
+
+  /** Même clé que botEngine.emojiKey : id pour un émoji du serveur, sinon le caractère sans U+FE0F. */
+  private fun emojiKey(e: JSONObject?): String {
+    val id = str(e, "id")
+    return if (id.isNotEmpty()) "id:$id" else "u:" + str(e, "name").replace("\uFE0F", "")
+  }
+
+  private fun onReaction(add: Boolean, d: JSONObject) {
+    val member = d.optJSONObject("member")
+    val user = str(d, "user_id").ifEmpty { str(member?.optJSONObject("user"), "id") }
+    val me = str(rules, "botId").ifEmpty { userId }
+    if (user.isEmpty() || user == me || member?.optJSONObject("user")?.optBoolean("bot") == true) return
+    val key = emojiKey(d.optJSONObject("emoji"))
+    val msg = str(d, "message_id")
+    val rr = rules.optJSONArray("rr") ?: return
+    for (i in 0 until rr.length()) {
+      val r = rr.optJSONObject(i) ?: continue
+      if (str(r, "m") != msg) continue
+      val pairs = r.optJSONArray("p") ?: continue
+      val guild = str(d, "guild_id").ifEmpty { str(r, "g") }
+      var role = ""
+      for (j in 0 until pairs.length()) {
+        val p = pairs.optJSONObject(j) ?: continue
+        if (str(p, "k") == key) { role = str(p, "r"); break }
+      }
+      if (role.isEmpty()) continue
+      val mode = str(r, "mode").ifEmpty { "toggle" }
+      if (add) {
+        call("PUT", "/guilds/$guild/members/$user/roles/$role")
+        // Un seul rôle du groupe à la fois : les autres sont retirés.
+        if (mode == "unique") {
+          for (j in 0 until pairs.length()) {
+            val other = str(pairs.optJSONObject(j), "r")
+            if (other.isNotEmpty() && other != role) call("DELETE", "/guilds/$guild/members/$user/roles/$other")
+          }
+        }
+      } else if (mode != "add") call("DELETE", "/guilds/$guild/members/$user/roles/$role")
+    }
+  }
+
+  private fun onMember(add: Boolean, d: JSONObject) {
+    val u = d.optJSONObject("user") ?: return
+    if (u.optBoolean("bot")) return
+    val guild = str(d, "guild_id")
+    val mm = rules.optJSONArray("mm") ?: return
+    val name = str(u, "global_name").ifEmpty { str(u, "username") }
+    for (i in 0 until mm.length()) {
+      val r = mm.optJSONObject(i) ?: continue
+      if (str(r, "g") != guild || str(r, "ev") != (if (add) "add" else "remove")) continue
+      val content = str(r, "content")
+        .replace("{user}", "<@${str(u, "id")}>")
+        .replace("{username}", name)
+        .replace("{server}", str(r, "gn"))
+      val body = JSONObject().put("content", content).put("allowed_mentions", JSONObject().put("parse", JSONArray().put("users")))
+      call("POST", "/channels/${str(r, "c")}/messages", body)
+    }
+  }
+
+  /** Requête HTTP vers l'API Fluxer avec le token du bot (asynchrone, hors du fil du gateway). */
+  private fun call(method: String, path: String, body: JSONObject? = null) {
+    if (token.isEmpty()) return
+    val api = str(rules, "api").ifEmpty { "https://api.fluxer.app" }.trimEnd('/')
+    val rb = when {
+      body != null -> body.toString().toRequestBody("application/json".toMediaType())
+      method == "PUT" || method == "POST" -> ByteArray(0).toRequestBody(null)
+      else -> null
+    }
+    val req = Request.Builder()
+      .url("$api/v1$path")
+      .header("Authorization", "Bot $token")
+      .header("User-Agent", "$appName (Android)")
+      .method(method, rb)
+      .build()
+    http.newCall(req).enqueue(object : Callback {
+      override fun onFailure(call: Call, e: IOException) {}
+      override fun onResponse(call: Call, response: Response) { response.close() }
+    })
   }
 
   /* ---------- Notification au premier plan ---------- */

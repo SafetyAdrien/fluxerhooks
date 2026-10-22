@@ -436,6 +436,23 @@ export function apiFor(ep: Endpoints, c: Credential) {
     webhooks: (channelId: string) => request<ApiWebhook[]>(ep, `/channels/${channelId}/webhooks`, a),
     createWebhook: (channelId: string, name: string) =>
       request<ApiWebhook>(ep, `/channels/${channelId}/webhooks`, { ...a, method: 'POST', json: { name } }),
+    /* Systèmes du bot : messages simples, réactions et rôles des membres. */
+    message: (channelId: string, messageId: string) => request<any>(ep, `/channels/${channelId}/messages/${messageId}`, a),
+    sendText: (channelId: string, content: string, mentions: 'users' | 'none' = 'users') =>
+      request<{ id: string; channel_id: string }>(ep, `/channels/${channelId}/messages`, {
+        ...a,
+        method: 'POST',
+        json: { content, allowed_mentions: { parse: mentions === 'users' ? ['users'] : [] } },
+      }),
+    editText: (channelId: string, messageId: string, content: string) =>
+      request<any>(ep, `/channels/${channelId}/messages/${messageId}`, { ...a, method: 'PATCH', json: { content, allowed_mentions: { parse: [] } } }),
+    /** Réaction du compte (émoji Unicode, ou « nom:id » pour un émoji du serveur). */
+    addReaction: (channelId: string, messageId: string, emoji: string) =>
+      request<void>(ep, `/channels/${channelId}/messages/${messageId}/reactions/${encodeURIComponent(emoji)}/@me`, { ...a, method: 'PUT' }),
+    addRole: (guildId: string, userId: string, roleId: string) =>
+      request<void>(ep, `/guilds/${guildId}/members/${userId}/roles/${roleId}`, { ...a, method: 'PUT' }),
+    removeRole: (guildId: string, userId: string, roleId: string) =>
+      request<void>(ep, `/guilds/${guildId}/members/${userId}/roles/${roleId}`, { ...a, method: 'DELETE' }),
   };
 }
 

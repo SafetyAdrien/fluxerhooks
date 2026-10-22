@@ -10,6 +10,27 @@ Légende : ✨ Ajouts · 🔧 Modifications · 🐛 Correctifs · 🏗️ Build 
 
 ---
 
+## beta-0.0.17
+
+**Systèmes du bot, page Données repensée, palette d'émojis** — branche `mobile` · 22 oct. 2026
+
+### ✨ Ajouts
+- **Systèmes du bot** (Données → Automatisations → **Systèmes du bot**), exécutés par ton propre bot Fluxer :
+  - **Rôles par réaction** : choisis le serveur, le salon, des paires émoji → rôle (émojis Unicode ou du serveur) et le comportement (**ajouter et retirer**, **ajouter seulement**, **un seul rôle**) ; le bot publie le message (ou utilise un message existant, même d'un webhook) et y ajoute les réactions.
+  - **Message de bienvenue** et **message de départ** avec les variables `{user}`, `{username}`, `{server}` ; un seul appareil lié les envoie.
+  - Connexion du bot (token vérifié, stocké chiffré), état en direct, démarrage / arrêt, journal d'activité ; sur Android, le service du bot les applique **même app fermée** (notification « bot en ligne »).
+  - Les systèmes se synchronisent entre appareils liés, comme les sauvegardes.
+- **Menus contextuels** dans Données : **clic droit** (Desktop) ou **appui long** (téléphone) sur un élément, ou bouton **⋯** : Aperçu, Ouvrir dans l'éditeur, Ajouter au brouillon, Renommer, Épingler, Déplacer, Étiquettes, Dupliquer, Convertir, Remplacer par le brouillon, Programmer, Exporter, Sélectionner, Supprimer.
+- **Aperçu en info-bulle** : survoler un élément environ 1 s affiche son aperçu complet ; un clic ouvre la fenêtre d'aperçu (Ouvrir, Ajouter au brouillon, Plus).
+- **Zones de texte redimensionnables** verticalement, avec une poignée sur le bord droit.
+- **Palette d'émojis** (bouton @ des zones de texte) : s'ouvre par défaut sur les émojis, avec catégories, recherche (français / anglais), récents et émojis du serveur.
+
+### 🔧 Modifications
+- Données : le panneau de détail de droite est retiré ; la liste prend toute la largeur (cartes sur plusieurs colonnes en grand écran) et sépare **Sauvegardes**, **Mes modèles** et **Modèles intégrés**.
+- La carte **Bot Fluxer** de l'éditeur est réactivée (token du bot, envoi direct, statut).
+- **Barres de défilement** au style de l'app : fines, arrondies, aux couleurs du thème (Desktop) ; arrondies et discrètes (Android).
+- Guides mis à jour (menus contextuels, systèmes du bot) ; nouveaux textes traduits dans les 9 langues.
+
 ## beta-0.0.16
 
 **Nouvelle page Données, panneau du profil et Guides** — branche `mobile` · 20 oct. 2026
