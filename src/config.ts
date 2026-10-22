@@ -1,8 +1,8 @@
 /**
- * Fonctionnalités activables. Le bot Fluxer (envoi direct, gateway) est grisé pour l'instant :
- * son code reste en place, il suffira de repasser BOT_ENABLED à true.
+ * Fonctionnalités activables. Bot Fluxer (token, envoi direct, gateway et systèmes du bot :
+ * rôles par réaction, bienvenue, départ).
  */
-export const BOT_ENABLED = false;
+export const BOT_ENABLED = true;
 
 /**
  * Date de création de FluxerHooks (premier commit du dépôt). Aucune session du compte Fluxer

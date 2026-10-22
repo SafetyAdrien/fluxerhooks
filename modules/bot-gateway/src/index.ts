@@ -24,6 +24,8 @@ interface NativeGateway {
   start(opts: StartOptions): Promise<void>;
   stop(): Promise<void>;
   setPresence(opts: { status: string; text: string }): Promise<void>;
+  /** Systèmes du bot (JSON compact de botEngine.compileRules), appliqués par le service. Absent sur les anciennes versions. */
+  setRules?(opts: { rules: string }): Promise<void>;
   getState(): GatewayState;
   addListener(event: 'onState', cb: (s: GatewayState) => void): { remove(): void };
 }

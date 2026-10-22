@@ -220,6 +220,57 @@ export interface Automation {
   runs: number;
 }
 
+/* ---------- Systèmes du bot (rôles par réaction, bienvenue, départ) ---------- */
+
+/** Émoji de réaction : Unicode (`name` seul) ou émoji du serveur (`name` + `id`). */
+export interface ReactionEmoji {
+  name: string;
+  id?: string | null;
+  animated?: boolean;
+}
+
+export interface ReactionRolePair {
+  emoji: ReactionEmoji;
+  roleId: string;
+  roleName: string;
+  roleColor?: number;
+}
+
+/** Comportement des rôles par réaction. */
+export type ReactionRoleMode = 'toggle' | 'add' | 'unique';
+
+interface BotSystemBase {
+  id: string;
+  name: string;
+  enabled: boolean;
+  createdAt: string;
+  updatedAt?: string;
+  guildId: string;
+  guildName?: string;
+  channelId: string;
+  channelName?: string;
+}
+
+export interface ReactionRoleSystem extends BotSystemBase {
+  kind: 'reaction-roles';
+  mode: ReactionRoleMode;
+  pairs: ReactionRolePair[];
+  /** Message surveillé (publié par le bot ou existant) ; null tant qu'il n'est pas publié. */
+  messageId: string | null;
+  /** Texte du message publié par le bot. */
+  content: string;
+}
+
+export interface MemberMessageSystem extends BotSystemBase {
+  kind: 'welcome' | 'goodbye';
+  /** Texte envoyé ; variables {user}, {username}, {server}. */
+  content: string;
+  /** Appareil qui envoie (appareils liés : un seul message). */
+  device?: string;
+}
+
+export type BotSystem = ReactionRoleSystem | MemberMessageSystem;
+
 export interface FluxerUser {
   id: string;
   username: string;

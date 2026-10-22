@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { getUi, setUi } from '../state/uiMemory';
 import {
+  PanResponder,
   ActivityIndicator,
   Animated,
   Image,
@@ -237,6 +238,7 @@ export function Input({
   right,
   onFocus,
   onBlur,
+  resizable = true,
   ...rest
 }: TextInputProps & {
   label?: string;
@@ -245,6 +247,8 @@ export function Input({
   error?: string | null;
   mono?: boolean;
   right?: React.ReactNode;
+  /** Zone de texte multiligne : poignée de redimensionnement vertical sur le bord droit. */
+  resizable?: boolean;
 }) {
   label = tr(label);
   hint = tr(hint);
@@ -255,6 +259,23 @@ export function Input({
   const fieldBg = surface === 'surface2' ? t.surface : t.surface2;
   const len = (value ?? '').length;
   const over = max !== undefined && len > max;
+  // Hauteur choisie par l'utilisateur (poignée) ; null = hauteur automatique.
+  const [height, setHeight] = useState<number | null>(null);
+  const boxH = useRef(0);
+  const startH = useRef(0);
+  const minH = t.z(multiline ? 92 : 44);
+  const pan = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderTerminationRequest: () => false,
+      onPanResponderGrant: () => {
+        startH.current = boxH.current;
+      },
+      onPanResponderMove: (_e, g) => setHeight(Math.max(minH, Math.min(900, Math.round(startH.current + g.dy)))),
+    }),
+  ).current;
+  const canResize = !!multiline && resizable;
   return (
     <View style={{ gap: 5, minWidth: 0 }}>
       {(label || (max && settings.showCounters)) && (
@@ -270,6 +291,7 @@ export function Input({
         </View>
       )}
       <View
+        onLayout={(e) => (boxH.current = e.nativeEvent.layout.height)}
         style={[
           {
             flexDirection: 'row',
@@ -314,10 +336,25 @@ export function Input({
             },
             t.css['input-text'],
             style,
+            canResize && height != null ? { height: height - 3, minHeight: undefined, maxHeight: undefined } : null,
           ]}
           {...rest}
         />
         {right && <View style={{ paddingRight: 6, paddingTop: multiline ? 6 : 0, flexShrink: 0 }}>{right}</View>}
+        {canResize && (
+          <View
+            {...pan.panHandlers}
+            accessibilityRole="adjustable"
+            accessibilityLabel={tr('Redimensionner la zone de texte')}
+            hitSlop={8}
+            style={[
+              { position: 'absolute', right: 2, bottom: 2, width: t.z(22), height: t.z(18), alignItems: 'center', justifyContent: 'center', borderRadius: 6 },
+              Platform.OS === 'web' ? ({ cursor: 'ns-resize', touchAction: 'none' } as any) : null,
+            ]}
+          >
+            <MaterialCommunityIcons name="drag-horizontal-variant" size={t.z(16)} color={t.textFaint} />
+          </View>
+        )}
       </View>
       {!!(error || hint) && (
         <Text style={{ color: error ? t.danger : t.textFaint, fontSize: t.font(12) }}>{error || hint}</Text>

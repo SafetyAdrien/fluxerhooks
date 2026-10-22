@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Text, TextInput, View, useWindowDimensions } from 'react-native';
+import { Alert, Animated, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -15,6 +15,8 @@ import { PreviewList } from '../components/Preview';
 import { DataTransfer } from '../components/DataTransfer';
 import { Dropdown } from '../components/Dropdown';
 import { Automations } from './AutomationsPanel';
+import { BotSystems } from './BotSystemsPanel';
+import { useBotSystems } from '../state/botSystems';
 import { Badge, Box, Button, Chip, Dialog, EmptyState, IconBtn, Input, Segmented, useToast, type IconName } from '../components/ui';
 import type { Backup, Folder, Template } from '../types';
 
@@ -251,60 +253,120 @@ function TagFilter({ tags, value, onChange, small }: { tags: { tag: string; coun
 
 /* ---------- Ligne d'élément ---------- */
 
+type Anchor = { x: number; y: number } | null;
+type Rect = { x: number; y: number; width: number; height: number };
+
+/** Rectangle d'une vue à l'écran (web : getBoundingClientRect, natif : measureInWindow). */
+function measure(node: any, cb: (r: Rect) => void) {
+  if (!node) return;
+  if (typeof node.getBoundingClientRect === 'function') {
+    const r = node.getBoundingClientRect();
+    cb({ x: r.left, y: r.top, width: r.width, height: r.height });
+  } else node.measureInWindow?.((x: number, y: number, width: number, height: number) => cb({ x, y, width, height }));
+}
+
+/** Délai avant l'aperçu au survol. */
+const HOVER_DELAY = 900;
+
 function ItemRow({
   item,
   folder,
-  active,
+  highlight,
   selecting,
   selected,
   onPress,
-  onLongPress,
+  onMenu,
   onToggle,
+  onHover,
 }: {
   item: LibraryItem;
   folder?: Folder;
-  active: boolean;
+  highlight: boolean;
   selecting: boolean;
   selected: boolean;
   onPress: () => void;
-  onLongPress: () => void;
+  /** Menu contextuel : position du pointeur (clic droit) ou null (appui long, bouton ⋯). */
+  onMenu: (anchor: Anchor) => void;
   onToggle: () => void;
+  /** Aperçu au survol (web) : rectangle de la ligne, ou null quand le pointeur s'en va. */
+  onHover: (rect: Rect | null) => void;
 }) {
   const { theme: t } = useSettings();
+  const ref = useRef<View>(null);
+  const more = useRef<View>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const menuRef = useRef(onMenu);
+  menuRef.current = onMenu;
+  const clearHover = () => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = null;
+  };
+  useEffect(() => clearHover, []);
+  // Clic droit (Desktop / navigateur) : menu contextuel à l'emplacement du pointeur.
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const node: any = ref.current;
+    if (!node?.addEventListener) return;
+    const h = (e: MouseEvent) => {
+      e.preventDefault();
+      clearHover();
+      menuRef.current({ x: e.clientX, y: e.clientY });
+    };
+    node.addEventListener('contextmenu', h);
+    return () => node.removeEventListener('contextmenu', h);
+  }, []);
   const meta = [
-    item.kind === 'backup' ? tr('Sauvegarde') : item.builtin ? tr('Modèle intégré') : tr('Modèle'),
     plural(item.stats.messages, '{n} message', '{n} messages'),
     item.stats.embeds ? plural(item.stats.embeds, '{n} embed', '{n} embeds') : null,
     item.kind === 'backup' && item.targets ? plural(item.targets, '{n} webhook', '{n} webhooks') : null,
   ].filter(Boolean);
   return (
     <Pressable
-      onPress={selecting ? onToggle : onPress}
-      onLongPress={onLongPress}
-      delayLongPress={350}
+      ref={ref}
+      onPress={() => {
+        clearHover();
+        onHover(null);
+        if (selecting) onToggle();
+        else onPress();
+      }}
+      onLongPress={() => {
+        clearHover();
+        onHover(null);
+        if (selecting) onToggle();
+        else onMenu(null);
+      }}
+      delayLongPress={380}
+      onHoverIn={() => {
+        if (selecting) return;
+        clearHover();
+        timer.current = setTimeout(() => measure(ref.current, (r) => onHover(r)), HOVER_DELAY);
+      }}
+      onHoverOut={() => {
+        clearHover();
+        onHover(null);
+      }}
       accessibilityRole="button"
-      accessibilityState={{ selected: selecting ? selected : active }}
+      accessibilityState={{ selected: selecting ? selected : undefined }}
       accessibilityLabel={item.name}
+      accessibilityHint={tr('Appui long ou clic droit : plus d’actions')}
       style={({ pressed, hovered }: any) => ({
         flexDirection: 'row',
-        alignItems: 'flex-start',
+        alignItems: 'center',
         gap: 12,
-        padding: t.z(12),
+        paddingVertical: t.z(10),
+        paddingLeft: t.z(12),
+        paddingRight: t.z(4),
         borderRadius: t.radius,
-        backgroundColor: selected ? t.accentSoft : active ? t.surface2 : pressed || hovered ? t.surface2 : t.surface,
+        backgroundColor: selected ? t.accentSoft : pressed || hovered ? t.surface2 : t.surface,
         borderWidth: 1,
-        borderColor: selected || active ? t.accent : t.border,
+        borderColor: selected || highlight ? t.accent : t.border,
       })}
     >
-      {selecting && (
-        <View style={{ paddingTop: 8 }}>
-          <Check on={selected} />
-        </View>
-      )}
+      {selecting && <Check on={selected} />}
       <View style={{ width: t.z(40), height: t.z(40), borderRadius: t.radiusSm, backgroundColor: item.kind === 'template' ? t.accentSoft : t.surface2, alignItems: 'center', justifyContent: 'center' }}>
         <Ionicons name={item.icon as IconName} size={t.z(20)} color={item.kind === 'template' ? t.accent : t.textMuted} />
       </View>
-      <View style={{ flex: 1, minWidth: 0, gap: 3 }}>
+      <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
           {item.pinned && <MaterialCommunityIcons name="pin" size={t.z(14)} color={t.accent} />}
           <Text numberOfLines={1} style={{ flexShrink: 1, color: t.text, fontWeight: '800', fontSize: t.font(15) }}>
@@ -312,7 +374,7 @@ function ItemRow({
           </Text>
         </View>
         <Text numberOfLines={1} style={{ color: t.textMuted, fontSize: t.font(12) }}>
-          {meta.join(' · ')}
+          {[...meta, item.builtin ? null : fmtDate(item.updatedAt, false)].filter(Boolean).join(' · ')}
         </Text>
         {!!(item.excerpt || item.description) && (
           <Text numberOfLines={1} style={{ color: t.textFaint, fontSize: t.font(12) }}>
@@ -334,8 +396,36 @@ function ItemRow({
           </View>
         )}
       </View>
-      <Text style={{ color: t.textFaint, fontSize: t.font(11), paddingTop: 2 }}>{item.builtin ? '' : fmtDate(item.updatedAt, false)}</Text>
+      {!selecting && (
+        <Pressable
+          ref={more}
+          onPress={() => {
+            clearHover();
+            onHover(null);
+            measure(more.current, (r) => onMenu({ x: r.x + r.width, y: r.y + r.height }));
+          }}
+          hitSlop={6}
+          accessibilityRole="button"
+          accessibilityLabel={tr('Actions pour {name}', { name: item.name })}
+          style={({ pressed, hovered }: any) => ({ width: t.z(34), height: t.z(34), borderRadius: t.z(12), alignItems: 'center', justifyContent: 'center', backgroundColor: pressed || hovered ? t.accentSoft : 'transparent' })}
+        >
+          <MaterialCommunityIcons name="dots-vertical" size={t.z(20)} color={t.textMuted} />
+        </Pressable>
+      )}
     </Pressable>
+  );
+}
+
+/** En-tête de section de la liste (Sauvegardes, Mes modèles, Modèles intégrés). */
+function SectionHeader({ icon, label, count }: { icon: McIcon; label: string; count: number }) {
+  const { theme: t } = useSettings();
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10, marginBottom: 2, paddingHorizontal: 2 }}>
+      <MaterialCommunityIcons name={icon} size={t.z(16)} color={t.textFaint} />
+      <Text style={{ color: t.textFaint, fontSize: t.font(11), fontWeight: '800', letterSpacing: 0.8 }}>{tr(label).toUpperCase()}</Text>
+      <Text style={{ color: t.textFaint, fontSize: t.font(11), fontWeight: '700' }}>{count}</Text>
+      <View style={{ flex: 1, height: 1, backgroundColor: t.border, marginLeft: 4 }} />
+    </View>
   );
 }
 
@@ -548,220 +638,294 @@ function SaveDraftDialog({
   );
 }
 
-/* ---------- Détail d'un élément ---------- */
+/* ---------- Aperçu : info-bulle (survol) et fenêtre ---------- */
 
-function Stat({ label, value, wide }: { label: string; value: string; wide?: boolean }) {
+/** En-tête d'un élément : icône, nom, type, chiffres et dates. */
+function ItemSummary({ item, folder }: { item: LibraryItem; folder?: Folder }) {
   const { theme: t } = useSettings();
+  const facts = [
+    plural(item.stats.messages, '{n} message', '{n} messages'),
+    item.stats.embeds ? plural(item.stats.embeds, '{n} embed', '{n} embeds') : null,
+    item.kind === 'backup' && item.targets ? plural(item.targets, '{n} webhook', '{n} webhooks') : null,
+    item.stats.files ? plural(item.stats.files, '{n} fichier', '{n} fichiers') : null,
+  ].filter(Boolean);
   return (
-    <View style={{ flexGrow: 1, flexBasis: wide ? 170 : 90, padding: 10, borderRadius: t.radiusSm, backgroundColor: t.surface2 }}>
-      <Text style={{ color: t.textFaint, fontSize: t.font(11), fontWeight: '700' }}>{tr(label)}</Text>
-      <Text numberOfLines={1} style={{ color: t.text, fontSize: t.font(14), fontWeight: '800', marginTop: 2 }}>
-        {value}
-      </Text>
+    <View style={{ flexDirection: 'row', gap: 10, alignItems: 'flex-start' }}>
+      <View style={{ width: t.z(40), height: t.z(40), borderRadius: t.radiusSm, backgroundColor: item.kind === 'template' ? t.accentSoft : t.surface2, alignItems: 'center', justifyContent: 'center' }}>
+        <Ionicons name={item.icon as IconName} size={t.z(20)} color={item.kind === 'template' ? t.accent : t.textMuted} />
+      </View>
+      <View style={{ flex: 1, minWidth: 0, gap: 3 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+          <Text numberOfLines={2} style={{ flexShrink: 1, color: t.text, fontSize: t.font(16), fontWeight: '900' }}>
+            {item.name}
+          </Text>
+          <Badge text={item.kind === 'backup' ? tr('Sauvegarde') : item.builtin ? tr('Modèle intégré') : tr('Modèle')} color={item.kind === 'template' ? t.accent : undefined} />
+        </View>
+        {!!item.description && <Text style={{ color: t.textMuted, fontSize: t.font(12) }}>{item.description}</Text>}
+        <Text style={{ color: t.textMuted, fontSize: t.font(12) }}>
+          {[...facts, folder?.name].filter(Boolean).join(' · ')}
+        </Text>
+        {!item.builtin && (
+          <Text style={{ color: t.textFaint, fontSize: t.font(11) }}>
+            {tr('Créé le {d}', { d: fmtDate(item.createdAt) })} · {tr('modifié le {d}', { d: fmtDate(item.updatedAt) })}
+          </Text>
+        )}
+      </View>
     </View>
   );
 }
 
-function ItemDetail({
-  item,
-  folders,
-  tags,
-  onOpen,
-  onAppend,
-  onDuplicate,
-  onConvert,
-  onSchedule,
-  onDeleted,
-  onNewFolder,
-}: {
-  item: LibraryItem;
-  folders: Folder[];
-  tags: string[];
-  onOpen: (item: LibraryItem) => void;
-  onAppend: (item: LibraryItem) => void;
-  onDuplicate: (item: LibraryItem) => void;
-  onConvert: (item: LibraryItem) => void;
-  onSchedule: (item: LibraryItem) => void;
-  onDeleted: () => void;
-  onNewFolder: (then: (id: string) => void) => void;
-}) {
+function PreviewBody({ item }: { item: LibraryItem }) {
   const { theme: t, base } = useSettings();
-  const { width } = useWindowDimensions();
-  const stackMain = width < 520;
-  const { state, backups, updateBackups, deleteBackups } = useEditor();
-  const { updateTemplates, deleteTemplates, userTemplates } = useLibrary();
-  const toast = useToast();
-  const [renaming, setRenaming] = useState(false);
-  const [name, setName] = useState(item.name);
-  const [desc, setDesc] = useState(item.description);
-  const [tagInput, setTagInput] = useState('');
-  useEffect(() => {
-    setRenaming(false);
-    setName(item.name);
-    setDesc(item.description);
-    setTagInput('');
-  }, [item.key, item.name, item.description]);
-  const ro = item.builtin;
-  const update = (patch: Partial<Backup & Template>) => (item.kind === 'backup' ? updateBackups([item.id], () => patch) : updateTemplates([item.id], () => patch));
-  const addTag = (s: string) => {
-    const c = cleanTag(s);
-    if (c && !item.tags.includes(c)) update({ tags: [...item.tags, c] });
-    setTagInput('');
-  };
-  const commitName = () => {
-    const n = name.trim();
-    if (n && n !== item.name) update({ name: n });
-    if (item.kind === 'template' && desc.trim() !== item.description) update({ description: desc.trim() });
-    setRenaming(false);
-  };
-  const exportOne = async () => {
-    const src = item.kind === 'backup' ? backups.find((b) => b.id === item.id)?.state : { targets: [], messages: item.messages };
-    if (!src) return;
-    try {
-      const r = await shareTextFile(`${item.name.replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-') || 'fluxerhooks'}.json`, exportState(src, false), tr('Exporter le JSON'));
-      if (r === 'unavailable') toast('Partage indisponible sur cet appareil.', 'error');
-      else if (r === 'saved') toast('Fichier enregistré.', 'success');
-    } catch {
-      toast('Échec de l’export.', 'error');
-    }
-  };
-  const overwrite = () =>
-    Alert.alert(tr('Remplacer le contenu de « {name} » ?', { name: item.name }), tr('La sauvegarde prendra le contenu actuel du brouillon ({n} message(s) et ses destinations).', { n: state.messages.length }), [
-      { text: tr('Annuler'), style: 'cancel' },
-      {
-        text: tr('Remplacer'),
-        onPress: () => {
-          if (item.kind === 'backup') updateBackups([item.id], () => ({ state: JSON.parse(JSON.stringify(state)) }));
-          else updateTemplates([item.id], () => ({ messages: state.messages.map((m) => ({ ...cloneMessage(m), attachments: [] })) }));
-          toast('Contenu mis à jour avec le brouillon.', 'success');
-        },
-      },
-    ]);
-  const remove = () =>
-    Alert.alert(tr('Supprimer « {name} » ?', { name: item.name }), tr('Cette action est définitive (sur tous les appareils liés).'), [
-      { text: tr('Annuler'), style: 'cancel' },
-      {
-        text: tr('Supprimer'),
-        style: 'destructive',
-        onPress: () => {
-          if (item.kind === 'backup') deleteBackups([item.id]);
-          else deleteTemplates([item.id]);
-          toast('Élément supprimé.', 'success');
-          onDeleted();
-        },
-      },
-    ]);
-  const folderOptions = [
-    { value: 'none', label: tr('Non classé') },
-    ...folders.map((f) => ({ value: f.id, label: f.name, left: <FolderDot color={f.color} /> })),
-    { value: '__new', label: tr('Nouveau dossier…'), left: <Ionicons name="add" size={t.z(16)} color={t.accent} /> },
-  ];
-  const known = folders.some((f) => f.id === item.folder);
-  const editable = !ro && (item.kind === 'backup' || userTemplates.some((x) => x.id === item.id));
-
   return (
-    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 16, gap: 14, paddingBottom: 48 }}>
-      {/* En-tête */}
-      <View style={{ flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}>
-        <View style={{ width: t.z(52), height: t.z(52), borderRadius: t.radius, backgroundColor: item.kind === 'template' ? t.accentSoft : t.surface2, alignItems: 'center', justifyContent: 'center' }}>
-          <Ionicons name={item.icon as IconName} size={t.z(26)} color={item.kind === 'template' ? t.accent : t.textMuted} />
-        </View>
-        <View style={{ flex: 1, minWidth: 0, gap: 6 }}>
-          {renaming ? (
-            <>
-              <Input value={name} onChangeText={setName} max={60} autoFocus onSubmitEditing={commitName} />
-              {item.kind === 'template' && <Input value={desc} onChangeText={setDesc} placeholder="Description" max={100} />}
-              <View style={{ flexDirection: 'row', gap: 8 }}>
-                <Button small flex label="Annuler" onPress={() => { setRenaming(false); setName(item.name); setDesc(item.description); }} />
-                <Button small flex variant="primary" icon="checkmark" label="Valider" onPress={commitName} />
-              </View>
-            </>
-          ) : (
-            <>
-              <Text selectable style={{ color: t.text, fontSize: t.font(20), fontWeight: '900' }}>
-                {item.name}
-              </Text>
-              {!!item.description && <Text style={{ color: t.textMuted, fontSize: t.font(13) }}>{item.description}</Text>}
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-                <Badge text={item.kind === 'backup' ? tr('Sauvegarde') : tr('Modèle')} color={item.kind === 'template' ? t.accent : undefined} />
-                {item.builtin && <Badge text={tr('Intégré')} />}
-              </View>
-            </>
-          )}
-        </View>
-        {!renaming && editable && (
-          <View style={{ flexDirection: 'row', gap: 6 }}>
-            <SquareBtn icon="pencil-outline" label="Renommer" onPress={() => setRenaming(true)} />
-            <SquareBtn icon={item.pinned ? 'pin' : 'pin-outline'} label={item.pinned ? 'Désépingler' : 'Épingler'} active={item.pinned} onPress={() => update({ pinned: !item.pinned })} />
+    <View style={{ borderRadius: t.radius, backgroundColor: base.preview, borderWidth: 1, borderColor: t.border, padding: 10, gap: 10 }}>
+      {item.messages.length ? <PreviewList messages={item.messages} /> : <Text style={{ color: t.textFaint }}>{tr('Aucun message.')}</Text>}
+    </View>
+  );
+}
+
+/** Info-bulle d'aperçu, à côté de la ligne survolée (n'intercepte pas le pointeur). */
+function HoverPreview({ item, folder, rect }: { item: LibraryItem; folder?: Folder; rect: Rect }) {
+  const { theme: t, base } = useSettings();
+  const { width: W, height: H } = useWindowDimensions();
+  const w = Math.min(440, W - 24);
+  const right = rect.x + rect.width + 12;
+  const left = right + w <= W - 12 ? right : rect.x - w - 12 >= 12 ? rect.x - w - 12 : Math.max(12, Math.min(rect.x, W - w - 12));
+  const below = left !== right && left !== rect.x - w - 12;
+  const maxH = Math.min(520, H - 24);
+  const top = below ? Math.min(rect.y + rect.height + 8, H - 160) : Math.max(12, Math.min(rect.y - 8, H - maxH - 12));
+  const fade = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.timing(fade, { toValue: 1, duration: 140, useNativeDriver: Platform.OS !== 'web' }).start();
+  }, [fade]);
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={{
+        position: 'absolute',
+        left,
+        top,
+        width: w,
+        maxHeight: maxH,
+        overflow: 'hidden',
+        padding: 12,
+        gap: 10,
+        borderRadius: t.radius + 2,
+        backgroundColor: base.bgAlt,
+        borderWidth: 1,
+        borderColor: t.border,
+        opacity: fade,
+        elevation: 18,
+        shadowColor: '#000',
+        shadowOpacity: 0.4,
+        shadowRadius: 20,
+        shadowOffset: { width: 0, height: 8 },
+        zIndex: 50,
+      }}
+    >
+      <ItemSummary item={item} folder={folder} />
+      <PreviewBody item={item} />
+    </Animated.View>
+  );
+}
+
+/** Fenêtre d'aperçu (clic sur un élément, ou « Aperçu » du menu). */
+function PreviewDialog({ item, folder, onClose, onOpen, onAppend, onMore }: { item: LibraryItem | null; folder?: Folder; onClose: () => void; onOpen: () => void; onAppend: () => void; onMore: () => void }) {
+  const { height, width } = useWindowDimensions();
+  const narrow = width < 560;
+  return (
+    <Dialog
+      visible={!!item}
+      onClose={onClose}
+      title="Aperçu"
+      icon="eye-outline"
+      maxWidth={620}
+      footer={
+        narrow ? (
+          <View style={{ gap: 8 }}>
+            <Button variant="primary" icon="open-outline" label="Ouvrir dans l’éditeur" onPress={onOpen} />
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <Button flex icon="add" label="Ajouter au brouillon" onPress={onAppend} />
+              <Button icon="ellipsis-horizontal" label="Plus" onPress={onMore} />
+            </View>
+          </View>
+        ) : (
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <Button flex variant="primary" icon="open-outline" label="Ouvrir dans l’éditeur" onPress={onOpen} />
+            <Button flex icon="add" label="Ajouter au brouillon" onPress={onAppend} />
+            <Button icon="ellipsis-horizontal" label="Plus" onPress={onMore} />
+          </View>
+        )
+      }
+    >
+      {item && (
+        <ScrollView style={{ maxHeight: Math.max(240, height * 0.55) }} contentContainerStyle={{ gap: 12 }}>
+          <ItemSummary item={item} folder={folder} />
+          <PreviewBody item={item} />
+        </ScrollView>
+      )}
+    </Dialog>
+  );
+}
+
+/* ---------- Menu contextuel ---------- */
+
+type MenuEntry = { key: string; label: string; icon: McIcon; danger?: boolean; onPress: () => void } | { key: string; sep: true };
+
+/**
+ * Menu contextuel : à l'emplacement du pointeur (clic droit, bouton ⋯) ou, sans position
+ * (appui long sur téléphone), en panneau ancré en bas de l'écran avec un titre.
+ */
+function ContextMenu({ visible, anchor, title, subtitle, entries, onClose }: { visible: boolean; anchor: Anchor; title?: string; subtitle?: string; entries: MenuEntry[]; onClose: () => void }) {
+  const { theme: t, base, haptic } = useSettings();
+  const insets = useSafeAreaInsets();
+  const { width: W, height: H } = useWindowDimensions();
+  const sheet = !anchor;
+  const w = sheet ? Math.min(W - 16, 520) : 260;
+  const rowH = t.z(40);
+  const estH = entries.reduce((n, e) => n + ('sep' in e ? 9 : rowH), 16) + (title ? 30 : 0);
+  const maxH = H - insets.top - insets.bottom - 24;
+  const left = sheet ? (W - w) / 2 : Math.max(8, Math.min(anchor!.x, W - w - 8));
+  const top = sheet ? undefined : Math.max(insets.top + 8, Math.min(anchor!.y, H - Math.min(estH, maxH) - 8));
+  useEffect(() => {
+    if (visible) haptic('light');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible]);
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
+      <Pressable style={{ flex: 1, backgroundColor: sheet ? 'rgba(0,0,0,0.45)' : 'transparent' }} onPress={onClose} accessibilityLabel={tr('Fermer')} />
+      <View
+        accessibilityViewIsModal
+        style={{
+          position: 'absolute',
+          left,
+          width: w,
+          ...(sheet ? { bottom: insets.bottom + 8 } : { top }),
+          maxHeight: maxH,
+          padding: 6,
+          borderRadius: t.radius + 4,
+          backgroundColor: base.bgAlt,
+          borderWidth: 1,
+          borderColor: t.border,
+          elevation: 18,
+          shadowColor: '#000',
+          shadowOpacity: 0.4,
+          shadowRadius: 20,
+          shadowOffset: { width: 0, height: 8 },
+        }}
+      >
+        {!!title && (
+          <View style={{ paddingHorizontal: 10, paddingTop: 6, paddingBottom: 6 }}>
+            <Text numberOfLines={1} style={{ color: t.text, fontWeight: '900', fontSize: t.font(sheet ? 15 : 13) }}>{title}</Text>
+            {!!subtitle && <Text numberOfLines={1} style={{ color: t.textFaint, fontSize: t.font(11) }}>{subtitle}</Text>}
           </View>
         )}
+        <ScrollView style={{ flexGrow: 0 }} bounces={false}>
+          {entries.map((e) =>
+            'sep' in e ? (
+              <View key={e.key} style={{ height: 1, backgroundColor: t.border, marginVertical: 4, marginHorizontal: 8 }} />
+            ) : (
+              <Pressable
+                key={e.key}
+                onPress={() => {
+                  onClose();
+                  setTimeout(e.onPress, 0);
+                }}
+                accessibilityRole="menuitem"
+                accessibilityLabel={e.label}
+                style={({ pressed, hovered }: any) => ({ flexDirection: 'row', alignItems: 'center', gap: 12, height: rowH, paddingHorizontal: 10, borderRadius: t.radiusSm, backgroundColor: pressed || hovered ? (e.danger ? 'rgba(237,66,69,0.14)' : t.accentSoft) : 'transparent' })}
+              >
+                <MaterialCommunityIcons name={e.icon} size={t.z(19)} color={e.danger ? t.danger : t.textMuted} />
+                <Text numberOfLines={1} style={{ flex: 1, color: e.danger ? t.danger : t.text, fontSize: t.font(14), fontWeight: '600' }}>{e.label}</Text>
+              </Pressable>
+            ),
+          )}
+        </ScrollView>
       </View>
+    </Modal>
+  );
+}
 
-      {/* Actions */}
-      <View style={{ gap: 8 }}>
-        <View style={{ flexDirection: stackMain ? 'column' : 'row', gap: 8 }}>
-          <Button flex={!stackMain} variant="primary" icon="open-outline" label="Ouvrir dans l’éditeur" onPress={() => onOpen(item)} />
-          <Button flex={!stackMain} icon="add" label="Ajouter au brouillon" onPress={() => onAppend(item)} />
+/** Renommer un élément (et la description d'un modèle). */
+function RenameDialog({ item, onClose, onSave }: { item: LibraryItem | null; onClose: () => void; onSave: (name: string, description: string) => void }) {
+  const [name, setName] = useState('');
+  const [desc, setDesc] = useState('');
+  useEffect(() => {
+    if (item) {
+      setName(item.name);
+      setDesc(item.description);
+    }
+  }, [item]);
+  return (
+    <Dialog
+      visible={!!item}
+      onClose={onClose}
+      title="Renommer"
+      icon="pencil-outline"
+      footer={
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          <Button flex label="Annuler" onPress={onClose} />
+          <Button flex variant="primary" icon="checkmark" label="Enregistrer" disabled={!name.trim()} onPress={() => onSave(name.trim(), desc.trim())} />
         </View>
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-          <Button small icon="copy-outline" label="Dupliquer" onPress={() => onDuplicate(item)} />
-          <Button small icon={item.kind === 'backup' ? 'bookmark-outline' : 'archive-outline'} label={item.kind === 'backup' ? 'Enregistrer comme modèle' : 'Enregistrer comme sauvegarde'} onPress={() => onConvert(item)} />
-          {editable && <Button small icon="refresh-outline" label="Remplacer par le brouillon" onPress={overwrite} />}
-          <Button small icon="timer-outline" label="Programmer un envoi" onPress={() => onSchedule(item)} />
-          <Button small icon="share-outline" label="Exporter le JSON" onPress={exportOne} />
-          {editable && <Button small variant="danger" icon="trash-outline" label="Supprimer" onPress={remove} />}
+      }
+    >
+      <Input label="Nom" value={name} onChangeText={setName} max={60} autoFocus onSubmitEditing={() => name.trim() && onSave(name.trim(), desc.trim())} />
+      {item?.kind === 'template' && <Input label="Description" value={desc} onChangeText={setDesc} max={100} />}
+    </Dialog>
+  );
+}
+
+/** Étiquettes d'un élément : retirer, ajouter (suggestions parmi les étiquettes existantes). */
+function ItemTagsDialog({ item, existing, onClose, onChange }: { item: LibraryItem | null; existing: string[]; onClose: () => void; onChange: (tags: string[]) => void }) {
+  const { theme: t } = useSettings();
+  const [tags, setTags] = useState<string[]>([]);
+  const [input, setInput] = useState('');
+  useEffect(() => {
+    if (item) {
+      setTags(item.tags);
+      setInput('');
+    }
+  }, [item]);
+  const add = (s: string) => {
+    const c = cleanTag(s);
+    if (c && !tags.includes(c)) setTags([...tags, c]);
+    setInput('');
+  };
+  const pending = cleanTag(input);
+  return (
+    <Dialog
+      visible={!!item}
+      onClose={onClose}
+      title="Étiquettes"
+      icon="pricetag-outline"
+      footer={
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          <Button flex label="Annuler" onPress={onClose} />
+          <Button flex variant="primary" icon="checkmark" label="Enregistrer" onPress={() => onChange(pending && !tags.includes(pending) ? [...tags, pending] : tags)} />
         </View>
-        {ro && <Text style={{ color: t.textFaint, fontSize: t.font(12) }}>{tr('Modèle intégré : duplique-le pour le renommer, le ranger ou le modifier.')}</Text>}
+      }
+    >
+      <Input label="Ajouter une étiquette" value={input} onChangeText={setInput} placeholder="Ajouter une étiquette puis Entrée" max={32} autoFocus onSubmitEditing={() => add(input)} blurOnSubmit={false} />
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+        {tags.map((x) => (
+          <TagPill key={x} tag={x} onRemove={() => setTags(tags.filter((y) => y !== x))} />
+        ))}
+        {!tags.length && <Text style={{ color: t.textFaint, fontSize: t.font(12) }}>{tr('Aucune étiquette.')}</Text>}
       </View>
-
-      {/* Informations */}
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-        <Stat label="Messages" value={String(item.stats.messages)} />
-        <Stat label="Embeds" value={String(item.stats.embeds)} />
-        {item.kind === 'backup' && <Stat label="Webhooks" value={String(item.targets)} />}
-        {item.kind === 'backup' && <Stat label="Fichiers" value={String(item.stats.files)} />}
-        {!ro && <Stat wide label="Créé le" value={fmtDate(item.createdAt)} />}
-        {!ro && <Stat wide label="Modifié le" value={fmtDate(item.updatedAt)} />}
-      </View>
-
-      {/* Rangement */}
-      {editable && (
-        <Box title="Rangement" icon="folder-outline" collapsible={false}>
-          <Dropdown
-            label="Dossier"
-            title="Dossier"
-            value={known ? item.folder : 'none'}
-            searchable={folders.length > 8}
-            options={folderOptions}
-            onChange={(v) => {
-              if (v === '__new') onNewFolder((id) => update({ folder: id }));
-              else update({ folder: v === 'none' ? null : v });
-            }}
-          />
-          <Input label="Étiquettes" value={tagInput} onChangeText={setTagInput} placeholder="Ajouter une étiquette puis Entrée" max={32} onSubmitEditing={() => addTag(tagInput)} blurOnSubmit={false} />
+      {existing.filter((x) => !tags.includes(x)).length > 0 && (
+        <>
+          <Text style={{ color: t.textMuted, fontSize: t.font(12), fontWeight: '700' }}>{tr('Étiquettes existantes')}</Text>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-            {item.tags.map((x) => (
-              <TagPill key={x} tag={x} onRemove={() => update({ tags: item.tags.filter((y) => y !== x) })} />
-            ))}
-            {tags
-              .filter((x) => !item.tags.includes(x))
-              .slice(0, 6)
+            {existing
+              .filter((x) => !tags.includes(x))
+              .slice(0, 16)
               .map((x) => (
-                <Chip key={x} label={`+ #${x}`} onPress={() => addTag(x)} />
+                <Chip key={x} label={`+ #${x}`} onPress={() => add(x)} />
               ))}
-            {!item.tags.length && !tags.length && <Text style={{ color: t.textFaint, fontSize: t.font(12) }}>{tr('Aucune étiquette.')}</Text>}
           </View>
-        </Box>
+        </>
       )}
-
-      {/* Aperçu */}
-      <View style={{ gap: 6 }}>
-        <Text style={{ color: t.textFaint, fontSize: t.font(11), fontWeight: '800', letterSpacing: 0.7 }}>{tr('APERÇU')}</Text>
-        <View style={{ borderRadius: t.radius, backgroundColor: base.preview, borderWidth: 1, borderColor: t.border, padding: 10, gap: 10 }}>
-          {item.messages.length ? <PreviewList messages={item.messages} /> : <Text style={{ color: t.textFaint }}>{tr('Aucun message.')}</Text>}
-        </View>
-      </View>
-    </ScrollView>
+    </Dialog>
   );
 }
 
@@ -793,26 +957,40 @@ export function DataScreen({
   const [section, setSection] = useState<Section>(initialSection);
   const [filters, setFilters] = useState<Filters>({ scope: 'all', folder: null, tag: null, query: '', sort: 'updated' });
   const setF = (p: Partial<Filters>) => setFilters((f) => ({ ...f, ...p }));
-  const [activeKey, setActiveKey] = useState<string | null>(null);
+  // Élément mis en évidence (dernier créé / dupliqué / importé), quelques secondes.
+  const [highlight, setHighlight] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [selecting, setSelecting] = useState(false);
   const [dialog, setDialog] = useState<null | 'save' | 'folder' | 'move' | 'tag' | 'sort'>(null);
   const [editFolder, setEditFolder] = useState<Folder | null>(null);
   const afterFolder = useRef<((id: string) => void) | null>(null);
   const [schedule, setSchedule] = useState<string | null>(null);
-  const [mobileDetail, setMobileDetail] = useState(false);
+  const [autoTab, setAutoTab] = useState<'scheduled' | 'bot'>('scheduled');
+  const { systems: botSystems } = useBotSystems();
+  // Menu contextuel, aperçu (fenêtre et info-bulle), renommage, étiquettes, cible des dialogues.
+  const [menu, setMenu] = useState<{ key: string; anchor: Anchor } | null>(null);
+  const [previewKey, setPreviewKey] = useState<string | null>(null);
+  const [hover, setHover] = useState<{ key: string; rect: Rect } | null>(null);
+  const [renameKey, setRenameKey] = useState<string | null>(null);
+  const [tagsKey, setTagsKey] = useState<string | null>(null);
+  const [targets, setTargets] = useState<string[] | null>(null);
 
   const items = useMemo(() => buildItems(backups, templates), [backups, templates]);
+  const byKey = useMemo(() => new Map(items.map((i) => [i.key, i])), [items]);
   const tagList = useMemo(() => allTags(items), [items]);
   const visibleItems = useMemo(() => filterItems(items, filters, folders), [items, filters, folders]);
   const folderById = useMemo(() => new Map(folders.map((f) => [f.id, f])), [folders]);
-  const active = items.find((i) => i.key === activeKey) ?? null;
+  const folderOf = (i: LibraryItem) => (i.folder ? folderById.get(i.folder) : undefined);
   const folderCount = (id: string | null) => items.filter((i) => (id === null ? !i.builtin && (!i.folder || !folderById.has(i.folder)) : i.folder === id)).length;
+  const menuItem = menu ? byKey.get(menu.key) ?? null : null;
+  const previewItem = previewKey ? byKey.get(previewKey) ?? null : null;
+  const hoverItem = hover ? byKey.get(hover.key) ?? null : null;
 
-  // Sur grand écran, un élément est toujours affiché dans le panneau de détail.
   useEffect(() => {
-    if (wide && section === 'library' && (!active || !visibleItems.some((i) => i.key === active.key))) setActiveKey(visibleItems[0]?.key ?? null);
-  }, [wide, section, visibleItems, active]);
+    if (!highlight) return;
+    const id = setTimeout(() => setHighlight(null), 2500);
+    return () => clearTimeout(id);
+  }, [highlight]);
   // La sélection ne garde que les éléments encore présents.
   useEffect(() => {
     setSelected((s) => {
@@ -821,9 +999,13 @@ export function DataScreen({
       return next.size === s.size ? s : next;
     });
   }, [items]);
+  // Pas d'info-bulle qui traîne quand on change de vue.
+  useEffect(() => setHover(null), [section, filters, selecting]);
 
   const selItems = items.filter((i) => selected.has(i.key));
   const selEditable = selItems.filter((i) => !i.builtin);
+  /** Éléments visés par « Déplacer » / « Étiqueter » : un élément du menu, ou la sélection. */
+  const targetItems = targets ? (targets.map((k) => byKey.get(k)).filter((i) => i && !i.builtin) as LibraryItem[]) : selEditable;
   const toggleSel = (key: string) => {
     haptic('light');
     setSelected((s) => {
@@ -843,9 +1025,9 @@ export function DataScreen({
   const patchItems = (list: LibraryItem[], patch: (i: LibraryItem) => Partial<Backup & Template>) => {
     const b = list.filter((i) => i.kind === 'backup');
     const tp = list.filter((i) => i.kind === 'template' && !i.builtin);
-    const byKey = new Map(list.map((i) => [i.key, i]));
-    if (b.length) updateBackups(b.map((i) => i.id), (x) => patch(byKey.get(`backup:${x.id}`)!));
-    if (tp.length) updateTemplates(tp.map((i) => i.id), (x) => patch(byKey.get(`template:${x.id}`)!));
+    const map = new Map(list.map((i) => [i.key, i]));
+    if (b.length) updateBackups(b.map((i) => i.id), (x) => patch(map.get(`backup:${x.id}`)!));
+    if (tp.length) updateTemplates(tp.map((i) => i.id), (x) => patch(map.get(`template:${x.id}`)!));
   };
 
   const openFolderDialog = (f: Folder | null, then?: (id: string) => void) => {
@@ -865,6 +1047,7 @@ export function DataScreen({
             const b = backups.find((x) => x.id === item.id);
             if (b) replace(JSON.parse(JSON.stringify(b.state)));
           } else replace({ ...state, messages: item.messages.map(cloneMessage) });
+          setPreviewKey(null);
           toast(tr('« {name} » ouvert dans l’éditeur.', { name: item.name }), 'success');
           onOpenEditor();
         },
@@ -883,7 +1066,7 @@ export function DataScreen({
       if (!b) return;
       key = `backup:${saveBackup(name, { ...meta, state: b.state })}`;
     } else key = `template:${saveTemplate(name, item.description, item.icon, item.messages, meta)}`;
-    setActiveKey(key);
+    setHighlight(key);
     toast('Élément dupliqué.', 'success');
   };
   const convertItem = (item: LibraryItem) => {
@@ -891,13 +1074,91 @@ export function DataScreen({
     let key: string;
     if (item.kind === 'backup') key = `template:${saveTemplate(item.name, '', 'document-text-outline', item.messages, meta)}`;
     else key = `backup:${saveBackup(item.name, { ...meta, state: { targets: state.targets, messages: item.messages.map(cloneMessage) } })}`;
-    setActiveKey(key);
+    setHighlight(key);
     toast(item.kind === 'backup' ? 'Modèle créé à partir de la sauvegarde.' : 'Sauvegarde créée à partir du modèle (avec les destinations actuelles).', 'success');
   };
   const scheduleItem = (item: LibraryItem) => {
     setSchedule(`${item.kind}:${item.id}`);
-    setMobileDetail(false);
+    setAutoTab('scheduled');
     setSection('automations');
+  };
+  const overwriteItem = (item: LibraryItem) =>
+    Alert.alert(tr('Remplacer le contenu de « {name} » ?', { name: item.name }), tr('La sauvegarde prendra le contenu actuel du brouillon ({n} message(s) et ses destinations).', { n: state.messages.length }), [
+      { text: tr('Annuler'), style: 'cancel' },
+      {
+        text: tr('Remplacer'),
+        onPress: () => {
+          if (item.kind === 'backup') updateBackups([item.id], () => ({ state: JSON.parse(JSON.stringify(state)) }));
+          else updateTemplates([item.id], () => ({ messages: state.messages.map((m) => ({ ...cloneMessage(m), attachments: [] })) }));
+          toast('Contenu mis à jour avec le brouillon.', 'success');
+        },
+      },
+    ]);
+  const removeItem = (item: LibraryItem) =>
+    Alert.alert(tr('Supprimer « {name} » ?', { name: item.name }), tr('Cette action est définitive (sur tous les appareils liés).'), [
+      { text: tr('Annuler'), style: 'cancel' },
+      {
+        text: tr('Supprimer'),
+        style: 'destructive',
+        onPress: () => {
+          if (item.kind === 'backup') deleteBackups([item.id]);
+          else deleteTemplates([item.id]);
+          setPreviewKey(null);
+          toast('Élément supprimé.', 'success');
+        },
+      },
+    ]);
+  const exportOne = async (item: LibraryItem) => {
+    const src = item.kind === 'backup' ? backups.find((b) => b.id === item.id)?.state : { targets: [], messages: item.messages };
+    if (!src) return;
+    try {
+      const r = await shareTextFile(`${item.name.replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-') || 'fluxerhooks'}.json`, exportState(src, false), tr('Exporter le JSON'));
+      if (r === 'unavailable') toast('Partage indisponible sur cet appareil.', 'error');
+      else if (r === 'saved') toast('Fichier enregistré.', 'success');
+    } catch {
+      toast('Échec de l’export.', 'error');
+    }
+  };
+
+  /** Entrées du menu contextuel d'un élément. */
+  const menuEntries = (item: LibraryItem): MenuEntry[] => {
+    const editable = !item.builtin;
+    const list: (MenuEntry | false)[] = [
+      { key: 'preview', label: tr('Aperçu'), icon: 'eye-outline', onPress: () => setPreviewKey(item.key) },
+      { key: 'open', label: tr('Ouvrir dans l’éditeur'), icon: 'open-in-app', onPress: () => loadItem(item) },
+      { key: 'append', label: tr('Ajouter au brouillon'), icon: 'playlist-plus', onPress: () => appendItem(item) },
+      { key: 's1', sep: true },
+      editable && { key: 'rename', label: tr('Renommer'), icon: 'pencil-outline', onPress: () => setRenameKey(item.key) },
+      editable && { key: 'pin', label: tr(item.pinned ? 'Désépingler' : 'Épingler'), icon: item.pinned ? 'pin-off-outline' : 'pin-outline', onPress: () => patchItems([item], () => ({ pinned: !item.pinned })) },
+      editable && {
+        key: 'move',
+        label: tr('Déplacer vers un dossier…'),
+        icon: 'folder-move-outline',
+        onPress: () => {
+          setTargets([item.key]);
+          setDialog('move');
+        },
+      },
+      editable && { key: 'tags', label: tr('Étiquettes…'), icon: 'tag-outline', onPress: () => setTagsKey(item.key) },
+      editable && { key: 's2', sep: true },
+      { key: 'dup', label: tr('Dupliquer'), icon: 'content-copy', onPress: () => duplicateItem(item) },
+      { key: 'convert', label: tr(item.kind === 'backup' ? 'Enregistrer comme modèle' : 'Enregistrer comme sauvegarde'), icon: item.kind === 'backup' ? 'bookmark-outline' : 'archive-outline', onPress: () => convertItem(item) },
+      editable && { key: 'overwrite', label: tr('Remplacer par le brouillon'), icon: 'file-replace-outline', onPress: () => overwriteItem(item) },
+      { key: 'schedule', label: tr('Programmer un envoi'), icon: 'timer-outline', onPress: () => scheduleItem(item) },
+      { key: 'export', label: tr('Exporter le JSON'), icon: 'export-variant', onPress: () => exportOne(item) },
+      { key: 's3', sep: true },
+      {
+        key: 'select',
+        label: tr('Sélectionner'),
+        icon: 'checkbox-marked-outline',
+        onPress: () => {
+          setSelecting(true);
+          setSelected(new Set([item.key]));
+        },
+      },
+      editable && { key: 'delete', label: tr('Supprimer'), icon: 'trash-can-outline', danger: true, onPress: () => removeItem(item) },
+    ];
+    return list.filter(Boolean) as MenuEntry[];
   };
 
   /* ----- Actions groupées ----- */
@@ -949,7 +1210,7 @@ export function DataScreen({
       toast(plural(n, '{n} élément importé.', '{n} éléments importés.'), 'success');
       setSection('library');
       setF({ scope: 'all', folder: null, tag: null, query: '' });
-      setActiveKey(r.backups[0] ? `backup:${r.backups[0].id}` : r.templates[0] ? `template:${r.templates[0].id}` : null);
+      setHighlight(r.backups[0] ? `backup:${r.backups[0].id}` : r.templates[0] ? `template:${r.templates[0].id}` : null);
     } catch (e) {
       toast(tr('Import impossible : {e}', { e: e instanceof Error ? e.message : String(e) }), 'error');
     }
@@ -982,11 +1243,6 @@ export function DataScreen({
       },
     ]);
 
-  const openItem = (item: LibraryItem) => {
-    setActiveKey(item.key);
-    if (!wide) setMobileDetail(true);
-  };
-
   /* ----- Rendu ----- */
   const scopeLabel: Record<Scope, string> = { all: 'Tout', backup: 'Sauvegardes', template: 'Modèles', pinned: 'Épinglés' };
   const sortLabel: Record<SortKey, string> = { updated: 'Modifiés récemment', created: 'Créés récemment', name: 'Nom (A → Z)', messages: 'Nombre de messages' };
@@ -995,35 +1251,35 @@ export function DataScreen({
 
   const sidebar = (
     <View style={{ width: wide ? 250 : 220, flexGrow: 0, flexShrink: 0, borderRightWidth: 1, borderRightColor: t.border, backgroundColor: base.bgAlt }}>
-    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 10, paddingBottom: 32 }}>
-      <GroupLabel>Bibliothèque</GroupLabel>
-      {(['all', 'backup', 'template', 'pinned'] as Scope[]).map((s) => (
-        <NavRow
-          key={s}
-          icon={s === 'all' ? 'albums-outline' : s === 'backup' ? 'archive-outline' : s === 'template' ? 'bookmark-outline' : 'pin-outline'}
-          label={tr(scopeLabel[s])}
-          count={s === 'all' ? items.length : s === 'pinned' ? items.filter((i) => i.pinned).length : items.filter((i) => i.kind === s).length}
-          active={section === 'library' && filters.scope === s && !filters.folder}
-          onPress={() => {
-            setSection('library');
-            setF({ scope: s, folder: null });
-          }}
-        />
-      ))}
-      <GroupLabel right={<IconBtn icon="add" label="Nouveau dossier" size={17} onPress={() => openFolderDialog(null)} />}>Dossiers</GroupLabel>
-      <NavRow icon="file-tray-outline" label={tr('Non classés')} count={folderCount(null)} active={section === 'library' && filters.folder === 'none'} onPress={() => { setSection('library'); setF({ folder: 'none', scope: 'all' }); }} />
-      {folders.map((f) => (
-        <NavRow key={f.id} color={f.color} label={f.name} count={folderCount(f.id)} active={section === 'library' && filters.folder === f.id} onPress={() => { setSection('library'); setF({ folder: f.id, scope: 'all' }); }} />
-      ))}
-      {!folders.length && (
-        <Pressable onPress={() => openFolderDialog(null)} style={{ paddingHorizontal: 10, paddingVertical: 6 }}>
-          <Text style={{ color: t.textFaint, fontSize: t.font(12) }}>{tr('Crée des dossiers pour ranger tes messages.')}</Text>
-        </Pressable>
-      )}
-      <GroupLabel>Outils</GroupLabel>
-      <NavRow icon="timer-outline" label={tr('Automatisations')} count={automations.length} active={section === 'automations'} onPress={() => setSection('automations')} />
-      <NavRow icon="swap-vertical-outline" label={tr('Transfert et backup')} active={section === 'transfer'} onPress={() => setSection('transfer')} />
-    </ScrollView>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 10, paddingBottom: 32 }}>
+        <GroupLabel>Bibliothèque</GroupLabel>
+        {(['all', 'backup', 'template', 'pinned'] as Scope[]).map((s) => (
+          <NavRow
+            key={s}
+            icon={s === 'all' ? 'albums-outline' : s === 'backup' ? 'archive-outline' : s === 'template' ? 'bookmark-outline' : 'pin-outline'}
+            label={tr(scopeLabel[s])}
+            count={s === 'all' ? items.length : s === 'pinned' ? items.filter((i) => i.pinned).length : items.filter((i) => i.kind === s).length}
+            active={section === 'library' && filters.scope === s && !filters.folder}
+            onPress={() => {
+              setSection('library');
+              setF({ scope: s, folder: null });
+            }}
+          />
+        ))}
+        <GroupLabel right={<SquareBtn small icon="plus" label="Nouveau dossier" onPress={() => openFolderDialog(null)} />}>Dossiers</GroupLabel>
+        <NavRow icon="file-tray-outline" label={tr('Non classés')} count={folderCount(null)} active={section === 'library' && filters.folder === 'none'} onPress={() => { setSection('library'); setF({ folder: 'none', scope: 'all' }); }} />
+        {folders.map((f) => (
+          <NavRow key={f.id} color={f.color} label={f.name} count={folderCount(f.id)} active={section === 'library' && filters.folder === f.id} onPress={() => { setSection('library'); setF({ folder: f.id, scope: 'all' }); }} />
+        ))}
+        {!folders.length && (
+          <Pressable onPress={() => openFolderDialog(null)} style={{ paddingHorizontal: 10, paddingVertical: 6 }}>
+            <Text style={{ color: t.textFaint, fontSize: t.font(12) }}>{tr('Crée des dossiers pour ranger tes messages.')}</Text>
+          </Pressable>
+        )}
+        <GroupLabel>Outils</GroupLabel>
+        <NavRow icon="timer-outline" label={tr('Automatisations')} count={automations.length + botSystems.length} active={section === 'automations'} onPress={() => setSection('automations')} />
+        <NavRow icon="swap-vertical-outline" label={tr('Transfert et backup')} active={section === 'transfer'} onPress={() => setSection('transfer')} />
+      </ScrollView>
     </View>
   );
 
@@ -1079,8 +1335,34 @@ export function DataScreen({
     </View>
   ) : null;
 
+  // Sauvegardes, modèles personnels et modèles intégrés : trois sections distinctes.
+  const groups = [
+    { key: 'backups', label: 'Sauvegardes', icon: 'archive-outline' as McIcon, list: visibleItems.filter((i) => i.kind === 'backup') },
+    { key: 'templates', label: 'Mes modèles', icon: 'bookmark-outline' as McIcon, list: visibleItems.filter((i) => i.kind === 'template' && !i.builtin) },
+    { key: 'builtin', label: 'Modèles intégrés', icon: 'star-four-points-outline' as McIcon, list: visibleItems.filter((i) => i.builtin) },
+  ].filter((g) => g.list.length);
+  // Grand écran : plusieurs colonnes de cartes.
+  const listW = width - (medium ? (wide ? 250 : 220) : 0) - 28;
+  const cols = Math.max(1, Math.min(3, Math.floor(listW / 380)));
+
+  const renderRow = (i: LibraryItem) => (
+    <View key={i.key} style={{ width: cols > 1 ? (`${100 / cols}%` as any) : '100%', padding: 4 }}>
+      <ItemRow
+        item={i}
+        folder={folderOf(i)}
+        highlight={i.key === highlight}
+        selecting={selecting}
+        selected={selected.has(i.key)}
+        onPress={() => setPreviewKey(i.key)}
+        onMenu={(anchor) => setMenu({ key: i.key, anchor })}
+        onToggle={() => toggleSel(i.key)}
+        onHover={(rect) => setHover(rect ? { key: i.key, rect } : null)}
+      />
+    </View>
+  );
+
   const list = (
-    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 14, gap: 8, paddingBottom: selecting ? 120 : insets.bottom + 32 }}>
+    <ScrollView keyboardShouldPersistTaps="handled" onScroll={() => hover && setHover(null)} scrollEventThrottle={64} contentContainerStyle={{ padding: 14, gap: 8, paddingBottom: selecting ? 120 : insets.bottom + 32 }}>
       {!medium && mobileFilters}
       {toolbar}
       {tagBar}
@@ -1100,45 +1382,17 @@ export function DataScreen({
       ) : !visibleItems.length ? (
         <EmptyState icon="search-outline" title="Aucun résultat" text={filters.query ? tr('Aucun élément ne correspond à « {q} ».', { q: filters.query }) : 'Aucun élément ici pour le moment.'} />
       ) : (
-        visibleItems.map((i) => (
-          <ItemRow
-            key={i.key}
-            item={i}
-            folder={i.folder ? folderById.get(i.folder) : undefined}
-            active={wide && i.key === activeKey}
-            selecting={selecting}
-            selected={selected.has(i.key)}
-            onPress={() => openItem(i)}
-            onLongPress={() => {
-              setSelecting(true);
-              toggleSel(i.key);
-            }}
-            onToggle={() => toggleSel(i.key)}
-          />
+        groups.map((g) => (
+          <View key={g.key}>
+            <SectionHeader icon={g.icon} label={g.label} count={g.list.length} />
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginHorizontal: -4 }}>{g.list.map(renderRow)}</View>
+          </View>
         ))
       )}
+      {!!items.length && !selecting && Platform.OS === 'web' && (
+        <Text style={{ color: t.textFaint, fontSize: t.font(11), textAlign: 'center', marginTop: 8 }}>{tr('Survole un élément pour l’aperçu · clic droit pour les actions')}</Text>
+      )}
     </ScrollView>
-  );
-
-  const detail = active ? (
-    <ItemDetail
-      key={active.key}
-      item={active}
-      folders={folders}
-      tags={tagList.map((x) => x.tag)}
-      onOpen={loadItem}
-      onAppend={appendItem}
-      onDuplicate={duplicateItem}
-      onConvert={convertItem}
-      onSchedule={scheduleItem}
-      onDeleted={() => {
-        setActiveKey(null);
-        setMobileDetail(false);
-      }}
-      onNewFolder={(then) => openFolderDialog(null, then)}
-    />
-  ) : (
-    <EmptyState icon="document-text-outline" title="Aucun élément sélectionné" text="Choisis une sauvegarde ou un modèle pour voir son aperçu et ses actions." />
   );
 
   const selectionBar = selecting && (
@@ -1150,7 +1404,7 @@ export function DataScreen({
         bottom: insets.bottom + 12,
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 2,
+        gap: 6,
         paddingVertical: 6,
         paddingHorizontal: 10,
         borderRadius: t.radius + 4,
@@ -1167,11 +1421,11 @@ export function DataScreen({
       }}
     >
       <Text style={{ flex: 1, color: t.text, fontWeight: '800', fontSize: t.font(14) }}>{plural(selected.size, '{n} sélectionné', '{n} sélectionnés')}</Text>
-      <IconBtn icon="folder-open-outline" label="Déplacer vers un dossier" disabled={!selEditable.length} onPress={() => setDialog('move')} />
-      <IconBtn icon="pricetag-outline" label="Ajouter une étiquette" disabled={!selEditable.length} onPress={() => setDialog('tag')} />
-      <IconBtn icon="pin-outline" label="Épingler / désépingler" disabled={!selEditable.length} onPress={bulkPin} />
-      <IconBtn icon="share-outline" label="Exporter la sélection" disabled={!selected.size} onPress={() => exportItems(selItems)} />
-      <IconBtn icon="trash-outline" label="Supprimer la sélection" color={t.danger} disabled={!selEditable.length} onPress={bulkDelete} />
+      <SquareBtn small icon="folder-move-outline" label="Déplacer vers un dossier" disabled={!selEditable.length} onPress={() => { setTargets(null); setDialog('move'); }} />
+      <SquareBtn small icon="tag-outline" label="Ajouter une étiquette" disabled={!selEditable.length} onPress={() => { setTargets(null); setDialog('tag'); }} />
+      <SquareBtn small icon="pin-outline" label="Épingler / désépingler" disabled={!selEditable.length} onPress={bulkPin} />
+      <SquareBtn small icon="export-variant" label="Exporter la sélection" disabled={!selected.size} onPress={() => exportItems(selItems)} />
+      <SquareBtn small danger icon="trash-can-outline" label="Supprimer la sélection" disabled={!selEditable.length} onPress={bulkDelete} />
     </View>
   );
 
@@ -1193,24 +1447,22 @@ export function DataScreen({
   const header = (
     <View style={[{ paddingTop: insets.top + 6, paddingBottom: 8, paddingHorizontal: 10, backgroundColor: base.bgAlt, borderBottomWidth: 1, borderBottomColor: t.border, gap: 8 }, t.css.header]}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-        <SquareBtn icon="arrow-left" label="Retour" onPress={() => (mobileDetail ? setMobileDetail(false) : onClose())} />
+        <SquareBtn icon="arrow-left" label="Retour" onPress={onClose} />
         <View style={{ flexShrink: 1, minWidth: 0, marginRight: 4 }}>
           <Text numberOfLines={1} style={{ color: t.text, fontSize: t.font(18), fontWeight: '900' }}>
-            {mobileDetail && active ? active.name : tr('Données')}
+            {tr('Données')}
           </Text>
-          {!(mobileDetail && active) && (
-            <Text numberOfLines={1} style={{ color: t.textMuted, fontSize: t.font(11) }}>
-              {plural(backups.length, '{n} sauvegarde', '{n} sauvegardes')} · {plural(userTemplates.length, '{n} modèle', '{n} modèles')} · {plural(folders.length, '{n} dossier', '{n} dossiers')}
-            </Text>
-          )}
+          <Text numberOfLines={1} style={{ color: t.textMuted, fontSize: t.font(11) }}>
+            {plural(backups.length, '{n} sauvegarde', '{n} sauvegardes')} · {plural(userTemplates.length, '{n} modèle', '{n} modèles')} · {plural(folders.length, '{n} dossier', '{n} dossiers')}
+          </Text>
         </View>
-        {medium && section === 'library' && !mobileDetail && <SearchField value={filters.query} onChange={(q) => setF({ query: q })} placeholder="Rechercher dans les noms, étiquettes et messages" />}
+        {medium && section === 'library' && <SearchField value={filters.query} onChange={(q) => setF({ query: q })} placeholder="Rechercher dans les noms, étiquettes et messages" />}
         {medium && section === 'automations' && <SearchField value={filters.query} onChange={(q) => setF({ query: q })} placeholder="Rechercher une automatisation" />}
         {(!medium || section === 'transfer') && <View style={{ flex: 1 }} />}
-        {!mobileDetail && <SquareBtn icon="tray-arrow-down" label="Importer un fichier" onPress={importFile} />}
-        {!mobileDetail && <SquareBtn primary icon="content-save-outline" label="Enregistrer le brouillon" showLabel={medium} onPress={() => setDialog('save')} />}
+        <SquareBtn icon="tray-arrow-down" label="Importer un fichier" onPress={importFile} />
+        <SquareBtn primary icon="content-save-outline" label="Enregistrer le brouillon" showLabel={medium} onPress={() => setDialog('save')} />
       </View>
-      {!medium && !mobileDetail && (
+      {!medium && (
         <>
           <Segmented
             value={section}
@@ -1228,27 +1480,29 @@ export function DataScreen({
   );
 
   const automationsView = (
-    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 16, gap: t.gap, paddingBottom: insets.bottom + 32, width: '100%', maxWidth: 760, alignSelf: 'center' }}>
-      <Automations key={schedule ?? 'list'} preset={schedule} onPresetUsed={() => setSchedule(null)} query={filters.query} />
+    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ padding: 16, gap: t.gap, paddingBottom: insets.bottom + 32, width: '100%', maxWidth: 820, alignSelf: 'center' }}>
+      <Segmented
+        value={autoTab}
+        onChange={setAutoTab}
+        options={[
+          { value: 'scheduled', label: 'Envois programmés', icon: 'timer-outline' },
+          { value: 'bot', label: 'Systèmes du bot', icon: 'hardware-chip-outline' },
+        ]}
+      />
+      {autoTab === 'scheduled' ? (
+        <Automations key={schedule ?? 'list'} preset={schedule} onPresetUsed={() => setSchedule(null)} query={filters.query} />
+      ) : (
+        <BotSystems query={filters.query} />
+      )}
     </ScrollView>
   );
 
-  let body: React.ReactNode;
-  if (section === 'automations') body = automationsView;
-  else if (section === 'transfer') body = transfer;
-  else if (wide)
-    body = (
-      <View style={{ flex: 1, flexDirection: 'row' }}>
-        <View style={{ flex: 1, minWidth: 0 }}>
-          {list}
-          {selectionBar}
-        </View>
-        <View style={{ width: Math.min(480, Math.max(380, width * 0.36)), flexGrow: 0, flexShrink: 0, borderLeftWidth: 1, borderLeftColor: t.border, backgroundColor: base.bg }}>{detail}</View>
-      </View>
-    );
-  else if (mobileDetail) body = detail;
-  else
-    body = (
+  const body =
+    section === 'automations' ? (
+      automationsView
+    ) : section === 'transfer' ? (
+      transfer
+    ) : (
       <View style={{ flex: 1 }}>
         {list}
         {selectionBar}
@@ -1256,15 +1510,58 @@ export function DataScreen({
     );
 
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={() => (mobileDetail ? setMobileDetail(false) : selecting ? endSelection() : onClose())} statusBarTranslucent>
+    <Modal visible={visible} animationType="slide" onRequestClose={() => (selecting ? endSelection() : onClose())} statusBarTranslucent>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={[{ flex: 1, backgroundColor: base.bg }, t.css.sheet]}>
         {header}
         <View style={{ flex: 1, flexDirection: 'row' }}>
           {medium && sidebar}
           <View style={{ flex: 1, minWidth: 0 }}>{body}</View>
         </View>
+        {hover && hoverItem && section === 'library' && <HoverPreview item={hoverItem} folder={folderOf(hoverItem)} rect={hover.rect} />}
       </KeyboardAvoidingView>
 
+      <ContextMenu
+        visible={!!menuItem}
+        anchor={menu?.anchor ?? null}
+        title={menuItem?.name}
+        subtitle={menuItem ? (menuItem.kind === 'backup' ? tr('Sauvegarde') : menuItem.builtin ? tr('Modèle intégré') : tr('Modèle')) : undefined}
+        entries={menuItem ? menuEntries(menuItem) : []}
+        onClose={() => setMenu(null)}
+      />
+      <PreviewDialog
+        item={previewItem}
+        folder={previewItem ? folderOf(previewItem) : undefined}
+        onClose={() => setPreviewKey(null)}
+        onOpen={() => previewItem && loadItem(previewItem)}
+        onAppend={() => {
+          if (previewItem) appendItem(previewItem);
+          setPreviewKey(null);
+        }}
+        onMore={() => {
+          const k = previewKey;
+          setPreviewKey(null);
+          if (k) setTimeout(() => setMenu({ key: k, anchor: null }), 200);
+        }}
+      />
+      <RenameDialog
+        item={renameKey ? byKey.get(renameKey) ?? null : null}
+        onClose={() => setRenameKey(null)}
+        onSave={(name, description) => {
+          const it = renameKey ? byKey.get(renameKey) : undefined;
+          if (it) patchItems([it], () => (it.kind === 'template' ? { name, description } : { name }));
+          setRenameKey(null);
+        }}
+      />
+      <ItemTagsDialog
+        item={tagsKey ? byKey.get(tagsKey) ?? null : null}
+        existing={tagList.map((x) => x.tag)}
+        onClose={() => setTagsKey(null)}
+        onChange={(tags) => {
+          const it = tagsKey ? byKey.get(tagsKey) : undefined;
+          if (it) patchItems([it], () => ({ tags }));
+          setTagsKey(null);
+        }}
+      />
       <SaveDraftDialog
         visible={dialog === 'save'}
         onClose={() => setDialog(null)}
@@ -1274,7 +1571,7 @@ export function DataScreen({
         onSaved={(key) => {
           setSection('library');
           setF({ scope: 'all', tag: null, query: '' });
-          setActiveKey(key);
+          setHighlight(key);
         }}
       />
       <FolderDialog
@@ -1293,28 +1590,28 @@ export function DataScreen({
       />
       <MoveDialog
         visible={dialog === 'move'}
-        count={selEditable.length}
+        count={targetItems.length}
         folders={folders}
         onClose={() => setDialog(null)}
         onNew={() =>
           openFolderDialog(null, (id) => {
-            patchItems(selEditable, () => ({ folder: id }));
-            toast('Éléments déplacés.', 'success');
+            patchItems(targetItems, () => ({ folder: id }));
+            toast(targetItems.length > 1 ? 'Éléments déplacés.' : 'Élément déplacé.', 'success');
           })
         }
         onPick={(id) => {
-          patchItems(selEditable, () => ({ folder: id }));
+          patchItems(targetItems, () => ({ folder: id }));
           setDialog(null);
-          toast('Éléments déplacés.', 'success');
+          toast(targetItems.length > 1 ? 'Éléments déplacés.' : 'Élément déplacé.', 'success');
         }}
       />
       <TagDialog
         visible={dialog === 'tag'}
-        count={selEditable.length}
+        count={targetItems.length}
         existing={tagList.map((x) => x.tag)}
         onClose={() => setDialog(null)}
         onAdd={(tag) => {
-          patchItems(selEditable, (i) => ({ tags: i.tags.includes(tag) ? i.tags : [...i.tags, tag] }));
+          patchItems(targetItems, (i) => ({ tags: i.tags.includes(tag) ? i.tags : [...i.tags, tag] }));
           setDialog(null);
           toast(tr('Étiquette #{tag} ajoutée.', { tag }), 'success');
         }}

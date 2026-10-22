@@ -10,9 +10,11 @@ import { EditorProvider, useEditor } from './src/state/editor';
 import { ToastProvider, useToast } from './src/components/ui';
 import { SessionProvider } from './src/state/session';
 import { BotGatewayProvider } from './src/state/botGateway';
+import { BotSystemsProvider } from './src/state/botSystems';
 import { LibraryProvider } from './src/state/library';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { AlertHost } from './src/components/AlertHost';
+import { ScrollbarStyle } from './src/components/ScrollbarStyle';
 import { LinkBridge } from './src/link/DevicesSection';
 import { setRemount } from './src/link/engine';
 
@@ -40,14 +42,17 @@ function Root({ onRestored }: { onRestored: () => void }) {
   return (
     <ToastProvider>
       <SessionProvider>
+        <BotSystemsProvider>
         <BotGatewayProvider>
           <AutoRunToast>
             <StatusBar style={theme.dark ? 'light' : 'dark'} />
+            <ScrollbarStyle />
             <HomeScreen onRestored={onRestored} />
             <AlertHost />
             <LinkBridge />
           </AutoRunToast>
         </BotGatewayProvider>
+        </BotSystemsProvider>
       </SessionProvider>
     </ToastProvider>
   );
