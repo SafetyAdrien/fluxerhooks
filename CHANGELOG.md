@@ -31,6 +31,7 @@ Légende : ✨ Ajouts · 🔧 Modifications · 🐛 Correctifs · 🏗️ Build 
 - Guides mis à jour (menus contextuels, systèmes du bot) ; nouveaux textes traduits dans les 9 langues.
 
 ### 🐛 Correctifs
+- **Images d'embed par lien** : le message pouvait arriver totalement vide sur Fluxer quand le site du lien refusait les serveurs de Fluxer (Fluxer n'affiche une image que s'il en connaît les dimensions). Avant l'envoi, l'appareil télécharge maintenant l'image et la joint au message (comme une image importée) ; si le lien est inaccessible, il est envoyé tel quel. Vaut aussi pour les automatisations.
 - Menu contextuel (clic droit ou bouton ⋯) : plus de scintillement de l'écran en le fermant (clic en dehors) ; il gardait sa position pendant le fondu au lieu de basculer un instant en panneau du bas assombri.
 
 

@@ -2,7 +2,7 @@
 // L'interface est exactement celle de l'app Android (export web d'Expo, dossier web/) ;
 // ce fichier fournit ce que le navigateur seul ne sait pas faire : stockage chiffré des tokens,
 // fichiers, solveur de CAPTCHA natif, accès à l'API Fluxer sans blocage CORS, zone de notification.
-const { app, BrowserWindow, Menu, Tray, dialog, ipcMain, nativeImage, protocol, safeStorage, session, shell } = require('electron');
+const { app, BrowserWindow, Menu, Tray, dialog, ipcMain, nativeImage, net, protocol, safeStorage, session, shell } = require('electron');
 const fs = require('node:fs');
 const fsp = require('node:fs/promises');
 const path = require('node:path');
@@ -197,6 +197,50 @@ ipcMain.handle('files:store', async (_e, name, data) => {
   const file = `${crypto.randomBytes(6).toString('hex')}-${safe}`;
   await fsp.writeFile(path.join(filesDir(), file), Buffer.from(data));
   return `${ORIGIN}/userfiles/${encodeURIComponent(file)}`;
+});
+// Image d'un lien d'embed : téléchargée ici (pas de restriction d'origine), puis jointe au message
+// comme une image importée. Les copies de plus d'un jour sont supprimées au passage.
+const LINK_TYPES = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/jpg': 'jpg', 'image/gif': 'gif', 'image/webp': 'webp' };
+async function cleanLinkFiles() {
+  try {
+    const now = Date.now();
+    for (const f of await fsp.readdir(filesDir())) {
+      if (!/-link\.\w+$/.test(f)) continue;
+      const p = path.join(filesDir(), f);
+      const st = await fsp.stat(p).catch(() => null);
+      if (st && now - st.mtimeMs > 86400e3) await fsp.rm(p, { force: true });
+    }
+  } catch {
+    // dossier absent
+  }
+}
+ipcMain.handle('files:download', async (_e, url, maxBytes) => {
+  try {
+    const u = new URL(String(url));
+    if (u.protocol !== 'https:' && u.protocol !== 'http:') return null;
+    const max = Math.min(Number(maxBytes) || 8e6, 25e6);
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 20000);
+    let res;
+    try {
+      res = await net.fetch(u.toString(), { signal: ctrl.signal, headers: { Accept: 'image/*' } });
+    } finally {
+      clearTimeout(timer);
+    }
+    const type = String(res.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
+    const ext = LINK_TYPES[type];
+    const len = Number(res.headers.get('content-length') || 0);
+    if (!res.ok || !ext || (len && len > max)) return null;
+    const buf = Buffer.from(await res.arrayBuffer());
+    if (!buf.length || buf.length > max) return null;
+    await fsp.mkdir(filesDir(), { recursive: true });
+    cleanLinkFiles();
+    const file = `${crypto.randomBytes(6).toString('hex')}-link.${ext}`;
+    await fsp.writeFile(path.join(filesDir(), file), buf);
+    return { uri: `${ORIGIN}/userfiles/${encodeURIComponent(file)}`, mimeType: type === 'image/jpg' ? 'image/jpeg' : type, size: buf.length };
+  } catch {
+    return null;
+  }
 });
 ipcMain.handle('files:remove', async (_e, url) => {
   try {

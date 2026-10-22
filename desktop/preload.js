@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld('fluxerDesktop', {
     save: (name, text) => ipcRenderer.invoke('files:save', name, text),
     store: (name, data) => ipcRenderer.invoke('files:store', name, data),
     remove: (url) => ipcRenderer.invoke('files:remove', url),
+    download: (url, maxBytes) => ipcRenderer.invoke('files:download', url, maxBytes),
   },
   altcha: {
     solve: (opts) => ipcRenderer.invoke('altcha:solve', opts),

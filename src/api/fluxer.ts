@@ -1,3 +1,4 @@
+import { inlineLinkedImages } from './linkedImages';
 import { UploadForm } from '../platform/files';
 import type {
   FluxerProfile,
@@ -343,6 +344,16 @@ export async function sendToTarget(
   botToken?: string,
   channelType?: number,
 ): Promise<SentMessage & { edited: boolean }> {
+  // Nouveau message : les images d'embed données par un lien partent en fichiers joints (voir linkedImages).
+  if (!m.reference.trim()) {
+    let mediaHost = '';
+    try {
+      mediaHost = new URL(ep.media).host;
+    } catch {
+      // adresse média inconnue
+    }
+    m = await inlineLinkedImages(m, mediaHost ? [mediaHost] : []);
+  }
   const bot = parseBotTarget(url);
   if (!bot) return sendMessage(ep, url, m);
   if (!botToken) throw new FluxerError('Aucun token de bot enregistré : ajoute-le dans la carte « Bot Fluxer ».', 0);
